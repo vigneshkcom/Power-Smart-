@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aussie Green Energy - Cold Call Sales Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body, button, input, label, h4, p, span, li { font-family: 'Poppins', sans-serif; }
+        .active-tab { background: #43A8B6 !important; color: white !important; }
+        .bg-powersmart { background-color: #43A8B6; }
+        .text-powersmart { color: #43A8B6; }
+        details summary::-webkit-details-marker { display: none; }
+        .step-border { border-left-width: 4px; }
+        .step-1 { border-left-color: #000000; }
+        .step-2 { border-left-color: #43A8B6; }
+        .step-3 { border-left-color: #000000; }
+        .step-4 { border-left-color: #43A8B6; }
+        /* Anka Branding Color */
+        .bg-anka { background-color: #43A8B6; }
+        .hover-anka:hover { background-color: #1E3A8A; }
+        /* PDF Modal Styles */
+        .pdf-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .pdf-modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 400px;
+            width: 90%;
+        }
+        /* Hide PDF template from view */
+        #pdf-template { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 p-2 md:p-4 text-sm">
+
+<div class="max-w-6xl mx-auto space-y-3">
+    
+    <div class="bg-black rounded-t-lg shadow-lg overflow-hidden">
+        <div class="p-3 md:p-4 flex flex-col md:flex-row justify-between items-center gap-3">
+            <h1 class="text-white font-bold tracking-widest uppercase text-lg">AUSSIE GREEN ENERGY - COLD CALL PORTAL</h1>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="setMode('coldcall')" id="btn-coldcall" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700 active-tab">Cold Call Database</button>
+                <button onclick="setMode('inbound')" id="btn-inbound" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Inbound/Follow-up</button>
+                <button onclick="setMode('outbound')" id="btn-outbound" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Outbound (Warm Lead)</button>
+                <button onclick="setMode('social')" id="btn-social" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Social/Referral</button>
+            </div>
+        </div>
+        <div class="bg-gray-900 p-2 md:p-3 flex flex-wrap justify-center items-center gap-6 md:gap-8 border-t border-gray-800">
+            <label class="text-white text-xs font-medium flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="serviceType" value="install" checked onclick="toggleService('install')"> Installation Quote
+            </label>
+            <label class="text-white text-xs font-medium flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="serviceType" value="inspection" onclick="toggleService('inspect')"> Compliance Inspection ($131)
+            </label>
+        </div>
+    </div>
+
+    <div class="bg-white p-3 shadow-sm border rounded-lg flex flex-col md:flex-row gap-2 items-center">
+        <label class="font-bold text-gray-700 text-xs">Customer Name:</label>
+        <input type="text" id="custName" oninput="updateName()" placeholder="Enter name here..." class="flex-1 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        
+        <div class="lg:col-span-2 space-y-4">
+            
+            <div class="bg-white p-4 rounded-lg shadow step-border step-1">
+                <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 1: OPENING & INTRODUCTION</h4>
+                <p id="script-greeting" class="text-sm md:text-base italic text-gray-800 font-medium leading-relaxed">"Hi, this is [Agent Name] from Aussie Green Energy. We're contacting homeowners in your area regarding the updated Queensland smoke alarm legislation. This is just a quick review to check if your current setup meets the 2027 requirements. Do you have a moment?"</p>
+            </div>
+
+            <div id="assessment-box" class="bg-white p-4 rounded-lg shadow step-border step-2">
+                <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 2: PROPERTY REVIEW</h4>
+                <p class="mb-3 text-sm italic text-gray-700 font-medium leading-relaxed">"To give you an accurate assessment, could you tell me: How many bedrooms does your home have? Is it single or double storey? The legislation requires interconnected smoke alarms in every bedroom, connecting hallways, and on each level."</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-gray-500">No. of Bedrooms</label>
+                        <input type="number" id="bedrooms" oninput="calculate()" value="" placeholder="0" min="0" class="w-full border p-2 rounded focus:border-[#43A8B6] outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-gray-500">No. of Storeys</label>
+                        <input type="number" id="levels" oninput="toggleStoreyQuestion(); calculate();" value="" placeholder="1" min="1" class="w-full border p-2 rounded focus:border-[#43A8B6] outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase text-gray-500">No. of Hallways</label>
+                        <input type="number" id="hallways" oninput="calculate()" value="" placeholder="0" min="0" class="w-full border p-2 rounded focus:border-[#43A8B6] outline-none text-sm">
+                    </div>
+                </div>
+
+                <div id="extraStoreyBox" class="hidden bg-gray-50 p-3 rounded border border-gray-200 mb-3">
+                    <p class="text-xs font-semibold mb-1 text-gray-800">Does every level have a bedroom?</p>
+                    <div class="flex gap-4">
+                        <label class="flex items-center text-xs cursor-pointer"><input type="radio" name="allLevelsHaveBedrooms" value="yes" checked onchange="calculate()" class="mr-2 w-3 h-3"> Yes</label>
+                        <label class="flex items-center text-xs cursor-pointer"><input type="radio" name="allLevelsHaveBedrooms" value="no" onchange="calculate()" class="mr-2 w-3 h-3"> No</label>
+                    </div>
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded border border-blue-100 mb-4">
+                    <p class="text-xs font-bold text-blue-900 mb-1">Add Smoke Alarm Controller? ($49)</p>
+                    <div class="flex gap-4">
+                        <label class="flex items-center text-xs cursor-pointer"><input type="radio" name="wantController" value="no" checked onclick="toggleControllerQty(false); calculate();" class="mr-2 w-3 h-3"> No</label>
+                        <label class="flex items-center text-xs cursor-pointer"><input type="radio" name="wantController" value="yes" onclick="toggleControllerQty(true); calculate();" class="mr-2 w-3 h-3"> Yes</label>
+                    </div>
+                    <div id="controllerInput" class="hidden mt-2">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">QTY of Controllers</label>
+                        <input type="number" id="controllerQty" value="1" min="1" oninput="calculate()" class="w-full p-1.5 border-b border-blue-200 outline-none text-sm bg-transparent">
+                    </div>
+                </div>
+
+                <div class="bg-gray-100 border rounded p-3">
+                    <h5 class="font-bold text-[10px] mb-1 uppercase text-gray-600">QUEENSLAND SMOKE ALARM LEGISLATION (EFFECTIVE 01/01/2027)</h5>
+                    <ul class="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-gray-600">
+                        <li>✓ Photoelectric & Interconnected</li>
+                        <li>✓ In each bedroom & connecting hallway</li>
+                        <li>✓ Installed on each level</li>
+                        <li>✓ 10-year backup battery</li>
+                        <li>✓ Less than 10 years old</li>
+                        <li>✓ AS 3786-2014 or AS 3786-2023</li>
+                        <li>✓ Hard-wired replaced with hard-wired</li>
+                        <li>✓ 10 Year Warranty included</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="quote-script-box" class="bg-white p-4 rounded-lg shadow step-border step-3">
+                <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: PRESENTING THE REVIEW FINDINGS</h4>
+                <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
+                    <p>"Based on our review of your property details, to meet the 2027 QLD requirements, you would need approximately <span id="script-qty" class="font-bold">0</span> interconnected smoke alarms. Our electrician will confirm the exact number and placement during the installation."</p>
+                    <p>"The investment is $90 per smoke alarm, payable on installation day, plus a $35 booking fee to secure your appointment with our licensed electrician. We'll send you a secure Stripe payment link for the booking fee."</p>
+                </div>
+            </div>
+
+            <div id="inspect-script-box" class="hidden bg-white p-4 rounded-lg shadow step-border step-3">
+                <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: COMPLIANCE INSPECTION SERVICE</h4>
+                <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
+                    <p>"Our compliance inspection is $131 paid upfront via our secure Stripe link. Our electrician will assess all alarms against the 2027 QLD requirements."</p>
+                    <p>"If your home needs upgrading and you choose to proceed with us, we waive the $131 inspection fee entirely. You only pay the $35 booking fee (via Stripe) plus any required alarms."</p>
+                </div>
+            </div>
+
+            <details id="step4-details" class="bg-white rounded-lg shadow overflow-hidden">
+                <summary class="p-4 cursor-pointer list-none step-border step-4">
+                    <h4 class="text-[10px] font-bold text-gray-400 uppercase">STEP 4: SECURE REVIEW APPOINTMENT</h4>
+                    <p id="step4-hint" class="text-xs text-gray-500 mt-1">Click to expand appointment details</p>
+                </summary>
+                <div class="p-4 pt-2 space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed border-t">
+                    <p>"To schedule your review appointment, I'll need your contact details: <strong>Full name, Property address, Email address, and confirm your phone number.</strong>" (Create job in Tradify).</p>
+                    <p>"I'll send you a secure Stripe payment link for the $35 booking fee to secure your electrician appointment. Once paid, we'll schedule your installation."</p>
+                </div>
+            </details>
+        </div>
+
+        <div class="space-y-4">
+            <div class="bg-black text-white p-4 md:p-5 rounded-lg shadow-xl border-t-8 border-powersmart sticky top-4">
+                <h4 class="text-center font-bold text-[10px] tracking-widest mb-3 opacity-70 uppercase">REVIEW SUMMARY</h4>
+                <div class="space-y-2 text-xs">
+                    <div class="flex justify-between border-b border-gray-800 pb-1.5">
+                        <span>Alarms (<span id="res_alarmQty">0</span> x $90.00):</span>
+                        <span id="res_alarmTotal" class="font-bold">$0.00</span>
+                    </div>
+                    <div id="summary-controller-row" class="hidden flex justify-between border-b border-gray-800 pb-1.5">
+                        <span>Controllers (<span id="res_ctrlQty">0</span> x $49.00):</span>
+                        <span id="res_ctrlTotal" class="font-bold">$0.00</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-800 pb-1.5">
+                        <span id="lbl-upfront">Booking Fee:</span>
+                        <span id="res-upfront" class="font-bold">$35.00</span>
+                    </div>
+                    <div class="flex justify-between text-gray-500 text-[10px] pt-1">
+                        <span>Balance Due on Install:</span>
+                        <span id="res-balance">$0.00</span>
+                    </div>
+                    <div class="flex justify-between text-base md:text-lg font-black pt-2 border-t border-gray-800 mt-1">
+                        <span>TOTAL INVESTMENT:</span>
+                        <span id="res-total" class="text-powersmart font-bold">$35.00</span>
+                    </div>
+                </div>
+
+                <div class="mt-5 space-y-2">
+                    <button onclick="copySMS()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Copy Quote SMS</button>
+                    <button onclick="sendEmail()" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Email Quote Template</button>
+                    <button onclick="openPdfModal()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Download PDF Quote</button>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-gray-800 space-y-1.5">
+                    <h5 class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">Cold Call Follow-up Templates</h5>
+                    <button onclick="copyTemplateSMS(1)" class="w-full py-1.5 bg-gray-800 text-gray-300 rounded text-[9px] uppercase font-bold hover:bg-gray-700 transition">1. Initial Contact</button>
+                    <button onclick="copyTemplateSMS(2)" class="w-full py-1.5 bg-gray-800 text-gray-300 rounded text-[9px] uppercase font-bold hover:bg-gray-700 transition">2. Follow-up Review</button>
+                    <button onclick="copyTemplateSMS(3)" class="w-full py-1.5 bg-gray-800 text-gray-300 rounded text-[9px] uppercase font-bold hover:bg-gray-700 transition">3. Quote Follow-Up</button>
+                    <button onclick="copyTemplateSMS(4)" class="w-full py-1.5 bg-gray-800 text-gray-300 rounded text-[9px] uppercase font-bold hover:bg-gray-700 transition">4. Service Area Check</button>
+                </div>
+                <div class="mt-5 border-t border-gray-800 pt-4">
+                    <details class="group bg-gray-900 rounded overflow-hidden">
+                        <summary class="flex justify-between items-center cursor-pointer list-none p-3 text-[10px] font-bold uppercase tracking-widest text-white">
+                            PRODUCT & COMPLIANCE DOCUMENTS
+                            <span class="transition group-open:rotate-180">▲</span>
+                        </summary>
+                        <div class="p-2 space-y-1 text-[11px] bg-black">
+                            <a href="https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2IvYy9hMzVjZjMwMmM2YTk1ZWEwL0lRQ28xb3N1U0dMTlFaNFQ5bUZBQ1pCZEFVVXZobnZaVHlfX084blBoY0JoQnNVP2U9RUFtQldS&cid=A35CF302C6A95EA0&id=A35CF302C6A95EA0%21s2e8bd6a8624841cd9e13f6614009905d&parId=A35CF302C6A95EA0%21s5726a7d2879e427899fce731e13b3c0d&o=OneUp" target="_blank" class="block py-1.5 px-3 hover:bg-gray-900 transition border-b border-gray-800 text-gray-300"> 240 V Hardwired Smoke Alarm Manual</a>
+                            <a href="https://onedrive.live.com/?cid=a35cf302c6a95ea0&id=A35CF302C6A95EA0%21s550efaf78a5c4c47befe0b6e0019586f&resid=A35CF302C6A95EA0%21s550efaf78a5c4c47befe0b6e0019586f&ithint=file%2Cpdf&e=cS4O39&migratedtospo=true&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2IvYy9hMzVjZjMwMmM2YTk1ZWEwL0lRRDMtZzVWWElwSFRMNy1DMjRBR1ZodkFhdEFhVWZHSEVaRGxRTmZYV0oxZ2Q4P2U9Y1M0TzM5&v=validatepermission" target="_blank" class="block py-1.5 px-3 hover:bg-gray-900 transition border-b border-gray-800 text-gray-300"> Anka Battery Smoke Alarm Manual</a>
+                             </div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- Price handling block removed as requested -->
+        </div>
+    </div>
+</div>
+
+<div id="pdf-template" class="p-6 bg-white text-black text-[11px]" style="display: none; line-height: 1.2;">
+    <div class="flex justify-between items-start border-b border-black pb-2 mb-4">
+    <div>
+        <h1 class="text-xl font-bold text-black">Quotation</h1>
+            <p class="text-sm">Aussie Green Energy Pty Ltd</p>
+            <p class="text-sm">ABN: 29 617 616 823</p>
+            <p class="text-sm">Phone: 0415 040 007</p>
+            <p class="text-sm">Director: Gaurav Batra</p>
+        </div>
+        <div class="text-right">
+            <p class="font-bold">Date: <span id="pdf-date"></span></p>
+            <p id="pdf-cust-name" class="text-sm font-semibold"></p>
+            <p id="pdf-cust-address" class="text-sm"></p>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <p class="text-sm font-semibold">Property Review Details:</p>
+        <p class="text-sm">Bedrooms: <span id="pdf-bedrooms">0</span> | Storeys: <span id="pdf-storeys">1</span> | Hallways: <span id="pdf-hallways">0</span></p>
+        <p class="text-sm">Service Type: <span id="pdf-service-type">Installation</span></p>
+    </div>
+
+    <table class="w-full text-left mb-4">
+        <thead>
+            <tr class="bg-gray-100 uppercase text-xs font-bold border-b border-black">
+                <th class="py-2 px-1">Description</th>
+                <th class="py-2 px-1 text-center">Qty</th>
+                <th class="py-2 px-1 text-right">Unit Price</th>
+                <th class="py-2 px-1 text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody id="pdf-table-body" class="text-sm">
+        </tbody>
+    </table>
+
+    <div class="flex justify-end">
+        <div class="w-1/2 space-y-2 border-t pt-4">
+            <div class="flex justify-between text-sm"><span>Subtotal (Excl. GST)</span><span id="pdf-subtotal"></span></div>
+            <div class="flex justify-between text-sm"><span>GST (10%)</span><span id="pdf-gst"></span></div>
+            <div class="flex justify-between text-lg font-bold border-t-2 border-black pt-2"><span>Total (Incl. GST)</span><span id="pdf-grand-total"></span></div>
+        </div>
+    </div>
+
+<div class="mt-4 space-y-2 text-[10px] text-gray-700">
+    <p class="italic text-[9px]">* This review is an estimate based on property details discussed. Final compliance assessment requires on-site inspection by a licensed electrician.</p>
+        <p class="font-semibold">Booking Fee: What is the $35 Booking Fee?</p>
+        <p class="mb-4">This fee secures your electrician appointment for the agreed installation date. It is fully refundable if the installation cannot be completed for any reason.</p>
+        
+        <p class="font-semibold uppercase">Queensland Smoke Alarm Legislation:</p>
+        <ul style="list-style-type: disc; margin-left: 20px; column-count: 2; column-gap: 40px;">
+            <li>Photoelectric and interconnected smoke alarms</li>
+            <li>Installed in each bedroom and in hallways connecting bedrooms</li>
+            <li>Installed on each level of the dwelling</li>
+            <li>10-year sealed lithium backup battery</li>
+            <li>Compliant with AS 3786-2014 or AS 3786-2023</li>
+            <li>Hard-wired smoke alarms replaced with hard-wired where applicable</li>
+        </ul>
+
+        <p class="font-semibold mt-4">Pay Your $35 Booking Fee via Stripe:</p>
+        <p class="text-xs">
+            Visit: <a href="https://book.stripe.com/14AeVc6Xk57J7QF4CXao802" class="text-blue-600 underline">https://book.stripe.com/14AeVc6Xk57J7QF4CXao802</a>
+        </p>
+        <p class="text-xs">
+            Once payment is made, please email the remittance receipt to <a href="mailto:accounts@aussiegreenenergytrading.com.au" class="text-blue-600 underline">accounts@aussiegreenenergytrading.com.au</a> and we will get in touch to book you in. Alternatively Call 0415 040 007 to book in.
+        </p>
+
+        <p class="font-semibold mt-4">Product Assurance:</p>
+        <p class="text-xs">
+            Anka Smoke Alarms are premium-grade, photoelectric, interconnected smoke alarms designed to meet
+            Queensland compliance requirements. Each alarm supplied and installed includes a
+            <strong>10-Year Manufacturer's Warranty</strong>.
+        </p>
+    </div>
+</div>
+
+<div id="pdfModal" class="pdf-modal">
+    <div class="pdf-modal-content">
+        <h3 class="font-bold text-lg mb-4 text-black">Generate Compliance Review PDF</h3>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                <input type="text" id="pdfCustomerName" placeholder="Full Name" class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Customer Address (Optional)</label>
+                <textarea id="pdfCustomerAddress" placeholder="Street Address, Suburb, State, Postcode" rows="3" class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm"></textarea>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closePdfModal()" class="flex-1 py-2 text-gray-500 font-bold text-sm uppercase border border-gray-300 rounded">Cancel</button>
+                <button onclick="generatePDF()" class="flex-1 py-2 bg-black text-white font-bold text-sm rounded uppercase hover:bg-gray-800">Generate PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let serviceMode = 'install';
+let customerName = "";
+const formatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
+
+function setMode(type) {
+    const scripts = {
+        coldcall: "Hi, this is [Agent Name] from Aussie Green Energy. We're contacting homeowners in your area regarding the updated Queensland smoke alarm legislation. This is just a quick review to check if your current setup meets the 2027 requirements. Do you have a moment?",
+        inbound: "Good morning/afternoon, this is [Agent Name] from Aussie Green Energy. You contacted us regarding smoke alarm compliance - how can I assist you today?",
+        outbound: "Hi, this is [Agent Name] from Aussie Green Energy. I'm following up on your previous smoke alarm inquiry. Is now a good time?",
+        social: "Hi " + (customerName || "[Name]") + ", this is [Agent Name] from Aussie Green Energy calling regarding your smoke alarm compliance review."
+    };
+    document.getElementById('script-greeting').innerText = scripts[type];
+    document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('active-tab'));
+    document.getElementById('btn-' + type).classList.add('active-tab');
+}
+
+function updateName() {
+    customerName = document.getElementById('custName').value;
+    const currentBtn = document.querySelector('.active-tab');
+    if (currentBtn && currentBtn.id === 'btn-social') setMode('social');
+}
+
+function toggleService(type) {
+    serviceMode = type;
+    document.getElementById('assessment-box').classList.toggle('hidden', type === 'inspect');
+    document.getElementById('quote-script-box').classList.toggle('hidden', type === 'inspect');
+    document.getElementById('inspect-script-box').classList.toggle('hidden', type === 'install');
+    calculate();
+}
+
+function toggleStoreyQuestion() {
+    const storeys = parseInt(document.getElementById('levels').value) || 1;
+    document.getElementById('extraStoreyBox').classList.toggle('hidden', storeys <= 1);
+}
+
+function toggleControllerQty(show) {
+    document.getElementById('controllerInput').classList.toggle('hidden', !show);
+    document.getElementById('summary-controller-row').classList.toggle('hidden', !show);
+}
+
+function calculate() {
+    const bedrooms = parseInt(document.getElementById('bedrooms').value) || 0;
+    const hallways = parseInt(document.getElementById('hallways').value) || 0;
+    const storeys = parseInt(document.getElementById('levels').value) || 1;
+    const allHaveBedrooms = document.querySelector('input[name="allLevelsHaveBedrooms"]:checked').value === 'yes';
+    const wantController = document.querySelector('input[name="wantController"]:checked').value === 'yes';
+    const controllerQty = wantController ? (parseInt(document.getElementById('controllerQty').value) || 1) : 0;
+
+    let alarmCount = bedrooms + hallways;
+    if (storeys > 1 && !allHaveBedrooms) {
+        alarmCount += (storeys - 1); 
+    }
+
+    const PRICE_ALARM = 90;
+    const PRICE_CTRL = 49;
+    const FEE_BOOKING = serviceMode === 'install' ? 35 : 131;
+
+    const totalAlarmPrice = alarmCount * PRICE_ALARM;
+    const totalCtrlPrice = controllerQty * PRICE_CTRL;
+    const grandTotal = totalAlarmPrice + totalCtrlPrice + FEE_BOOKING;
+
+    document.getElementById('script-qty').innerText = alarmCount;
+    document.getElementById('res_alarmQty').innerText = alarmCount;
+    document.getElementById('res_alarmTotal').innerText = formatter.format(totalAlarmPrice);
+    document.getElementById('res_ctrlQty').innerText = controllerQty;
+    document.getElementById('res_ctrlTotal').innerText = formatter.format(totalCtrlPrice);
+
+    if (serviceMode === 'install') {
+        document.getElementById('lbl-upfront').innerText = "Booking Fee:";
+        document.getElementById('res-upfront').innerText = "$35.00";
+        document.getElementById('res-balance').innerText = formatter.format(totalAlarmPrice + totalCtrlPrice);
+    } else {
+        document.getElementById('lbl-upfront').innerText = "Inspection Fee:";
+        document.getElementById('res-upfront').innerText = "$131.00";
+        document.getElementById('res-balance').innerText = "$0.00";
+    }
+
+    document.getElementById('res-total').innerText = formatter.format(grandTotal);
+    
+    // Handle Step 4 hint visibility and auto-expand
+    const step4Details = document.getElementById('step4-details');
+    const step4Hint = document.getElementById('step4-hint');
+    
+    // Show/hide hint based on alarm count or inspection mode
+    if (alarmCount > 0 || (serviceMode === 'inspect' && FEE_BOOKING > 0)) {
+        step4Hint.classList.add('hidden');
+        step4Details.open = true;
+    } else {
+        step4Hint.classList.remove('hidden');
+        // Keep it closed if there are no alarms
+        step4Details.open = false;
+    }
+}
+
+function copySMS() {
+    const qty = document.getElementById('res_alarmQty').innerText;
+    const alarmTotal = document.getElementById('res_alarmTotal').innerText;
+    const grandTotal = document.getElementById('res-total').innerText;
+    const controllerQty = document.getElementById('res_ctrlQty').innerText;
+    const controllerTotal = document.getElementById('res_ctrlTotal').innerText;
+    const hasControllers = controllerQty > 0;
+    const stripeLink = "https://book.stripe.com/14AeVc6Xk57J7QF4CXao802";
+    
+    let breakdown = "";
+    if (serviceMode === 'install') {
+        breakdown = `\n\nReview Summary:\n- Smoke Alarms (${qty} x $90.00): ${alarmTotal}`;
+        if (hasControllers) {
+            breakdown += `\n- Controllers (${controllerQty} x $49.00): ${controllerTotal}`;
+        }
+        breakdown += `\n- Booking Fee: $35.00\n- Total Investment: ${grandTotal}`;
+    } else {
+        breakdown = `\n\nReview Summary:\n- Compliance Inspection: $131.00\n- Total: ${grandTotal}`;
+    }
+    
+    const body = `Hi,\n\nAs discussed during our compliance review, your property would require approximately ${qty} interconnected smoke alarms to meet QLD legislation.${breakdown}\n\nThis is an estimate based on our discussion.\n\nTo secure your appointment, please pay the booking fee via our secure Stripe link:\n${stripeLink}\n\nIf you have any questions, please reply to this SMS or call us on 0415 040 007.\n\nRegards,\nAussie Green Energy Pty Ltd`;
+    
+    navigator.clipboard.writeText(body);
+    alert("SMS Template Copied with Stripe Link!");
+}
+
+function copyTemplateSMS(index) {
+    const nameStr = customerName || "[Name]";
+    let body = "";
+
+    switch(index) {
+        case 1:
+            body = `Hi ${nameStr}, this is Aussie Green Energy.\n\nWe're contacting homeowners in your area regarding the updated Queensland smoke alarm legislation effective 2027.\n\nWe offer a quick compliance review to check if your current setup meets requirements. When you have a moment, please call us on 0415 040 007 or reply here with a preferred time.\n\nRegards,\nThe Aussie Green Energy Team`;
+            break;
+        case 2:
+            body = `Hi ${nameStr}, this is Aussie Green Energy following up on our recent discussion about smoke alarm compliance.\n\nIf you're still considering the compliance upgrade, we can schedule your electrician appointment. Let us know a good time to chat or call us back on 0415 040 007.\n\nRegards,\nAussie Green Energy Pty Ltd`;
+            break;
+        case 3:
+            body = `Hi ${nameStr}, this is Aussie Green Energy checking in regarding the compliance review we discussed.\n\nHappy to answer any questions or help schedule your installation when convenient. We can also confirm electrician availability for your area.\n\nReply here or call us on 0415 040 007.\n\nRegards,\nAussie Green Energy Pty Ltd`;
+            break;
+        case 4:
+            body = `Hi ${nameStr}, this is Aussie Green Energy. Thanks for your interest in our smoke alarm compliance service.\n\nWe're currently checking service availability in your suburb. We'll contact you once confirmed. If urgent, please call 0415 040 007.\n\nRegards,\nAussie Green Energy`;
+            break;
+    }
+
+    navigator.clipboard.writeText(body);
+    alert("Template " + index + " Copied!");
+}
+
+function sendEmail() {
+    const qty = document.getElementById('res_alarmQty').innerText;
+    const alarmTotal = document.getElementById('res_alarmTotal').innerText;
+    const grandTotal = document.getElementById('res-total').innerText;
+    const controllerQty = document.getElementById('res_ctrlQty').innerText;
+    const controllerTotal = document.getElementById('res_ctrlTotal').innerText;
+    const hasControllers = controllerQty > 0;
+    const nameStr = customerName || "customer";
+    const stripeLink = "https://book.stripe.com/14AeVc6Xk57J7QF4CXao802";
+
+    let breakdown = "";
+    if (serviceMode === 'install') {
+        breakdown = `\n\nReview Summary:\n- Smoke Alarms (${qty} x $90.00): ${alarmTotal}`;
+        if (hasControllers) {
+            breakdown += `\n- Controllers (${controllerQty} x $49.00): ${controllerTotal}`;
+        }
+        breakdown += `\n- Booking Fee: $35.00\n- Total Investment: ${grandTotal}`;
+    } else {
+        breakdown = `\n\nReview Summary:\n- Compliance Inspection: $131.00\n- Total: ${grandTotal}`;
+    }
+
+    const body = encodeURIComponent(`Hi ${nameStr},\n\nAs discussed during our compliance review, your property would require approximately ${qty} interconnected smoke alarms to meet QLD legislation.${breakdown}\n\nThis is an estimate based on our discussion.\n\nTo secure your appointment, please pay the booking fee via our secure Stripe link:\n${stripeLink}\n\nIf you have any questions, please reply to this email or call us on 0415 040 007.\n\nRegards,\nAussie Green Energy Pty Ltd\nABN: 29 617 616 823`);
+    
+    window.location.href = `mailto:?subject=Your Smoke Alarm Compliance Review - Aussie Green Energy&body=${body}`;
+}
+
+// PDF Functions
+function openPdfModal() {
+    const nameField = document.getElementById('pdfCustomerName');
+    const addressField = document.getElementById('pdfCustomerAddress');
+    
+    // Pre-fill name if available from main form
+    if (customerName) {
+        nameField.value = customerName;
+    } else {
+        nameField.value = '';
+    }
+    addressField.value = '';
+    
+    document.getElementById('pdfModal').style.display = 'flex';
+}
+
+function closePdfModal() {
+    document.getElementById('pdfModal').style.display = 'none';
+}
+
+function generatePDF() {
+    const name = document.getElementById('pdfCustomerName').value.trim();
+    const address = document.getElementById('pdfCustomerAddress').value.trim();
+    
+    if (!name) { 
+        alert("Please enter customer name."); 
+        return; 
+    }
+    
+    // Get current quote data
+    const bedrooms = parseInt(document.getElementById('bedrooms').value) || 0;
+    const hallways = parseInt(document.getElementById('hallways').value) || 0;
+    const storeys = parseInt(document.getElementById('levels').value) || 1;
+    const alarmQty = parseInt(document.getElementById('res_alarmQty').innerText) || 0;
+    const ctrlQty = parseInt(document.getElementById('res_ctrlQty').innerText) || 0;
+    const grandTotalText = document.getElementById('res-total').innerText;
+    
+    // Parse the grand total
+    const grandTotal = parseFloat(grandTotalText.replace(/[^\d.-]/g, ''));
+    
+    // Calculate subtotal and GST
+    const subtotal = grandTotal / 1.1;
+    const gst = grandTotal - subtotal;
+
+    // Build PDF content
+    document.getElementById('pdf-date').innerText = new Date().toLocaleDateString('en-AU');
+    document.getElementById('pdf-cust-name').innerText = name;
+    document.getElementById('pdf-cust-address').innerText = address;
+    document.getElementById('pdf-bedrooms').innerText = bedrooms;
+    document.getElementById('pdf-storeys').innerText = storeys;
+    document.getElementById('pdf-hallways').innerText = hallways;
+    document.getElementById('pdf-service-type').innerText = serviceMode === 'install' ? 'Installation' : 'Inspection';
+
+    let rows = '';
+    if (serviceMode === 'install') {
+        if (alarmQty > 0) {
+            rows += `<tr><td class="py-2 border-b">Anka Smoke Alarms - Photoelectric, Interconnected</td><td class="text-center border-b">${alarmQty}</td><td class="text-right border-b">$90.00</td><td class="text-right border-b">${formatter.format(alarmQty * 90)}</td></tr>`;
+        }
+        if (ctrlQty > 0) {
+            rows += `<tr><td class="py-2 border-b">Smoke Alarm Controller</td><td class="text-center border-b">${ctrlQty}</td><td class="text-right border-b">$49.00</td><td class="text-right border-b">${formatter.format(ctrlQty * 49)}</td></tr>`;
+        }
+        rows += `<tr><td class="py-2 border-b">Electrician Booking Fee</td><td class="text-center border-b">1</td><td class="text-right border-b">$35.00</td><td class="text-right border-b">$35.00</td></tr>`;
+    } else {
+        rows += `<tr><td class="py-2 border-b">Smoke Alarm Inspection Service</td><td class="text-center border-b">1</td><td class="text-right border-b">$131.00</td><td class="text-right border-b">$131.00</td></tr>`;
+    }
+    
+    document.getElementById('pdf-table-body').innerHTML = rows;
+    document.getElementById('pdf-subtotal').innerText = formatter.format(subtotal);
+    document.getElementById('pdf-gst').innerText = formatter.format(gst);
+    document.getElementById('pdf-grand-total').innerText = formatter.format(grandTotal);
+
+    const element = document.getElementById('pdf-template');
+    
+    // Temporarily show for capture
+    const originalDisplay = element.style.display;
+    element.style.display = 'block';
+
+    const opt = {
+    margin: 5,
+    filename: `AussieGreenEnergy_Quote_${name.replace(/\s+/g, '_')}.pdf`,
+    html2canvas: { 
+        scale: 2, 
+        useCORS: true,
+        logging: false,
+        letterRendering: true
+    },
+        jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait' 
+        }
+    };
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        // Restore original display
+        element.style.display = originalDisplay;
+        closePdfModal();
+        // Clear the form fields after download
+        document.getElementById('pdfCustomerName').value = '';
+        document.getElementById('pdfCustomerAddress').value = '';
+    }).catch(err => {
+        console.error('PDF generation error:', err);
+        alert('Error generating PDF. Please try again.');
+        element.style.display = originalDisplay;
+    });
+}
+
+// Initialize
+setMode('coldcall');
+</script>
+
+</body>
+</html>
