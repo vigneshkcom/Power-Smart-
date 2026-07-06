@@ -30,19 +30,24 @@ archive/              Retired / other-brand files, kept for reference
 
 See `assets/README.md` for how to upload media and get its public URL.
 
-## Sending quotes via Resend (planned)
+## Sending quotes via Resend
 
-The tools portal currently copies SMS text, opens a mail draft, and downloads
-a PDF quote. To email quotes directly through [Resend](https://resend.com):
+The tools portal's **Email Quote to Customer** button POSTs quantities to
+`api/send-quote.js`, which computes pricing server-side, renders a branded
+HTML quote email (logo + product photos hosted in `assets/`) and sends it
+through [Resend](https://resend.com) from `support@powersmartco.com.au`.
 
-1. A serverless function lives at `api/send-quote.js` and is called by the
-   portal (`POST /api/send-quote`) with the quote details.
-2. The Resend API key is stored as a Vercel environment variable
-   (`RESEND_API_KEY`) — never in the client HTML, so it stays private.
-3. Set the verified sending domain/address in the same function.
+Environment variables (Vercel → Settings → Environment Variables):
 
-> The API key and sending address are added later — this section documents
-> where they plug in.
+| Name | Required | Purpose |
+|---|---|---|
+| `RESEND_API_KEY` | yes | Resend API key |
+| `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
+| `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
+
+Sending only works once `powersmartco.com.au` is **verified** in Resend →
+Domains (SPF/DKIM DNS records added at the DNS provider). If sending fails,
+the portal falls back to opening a plain mail draft.
 
 ## Local preview
 

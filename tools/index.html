@@ -68,9 +68,19 @@
         </div>
     </div>
 
-    <div class="bg-white p-3 shadow-sm border rounded-lg flex flex-col md:flex-row gap-2 items-center">
-        <label class="font-bold text-gray-700 text-xs">Customer Name:</label>
-        <input type="text" id="custName" oninput="updateName()" placeholder="Enter name here..." class="flex-1 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+    <div class="bg-white p-3 shadow-sm border rounded-lg grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+        <div class="flex items-center gap-2">
+            <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Agent Name:</label>
+            <input type="text" id="agentName" oninput="updateAgentName()" placeholder="Your name..." class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+        </div>
+        <div class="flex items-center gap-2">
+            <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Customer Name:</label>
+            <input type="text" id="custName" oninput="updateName()" placeholder="Enter name here..." class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+        </div>
+        <div class="flex items-center gap-2">
+            <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Customer Email:</label>
+            <input type="email" id="custEmail" placeholder="name@example.com" class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -192,7 +202,7 @@
 
                 <div class="mt-5 space-y-2">
                     <button onclick="copySMS()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Copy Quote SMS</button>
-                    <button onclick="sendEmail()" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Email Quote Template</button>
+                    <button onclick="sendEmail()" id="sendEmailBtn" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Email Quote to Customer</button>
                     <button onclick="openPdfModal()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Download PDF Quote</button>
                 </div>
 
@@ -323,7 +333,24 @@
 <script>
 let serviceMode = 'install';
 let customerName = "";
+let agentName = "";
 const formatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
+
+// Remember the agent's name between quotes on this device.
+(function initAgentName() {
+    try {
+        const saved = localStorage.getItem('powersmart_agent_name');
+        if (saved) {
+            agentName = saved;
+            document.getElementById('agentName').value = saved;
+        }
+    } catch (e) { /* storage unavailable */ }
+})();
+
+function updateAgentName() {
+    agentName = document.getElementById('agentName').value.trim();
+    try { localStorage.setItem('powersmart_agent_name', agentName); } catch (e) {}
+}
 
 function setMode(type) {
     const scripts = {
@@ -462,19 +489,18 @@ function copyTemplateSMS(index) {
     alert("Template " + index + " Copied!");
 }
 
-function sendEmail() {
+function buildPlainTextQuote() {
     const qty = document.getElementById('res_alarmQty').innerText;
     const alarmTotal = document.getElementById('res_alarmTotal').innerText;
     const grandTotal = document.getElementById('res-total').innerText;
     const controllerQty = document.getElementById('res_ctrlQty').innerText;
     const controllerTotal = document.getElementById('res_ctrlTotal').innerText;
-    const hasControllers = controllerQty > 0;
     const nameStr = customerName || "customer";
 
     let breakdown = "";
     if (serviceMode === 'install') {
         breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $90.00): ${alarmTotal}`;
-        if (hasControllers) {
+        if (controllerQty > 0) {
             breakdown += `\n- Controllers (${controllerQty} x $49.00): ${controllerTotal}`;
         }
         breakdown += `\n- Booking Fee: $35.00\n- Total: ${grandTotal}`;
@@ -482,9 +508,57 @@ function sendEmail() {
         breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $131.00\n- Total: ${grandTotal}`;
     }
 
-    const body = encodeURIComponent(`Hi ${nameStr},\n\nAs discussed, based on the information you provided, your property requires ${qty} interconnected smoke alarms to meet QLD smoke alarm legislation.${breakdown}\n\nThis is an estimate based on the information provided.\n\nIf you have any questions or would like to proceed, please reply to this email or call us on 07 2141 7792.\n\nRegards,\nPower Smart Pty Ltd`);
-    
-    window.location.href = `mailto:?subject=Your Smoke Alarm Quote - Power Smart Co&body=${body}`;
+    return `Hi ${nameStr},\n\nAs discussed, based on the information you provided, your property requires ${qty} interconnected smoke alarms to meet QLD smoke alarm legislation.${breakdown}\n\nThis is an estimate based on the information provided.\n\nIf you have any questions or would like to proceed, please reply to this email or call us on 07 2141 7792.\n\nRegards,\nPower Smart Pty Ltd`;
+}
+
+async function sendEmail() {
+    const toEmail = document.getElementById('custEmail').value.trim();
+    const alarmQty = parseInt(document.getElementById('res_alarmQty').innerText) || 0;
+    const controllerQty = parseInt(document.getElementById('res_ctrlQty').innerText) || 0;
+
+    if (!toEmail) {
+        alert("Enter the customer's email address (top right) before sending.");
+        document.getElementById('custEmail').focus();
+        return;
+    }
+    if (serviceMode === 'install' && alarmQty < 1) {
+        alert("Enter the property details first so the quote has at least 1 alarm.");
+        return;
+    }
+
+    const btn = document.getElementById('sendEmailBtn');
+    const originalLabel = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = 'SENDING...';
+
+    try {
+        const res = await fetch('/api/send-quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customerEmail: toEmail,
+                customerName: customerName,
+                agentName: agentName,
+                serviceMode: serviceMode === 'inspect' ? 'inspect' : 'install',
+                alarmQty: alarmQty,
+                controllerQty: controllerQty
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+            alert(`Quote emailed to ${toEmail} ✓`);
+        } else {
+            alert(`Couldn't send automatically: ${data.error || 'server error'}.\n\nOpening your email app as a backup.`);
+            window.location.href = `mailto:${toEmail}?subject=${encodeURIComponent('Your Smoke Alarm Quote - Power Smart Co')}&body=${encodeURIComponent(buildPlainTextQuote())}`;
+        }
+    } catch (err) {
+        alert("Couldn't reach the email service.\n\nOpening your email app as a backup.");
+        window.location.href = `mailto:${toEmail}?subject=${encodeURIComponent('Your Smoke Alarm Quote - Power Smart Co')}&body=${encodeURIComponent(buildPlainTextQuote())}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = originalLabel;
+    }
 }
 
 // PDF Functions

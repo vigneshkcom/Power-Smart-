@@ -1,0 +1,9 @@
+{
+  "name": "powersmart-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PowerSmart QLD smoke alarm landing page, staff tools portal and quote-email API, deployed on Vercel.",
+  "dependencies": {
+    "resend": "^6.17.1"
+  }
+}
