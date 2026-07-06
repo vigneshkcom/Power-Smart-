@@ -567,6 +567,7 @@
         <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Licensed &amp; insured electricians</li>
         <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Compliant to AS 3786-2014/2023</li>
         <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> 10-year manufacturer warranty</li>
+        <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Same-day compliance certificate</li>
       </ul>
       <div class="hero-ctas">
         <a class="btn btn-primary btn-lg" href="#calculator">
@@ -604,26 +605,13 @@
             <input type="tel" id="lf-phone" name="phone" placeholder="04XX XXX XXX" autocomplete="tel" required>
           </div>
           <div class="field">
-            <label for="lf-suburb">Suburb / postcode</label>
-            <input type="text" id="lf-suburb" name="suburb" placeholder="e.g. Carindale 4152" required>
+            <label for="lf-postcode">Postcode</label>
+            <input type="text" id="lf-postcode" name="postcode" placeholder="e.g. 4152" inputmode="numeric" autocomplete="postal-code" required>
           </div>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label for="lf-bedrooms">Bedrooms</label>
-            <select id="lf-bedrooms" name="bedrooms">
-              <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6+</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="lf-status">This property is…</label>
-            <select id="lf-status" name="status">
-              <option selected>My own home</option>
-              <option>A rental property</option>
-              <option>Being sold</option>
-              <option>Other / not sure</option>
-            </select>
-          </div>
+        <div class="field">
+          <label for="lf-email">Email</label>
+          <input type="email" id="lf-email" name="email" placeholder="you@example.com" autocomplete="email" required>
         </div>
         <button type="submit" class="btn btn-primary btn-lg">
           Get my free quote
@@ -827,6 +815,7 @@
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Installed by a licensed electrician</li>
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Full interconnection &amp; testing of every alarm</li>
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Placement to QLD legislation &amp; AS 3786</li>
+          <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Compliance certificate issued on the day</li>
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 10-year manufacturer warranty</li>
         </ul>
         <a class="btn btn-primary" href="#calculator">Estimate my home</a>
@@ -890,8 +879,8 @@
       <div class="step-card reveal">
         <p class="step-num">STEP 04</p>
         <span class="ic"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
-        <h4>You're covered for 10 years</h4>
-        <p>Walk away fully compliant with the 2027 legislation, with a 10-year manufacturer warranty on every alarm we install.</p>
+        <h4>Certified compliant, same day</h4>
+        <p>You receive your compliance certificate on the day of installation, plus a 10-year manufacturer warranty on every alarm we install.</p>
       </div>
     </div>
   </div>
@@ -901,9 +890,9 @@
 <section class="section" id="product">
   <div class="container">
     <div class="section-head center reveal">
-      <span class="eyebrow">The Hardware</span>
-      <h2 class="h2">See exactly what we install</h2>
-      <p class="lead">Premium photoelectric alarms and accessories, certified to AS 3786-2014/2023 — this is what will be protecting your family.</p>
+      <span class="eyebrow">What We Install</span>
+      <h2 class="h2">See exactly what goes on your ceiling</h2>
+      <p class="lead">Our licensed electricians install premium photoelectric alarms certified to AS 3786-2014/2023 to make your home compliant — and hand you your <strong>compliance certificate the same day</strong>.</p>
     </div>
     <div class="range-grid">
       <div class="range-card reveal">
@@ -911,9 +900,9 @@
           <img src="assets/email/smoke-alarm-pair-angled.jpg" alt="Battery operated photoelectric smoke alarms with wireless interconnection" loading="lazy" decoding="async">
         </div>
         <div class="rc-body">
-          <span class="rc-tag">Most homes</span>
+          <span class="rc-tag">Bedrooms, hallways &amp; every level</span>
           <h3>Battery Operated Smoke Alarm</h3>
-          <p>Wireless interconnection with no house wiring required. Powered by a 10-year sealed lithium battery — no chirps, no yearly battery swaps.</p>
+          <p>What we install in your bedrooms, hallways and remaining locations — wireless interconnection with no house wiring required, powered by a 10-year sealed lithium battery.</p>
         </div>
       </div>
       <div class="range-card reveal">
@@ -931,9 +920,9 @@
           <img src="assets/email/hardwired-smoke-alarm-wiring.jpg" alt="240V hardwired photoelectric smoke alarm with mains wiring" loading="lazy" decoding="async">
         </div>
         <div class="rc-body">
-          <span class="rc-tag">New builds &amp; existing hardwired</span>
+          <span class="rc-tag">Replacing existing hardwired</span>
           <h3>240V Hardwired Smoke Alarm</h3>
-          <p>Mains powered with a 10-year backup battery. Required where your existing alarms are hardwired, and the top choice for new builds and renovations.</p>
+          <p>If your home already has hardwired alarms, the law requires like-for-like replacement — our electricians swap them for compliant hardwired units with a 10-year backup battery.</p>
         </div>
       </div>
     </div>
@@ -1089,7 +1078,7 @@
       </details>
       <details class="faq-item">
         <summary>Who does the installation, and what warranty do I get?<span class="plus"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></summary>
-        <div class="faq-body">All work is completed by licensed, insured electricians. Every Anka alarm we install carries a 10-year manufacturer's warranty — the same lifespan the legislation requires — so one visit covers you for the full compliance cycle.</div>
+        <div class="faq-body">All work is completed by licensed, insured electricians, and you receive your compliance certificate on the day of installation. Every alarm we install carries a 10-year manufacturer's warranty — the same lifespan the legislation requires — so one visit covers you for the full compliance cycle.</div>
       </details>
     </div>
   </div>
@@ -1299,15 +1288,15 @@
     e.preventDefault();
     var name = $("lf-name").value.trim();
     var phone = $("lf-phone").value.trim();
-    var suburb = $("lf-suburb").value.trim();
-    if (!name || !phone || !suburb){ form.reportValidity(); return; }
+    var email = $("lf-email").value.trim();
+    var postcode = $("lf-postcode").value.trim();
+    if (!name || !phone || !email || !postcode){ form.reportValidity(); return; }
 
     var lead = {
       name: name,
       phone: phone,
-      suburb: suburb,
-      bedrooms: $("lf-bedrooms").value,
-      property: $("lf-status").value,
+      email: email,
+      postcode: postcode,
       source: "QLD Smoke Alarm Landing Page",
       submitted: new Date().toISOString()
     };
@@ -1334,12 +1323,11 @@
       "New smoke alarm quote request\n\n" +
       "Name: " + lead.name + "\n" +
       "Phone: " + lead.phone + "\n" +
-      "Suburb: " + lead.suburb + "\n" +
-      "Bedrooms: " + lead.bedrooms + "\n" +
-      "Property: " + lead.property + "\n" +
+      "Email: " + lead.email + "\n" +
+      "Postcode: " + lead.postcode + "\n" +
       "Source: " + lead.source;
     window.location.href = "mailto:" + LEAD_EMAIL +
-      "?subject=" + encodeURIComponent("Quote request — " + lead.name + " (" + lead.suburb + ")") +
+      "?subject=" + encodeURIComponent("Quote request — " + lead.name + " (" + lead.postcode + ")") +
       "&body=" + encodeURIComponent(body);
   }
 
