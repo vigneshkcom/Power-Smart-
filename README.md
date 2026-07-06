@@ -6,8 +6,12 @@ Static site deployed on Vercel (production branch: `main`).
 
 | Purpose | URL | Source file |
 |---|---|---|
-| **Customer landing page** (public, for ads/marketing) | `https://power-smart-two.vercel.app/` | `index.html` |
-| **Staff quote tool** (internal — build & send quotes) | `https://power-smart-two.vercel.app/tools` | `tools/index.html` |
+| **Customer landing page** (public, for ads/marketing) | `https://smokealarms.powersmartco.com.au/` | `index.html` |
+| **Staff quote tool** (internal — build & send quotes) | `https://smokealarms.powersmartco.com.au/tools` | `tools/index.html` |
+
+The Vercel-provided domain (`https://power-smart-two.vercel.app/`) still works and serves
+the same content — `smokealarms.powersmartco.com.au` is a custom domain attached to the
+same project.
 
 Old links still work via redirects in `vercel.json`:
 `/sales-portal.html` → `/tools`, `/qld-smoke-alarms.html` → `/`.
