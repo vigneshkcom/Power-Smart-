@@ -11,6 +11,9 @@ load local files, only real `https://` links).
   built into `index.html`/`tools/index.html`.
 - **`assets/email/`** — images for quote emails once we design them (header
   banner, product photos, icons, signature images, etc).
+- **`assets/manuals/`** — product manuals (PDF) — e.g. smoke alarm and
+  controller install/user manuals — hosted directly instead of OneDrive
+  links, so they're linkable from the tools portal and quote emails.
 
 ## How to upload (no local git needed)
 
@@ -26,6 +29,7 @@ Once a file is on `main`, Vercel auto-deploys it and it's reachable at:
 ```
 https://smokealarms.powersmartco.com.au/assets/email/<filename>
 https://smokealarms.powersmartco.com.au/assets/logo/<filename>
+https://smokealarms.powersmartco.com.au/assets/manuals/<filename>
 ```
 
 (Also reachable via the same paths on `power-smart-two.vercel.app`.)
