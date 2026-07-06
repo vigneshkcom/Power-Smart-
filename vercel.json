@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/sales-portal.html", "destination": "/tools", "permanent": true },
+    { "source": "/sales-portal", "destination": "/tools", "permanent": true },
+    { "source": "/portal", "destination": "/tools", "permanent": false },
+    { "source": "/qld-smoke-alarms.html", "destination": "/", "permanent": true },
+    { "source": "/qld-smoke-alarms", "destination": "/", "permanent": true },
+    { "source": "/AussieGreenEnergySmokeAlarms.html", "destination": "/archive/AussieGreenEnergySmokeAlarms.html", "permanent": false }
+  ]
+}
