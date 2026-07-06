@@ -22,9 +22,13 @@ Old links still work via redirects in `vercel.json`:
 index.html            Customer-facing landing page (root of the site)
 tools/index.html      Staff sales portal — quote calculator, SMS/email/PDF
 vercel.json           Clean URLs + redirects (preserves old links)
+assets/logo/          PowerSmart logo files (upload via GitHub web UI)
+assets/email/         Images for quote emails (upload via GitHub web UI)
 api/                  (planned) Vercel serverless functions
 archive/              Retired / other-brand files, kept for reference
 ```
+
+See `assets/README.md` for how to upload media and get its public URL.
 
 ## Sending quotes via Resend (planned)
 
