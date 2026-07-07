@@ -25,11 +25,15 @@ tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
 tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
+api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
+api/_maillog.js       Logs every outbound email to Supabase sent_emails (not a route)
 api/send-quote.js     POST /api/send-quote  — emails a customer their quotation
+api/send-email.js     POST /api/send-email  — free-form branded email (composer)
 api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was accepted
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
-supabase/schema.sql   Run once in Supabase SQL Editor to create the tables
+supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
+supabase/emails.sql   Run once — sent_emails log table
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
 assets/email/         Product photos used on the site and in quote emails
@@ -86,6 +90,24 @@ Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
 
 Setup: run `supabase/schema.sql` in the Supabase SQL Editor, then add the
 three pipeline env vars in Vercel and redeploy.
+
+## Senders, composer & email log
+
+- **Agent**: opening `/tools` asks who's using it — **Mani** or **Vignesh**
+  (remembered per device). This tags quotes, composed emails and pipeline notes.
+- **Send as**: every quote/email has a *Send as* picker — **Customer Service**,
+  **Mani**, or **Vignesh**. It sets the From display name (e.g. "Mani —
+  PowerSmart", address stays `support@`) and the signature. Defaults to the
+  logged-in agent.
+- **Compose Email**: the *Compose Email* button on `/tools` opens a box (To,
+  Subject, Message, Send as). The message is wrapped in the branded template
+  with the sender's signature and sent via `/api/send-email`.
+- **Email log**: every email sent to a customer (quotes + composed) is recorded
+  in the Supabase `sent_emails` table. Run `supabase/emails.sql` once to create it.
+
+Optional env var `RESEND_FROM_ADDRESS` overrides the bare send address
+(default `support@powersmartco.com.au`); the display name comes from the
+selected sender.
 
 Sending only works once `powersmartco.com.au` is **verified** in Resend →
 Domains (SPF/DKIM DNS records added at the DNS provider). If sending fails,

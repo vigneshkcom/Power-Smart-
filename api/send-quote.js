@@ -8,6 +8,8 @@
 
 const Q = require("./_quote");
 const SB = require("./_supabase");
+const S = require("./_senders");
+const { logEmail } = require("./_maillog");
 
 async function recordInPipeline({ customerName, customerEmail, agentName, ref, total }) {
   if (!SB.configured()) return;
@@ -55,6 +57,7 @@ module.exports = async (req, res) => {
   const customerEmail = b.customerEmail;
   const customerName = String(b.customerName || "").slice(0, 120).trim();
   const agentName = String(b.agentName || "").slice(0, 120).trim();
+  const sender = S.resolveSender(b.sendAs);
   const { serviceMode, alarmQty, controllerQty } = Q.normalise(b);
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
@@ -73,18 +76,24 @@ module.exports = async (req, res) => {
   const resend = new Resend(apiKey);
   const notify = process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL;
 
+  const subject = `Your Smoke Alarm Compliance Quotation (${ref}) — PowerSmart`;
+
   try {
     const { data, error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || `PowerSmart <${Q.SUPPORT_EMAIL}>`,
+      from: S.fromHeader(sender.key),
       to: customerEmail,
       replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
       bcc: notify,
-      subject: `Your Smoke Alarm Compliance Quotation (${ref}) — PowerSmart`,
+      subject,
       html: rendered.html,
       text: rendered.text,
     });
-    if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    if (error) {
+      await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
+      return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    }
     await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total });
+    await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, provider_id: data && data.id, status: "sent" });
     return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error sending email" });

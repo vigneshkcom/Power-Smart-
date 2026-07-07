@@ -71,8 +71,11 @@
 
     <div class="bg-white p-3 shadow-sm border rounded-lg grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
         <div class="flex items-center gap-2">
-            <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Agent Name:</label>
-            <input type="text" id="agentName" oninput="updateAgentName()" placeholder="Your name..." class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+            <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Agent:</label>
+            <button type="button" onclick="openAgentPicker()" id="agentBadge" class="flex-1 min-w-0 p-2 border rounded-md text-left text-sm bg-gray-50 hover:bg-gray-100 transition flex items-center justify-between">
+                <span id="agentBadgeLabel" class="font-semibold text-gray-800 truncate">Choose…</span>
+                <span class="text-[10px] text-gray-400 uppercase font-bold ml-2">Switch</span>
+            </button>
         </div>
         <div class="flex items-center gap-2">
             <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Customer Name:</label>
@@ -202,8 +205,17 @@
                 </div>
 
                 <div class="mt-5 space-y-2">
+                    <div class="flex items-center gap-2 bg-gray-900 rounded p-2">
+                        <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Send as</label>
+                        <select id="sendAs" class="flex-1 min-w-0 bg-gray-800 text-white text-xs rounded px-2 py-1 outline-none border border-gray-700">
+                            <option value="customer_service">Customer Service</option>
+                            <option value="mani">Mani</option>
+                            <option value="vignesh">Vignesh</option>
+                        </select>
+                    </div>
                     <button onclick="copySMS()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Copy Quote SMS</button>
                     <button onclick="sendEmail()" id="sendEmailBtn" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Email Quote to Customer</button>
+                    <button onclick="openComposer()" class="w-full py-2 bg-gray-700 text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-600 transition">✉ Compose Email</button>
                     <button onclick="openPdfModal()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Download PDF Quote</button>
                 </div>
 
@@ -331,27 +343,98 @@
     </div>
 </div>
 
+<!-- Agent picker modal -->
+<div id="agentModal" class="pdf-modal">
+    <div class="pdf-modal-content" style="max-width:360px;text-align:center;">
+        <h3 class="font-bold text-lg mb-1 text-black">Who's using the portal?</h3>
+        <p class="text-xs text-gray-500 mb-4">This tags your quotes, emails and pipeline notes.</p>
+        <div class="space-y-2">
+            <button onclick="setAgent('Mani')" class="w-full py-3 bg-powersmart text-white rounded font-bold hover:bg-blue-800 transition">Mani</button>
+            <button onclick="setAgent('Vignesh')" class="w-full py-3 bg-gray-800 text-white rounded font-bold hover:bg-gray-700 transition">Vignesh</button>
+        </div>
+    </div>
+</div>
+
+<!-- Email composer modal -->
+<div id="composerModal" class="pdf-modal">
+    <div class="pdf-modal-content" style="max-width:560px;">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-lg text-black">Send an email</h3>
+            <button onclick="closeComposer()" class="text-gray-400 hover:text-black text-xl leading-none">&times;</button>
+        </div>
+        <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 uppercase mb-1">To (email)</label>
+                    <input type="email" id="cmpTo" placeholder="name@example.com" class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-500 uppercase mb-1">Send as</label>
+                    <select id="cmpSendAs" class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm bg-white">
+                        <option value="customer_service">Customer Service</option>
+                        <option value="mani">Mani</option>
+                        <option value="vignesh">Vignesh</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase mb-1">Subject</label>
+                <input type="text" id="cmpSubject" placeholder="e.g. Your smoke alarm booking" class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-gray-500 uppercase mb-1">Message</label>
+                <textarea id="cmpMessage" rows="8" placeholder="Write your message… your PowerSmart signature is added automatically." class="w-full border p-2 rounded outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm"></textarea>
+                <p class="text-[10px] text-gray-400 mt-1">Signed off automatically with the selected sender's PowerSmart signature.</p>
+            </div>
+            <div class="flex gap-2 pt-1">
+                <button onclick="closeComposer()" class="flex-1 py-2 text-gray-500 font-bold text-sm uppercase border border-gray-300 rounded">Cancel</button>
+                <button onclick="sendComposer()" id="cmpSendBtn" class="flex-1 py-2 bg-powersmart text-white font-bold text-sm rounded uppercase hover:bg-blue-800">Send email</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let serviceMode = 'install';
 let customerName = "";
 let agentName = "";
 const formatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
 
-// Remember the agent's name between quotes on this device.
-(function initAgentName() {
-    try {
-        const saved = localStorage.getItem('powersmart_agent_name');
-        if (saved) {
-            agentName = saved;
-            document.getElementById('agentName').value = saved;
-        }
-    } catch (e) { /* storage unavailable */ }
-})();
+// ---- Agent identity (Mani / Vignesh), asked once, remembered per device ----
+const AGENT_TO_SENDER = { 'Mani': 'mani', 'Vignesh': 'vignesh' };
 
-function updateAgentName() {
-    agentName = document.getElementById('agentName').value.trim();
-    try { localStorage.setItem('powersmart_agent_name', agentName); } catch (e) {}
+function applyAgent() {
+    document.getElementById('agentBadgeLabel').innerText = agentName || 'Choose…';
+    // default the "send as" pickers to this agent's identity
+    const key = AGENT_TO_SENDER[agentName] || 'customer_service';
+    const sa = document.getElementById('sendAs');
+    if (sa && !sa.dataset.touched) sa.value = key;
 }
+
+function setAgent(name) {
+    agentName = name;
+    try { localStorage.setItem('powersmart_agent_name', name); } catch (e) {}
+    document.getElementById('agentModal').style.display = 'none';
+    applyAgent();
+}
+
+function openAgentPicker() {
+    document.getElementById('agentModal').style.display = 'flex';
+}
+
+(function initAgent() {
+    let saved = "";
+    try { saved = localStorage.getItem('powersmart_agent_name') || ""; } catch (e) {}
+    if (saved === 'Mani' || saved === 'Vignesh') {
+        agentName = saved;
+        applyAgent();
+    } else {
+        // ask on open
+        document.getElementById('agentModal').style.display = 'flex';
+    }
+    const sa = document.getElementById('sendAs');
+    if (sa) sa.addEventListener('change', function(){ sa.dataset.touched = '1'; });
+})();
 
 function setMode(type) {
     const scripts = {
@@ -540,6 +623,7 @@ async function sendEmail() {
                 customerEmail: toEmail,
                 customerName: customerName,
                 agentName: agentName,
+                sendAs: document.getElementById('sendAs').value,
                 serviceMode: serviceMode === 'inspect' ? 'inspect' : 'install',
                 alarmQty: alarmQty,
                 controllerQty: controllerQty
@@ -559,6 +643,56 @@ async function sendEmail() {
     } finally {
         btn.disabled = false;
         btn.innerText = originalLabel;
+    }
+}
+
+// ---- Email composer ----
+function openComposer() {
+    document.getElementById('cmpTo').value = document.getElementById('custEmail').value.trim();
+    document.getElementById('cmpSubject').value = '';
+    document.getElementById('cmpMessage').value = customerName ? ('Hi ' + customerName + ',\n\n') : 'Hi,\n\n';
+    document.getElementById('cmpSendAs').value = document.getElementById('sendAs').value;
+    document.getElementById('composerModal').style.display = 'flex';
+    document.getElementById('cmpSubject').focus();
+}
+function closeComposer() {
+    document.getElementById('composerModal').style.display = 'none';
+}
+async function sendComposer() {
+    const to = document.getElementById('cmpTo').value.trim();
+    const subject = document.getElementById('cmpSubject').value.trim();
+    const message = document.getElementById('cmpMessage').value.trim();
+    if (!to) { alert('Enter the recipient email.'); return; }
+    if (!subject) { alert('Enter a subject.'); return; }
+    if (!message) { alert('Write a message.'); return; }
+
+    const btn = document.getElementById('cmpSendBtn');
+    const orig = btn.innerText;
+    btn.disabled = true; btn.innerText = 'SENDING…';
+    try {
+        const res = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to: to,
+                toName: customerName,
+                subject: subject,
+                message: message,
+                sendAs: document.getElementById('cmpSendAs').value,
+                agent: agentName
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            alert('Email sent to ' + to + ' ✓');
+            closeComposer();
+        } else {
+            alert("Couldn't send: " + (data.error || 'server error'));
+        }
+    } catch (err) {
+        alert("Couldn't reach the email service. Please try again.");
+    } finally {
+        btn.disabled = false; btn.innerText = orig;
     }
 }
 
