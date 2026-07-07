@@ -186,8 +186,39 @@
       <div class="modal-foot">
         <button class="del" id="lm-delete">Delete lead</button>
         <span class="spacer"></span>
+        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">✉ Email</button>
         <button class="btn btn-ghost" id="lm-cancel">Close</button>
         <button class="btn btn-primary" id="lm-save">Save changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- email composer -->
+  <div class="overlay" id="email-overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="em-title">Send email</h3>
+        <button class="x" id="em-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="fgrid">
+          <div class="field"><label>To</label><input id="em-to" type="email"></div>
+          <div class="field"><label>Send as</label>
+            <select id="em-sendas">
+              <option value="customer_service">Customer Service</option>
+              <option value="mani">Mani</option>
+              <option value="vignesh">Vignesh</option>
+            </select>
+          </div>
+          <div class="field full"><label>Subject</label><input id="em-subject" placeholder="e.g. Your smoke alarm booking"></div>
+          <div class="field full"><label>Message</label><textarea id="em-message" rows="8" placeholder="Write your message… your PowerSmart signature is added automatically."></textarea></div>
+        </div>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Sent through Resend as a branded PowerSmart email with the selected sender's signature. A note is logged on this lead.</p>
+      </div>
+      <div class="modal-foot">
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="em-cancel">Cancel</button>
+        <button class="btn btn-primary" id="em-send">Send email</button>
       </div>
     </div>
   </div>
@@ -301,11 +332,13 @@
         if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
         var foot = "";
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
-        if (l.email) foot += '<a class="icb" href="mailto:' + esc(l.email) + '" onclick="event.stopPropagation()" title="Email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></a>';
+        if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';
         foot += '<span class="icb" title="Comments"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> ' + (l.comment_count || 0) + '</span>';
         foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
 
         card.innerHTML = '<h3>' + esc(l.name) + '</h3><div class="meta">' + chips + '</div><div class="foot">' + foot + '</div>';
+        var emailBtn = card.querySelector(".email-btn");
+        if (emailBtn) emailBtn.addEventListener("click", function(e){ e.stopPropagation(); openEmail(l.id); });
         card.addEventListener("click", function(){ openLead(l.id); });
         card.addEventListener("dragstart", function(e){
           card.classList.add("dragging");
@@ -404,7 +437,7 @@
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); } });
 
   $("lm-save").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
@@ -460,6 +493,60 @@
       var l = leads.find(function(x){ return x.id === currentId; });
       if (l){ l.comment_count = (l.comment_count||0) + 1; l.updated_at = new Date().toISOString(); renderBoard(); }
     }).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+
+  /* ---------- email composer ---------- */
+  var AGENT_TO_SENDER = { "Mani": "mani", "Vignesh": "vignesh" };
+  var emailLeadId = null;
+
+  function currentAgent(){ try { return localStorage.getItem(AGENT_LS) || ""; } catch(e){ return ""; } }
+
+  function openEmail(id){
+    var l = leads.find(function(x){ return x.id === id; });
+    if (!l) return;
+    if (!l.email){ toast("This lead has no email address — add one first."); openLead(id); return; }
+    emailLeadId = id;
+    $("em-title").textContent = "Email " + l.name;
+    $("em-to").value = l.email;
+    $("em-subject").value = "";
+    $("em-message").value = "Hi " + (l.name ? l.name.split(" ")[0] : "there") + ",\n\n";
+    $("em-sendas").value = AGENT_TO_SENDER[currentAgent()] || "customer_service";
+    $("email-overlay").classList.add("show");
+    $("em-subject").focus();
+  }
+  function closeEmail(){ $("email-overlay").classList.remove("show"); emailLeadId = null; }
+  $("em-close").addEventListener("click", closeEmail);
+  $("em-cancel").addEventListener("click", closeEmail);
+  $("email-overlay").addEventListener("click", function(e){ if (e.target === this) closeEmail(); });
+  $("lm-email").addEventListener("click", function(){ if (currentId){ var id = currentId; closeModal(); openEmail(id); } });
+
+  $("em-send").addEventListener("click", function(){
+    var to = $("em-to").value.trim();
+    var subject = $("em-subject").value.trim();
+    var message = $("em-message").value.trim();
+    if (!to){ toast("Recipient email is required"); return; }
+    if (!subject){ toast("Subject is required"); return; }
+    if (!message){ toast("Write a message"); return; }
+    var l = leads.find(function(x){ return x.id === emailLeadId; });
+    var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
+    fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: JSON.stringify({
+        to: to, toName: l ? l.name : "", subject: subject, message: message,
+        sendAs: $("em-sendas").value, agent: currentAgent(), leadId: emailLeadId
+      })
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){
+        if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+        return d;
+      }); })
+      .then(function(){
+        closeEmail();
+        toast("Email sent to " + to + " ✓");
+        return load(); // reflect the logged comment on the card
+      })
+      .catch(function(err){ toast("Couldn't send: " + err.message); })
+      .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
 
   /* ---------- top bar ---------- */
