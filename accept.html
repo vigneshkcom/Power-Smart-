@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accept Your Quote — PowerSmart</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1B1F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--teal-bright:#7FD6E2;
+    --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;--amber-soft:#FDF3DC;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);
+    background:radial-gradient(60rem 32rem at 50% -10%,rgba(67,168,182,.18),transparent 60%),#EAF2F3;
+    line-height:1.6;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;}
+  img{display:block;max-width:100%}
+  a{color:inherit}
+  .brandbar{margin-bottom:20px}
+  .brandbar img{height:38px}
+  .card{width:min(540px,100%);background:#fff;border-radius:20px;box-shadow:0 24px 60px -18px rgba(11,27,31,.28);overflow:hidden}
+  .card-head{background:linear-gradient(160deg,#0B1B1F,#0E2227);color:#fff;padding:26px 30px}
+  .card-head .eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-bright);margin-bottom:8px}
+  .card-head h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+  .card-head .ref{font-size:.82rem;color:#9FB6BA;margin-top:8px}
+  .card-body{padding:26px 30px}
+  .card-body p.intro{font-size:.95rem;color:var(--body);margin-bottom:18px}
+  .rows{border-top:1px solid var(--line);margin-bottom:6px}
+  .row{display:flex;justify-content:space-between;gap:1rem;padding:11px 0;border-bottom:1px solid var(--line);font-size:.92rem;color:var(--body)}
+  .row strong{color:var(--ink);font-weight:700;white-space:nowrap}
+  .row.sub{font-size:.82rem;color:var(--muted)}
+  .row.total{font-size:1.05rem;padding-top:13px}
+  .row.total span{font-weight:700;color:var(--ink)}
+  .row.total strong{color:var(--teal-dark);font-size:1.4rem}
+  .terms{background:var(--paper);border-radius:12px;padding:13px 16px;font-size:.82rem;color:var(--body);margin:16px 0 20px;line-height:1.55}
+  .terms strong{color:var(--ink)}
+  .btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:1.05rem 1.5rem;border:none;border-radius:999px;
+    font-family:inherit;font-weight:700;font-size:1.02rem;cursor:pointer;background:var(--teal);color:var(--ink);
+    box-shadow:0 12px 26px -10px rgba(67,168,182,.6);transition:transform .16s ease,background .16s ease}
+  .btn:hover{background:var(--teal-bright);transform:translateY(-2px)}
+  .btn:disabled{opacity:.65;cursor:wait;transform:none}
+  .btn svg{flex:none}
+  .subnote{text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;line-height:1.5}
+  .subnote a{color:var(--teal-deep);font-weight:600;text-decoration:none}
+  .err{display:none;background:#FDECEC;color:#8A2B2B;border-radius:10px;padding:11px 14px;font-size:.85rem;margin-top:14px}
+  .err.show{display:block}
+  .included{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+  .included li{display:flex;gap:.6rem;align-items:flex-start;font-size:.85rem;color:var(--body);margin-bottom:9px}
+  .included li:last-child{margin-bottom:0}
+  .included .tk{flex:none;width:20px;height:20px;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;margin-top:.1rem}
+  .foot{text-align:center;font-size:.75rem;color:var(--muted);margin-top:22px;line-height:1.6}
+  .foot a{color:var(--muted)}
+  /* success state */
+  .done{display:none;text-align:center;padding:8px 0}
+  .done.show{display:block}
+  .done .tick{width:66px;height:66px;margin:0 auto 16px;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center}
+  .done h2{font-size:1.3rem;margin-bottom:8px}
+  .done p{color:var(--body);font-size:.92rem;margin-bottom:18px}
+  .main.hidden{display:none}
+</style>
+</head>
+<body>
+  <div class="brandbar">
+    <img src="assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co" width="1563" height="286">
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="eyebrow">Quotation</div>
+      <h1 id="head-title">Accept your quote</h1>
+      <div class="ref" id="head-ref"></div>
+    </div>
+    <div class="card-body">
+      <div class="main" id="main">
+        <p class="intro" id="intro">Please review your quote below. Accepting will take you to secure payment of your booking fee to lock in your licensed electrician.</p>
+
+        <div class="rows" id="rows"></div>
+
+        <div class="terms" id="terms"></div>
+
+        <button class="btn" id="acceptBtn">
+          <span id="btnLabel">Accept &amp; pay booking fee</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+        <p class="subnote">Secure payment via Stripe. Prefer to talk first? Call <a href="tel:+61721417792">(07)&nbsp;2141&nbsp;7792</a>.</p>
+        <div class="err" id="err"></div>
+
+        <ul class="included">
+          <li><span class="tk">&#10003;</span> Installed by licensed, insured electricians</li>
+          <li><span class="tk">&#10003;</span> Compliance certificate issued the same day</li>
+          <li><span class="tk">&#10003;</span> Certified to AS 3786-2014/2023</li>
+          <li><span class="tk">&#10003;</span> 10-year manufacturer warranty on every alarm</li>
+        </ul>
+      </div>
+
+      <div class="done" id="done">
+        <div class="tick"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2>Taking you to secure payment…</h2>
+        <p>If Stripe doesn't open automatically, tap the button below.</p>
+        <a class="btn" id="payLink" href="https://book.stripe.com/14AeVc6Xk57J7QF4CXao802" target="_blank" rel="noopener" style="text-decoration:none">Continue to payment</a>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">PowerSmart Pty Ltd &middot; ABN 41 669 943 720 &middot; <a href="https://smokealarms.powersmartco.com.au">smokealarms.powersmartco.com.au</a></p>
+
+<script>
+(function(){
+  "use strict";
+  // Pricing must mirror api/_quote.js
+  var PRICE_ALARM = 90, PRICE_CTRL = 49, FEE_BOOKING = 35, FEE_INSPECT = 131;
+  var STRIPE_FALLBACK = "https://book.stripe.com/14AeVc6Xk57J7QF4CXao802";
+
+  var p = new URLSearchParams(location.search);
+  var ref = (p.get("ref") || "").slice(0, 40);
+  var name = (p.get("name") || "").slice(0, 120);
+  var email = (p.get("email") || "").slice(0, 254);
+  var agent = (p.get("agent") || "").slice(0, 120);
+  var mode = p.get("mode") === "inspect" ? "inspect" : "install";
+  var alarms = Math.max(0, Math.min(50, parseInt(p.get("alarms"), 10) || 0));
+  var ctrl = Math.max(0, Math.min(10, parseInt(p.get("ctrl"), 10) || 0));
+
+  var fmt = function(n){ return "$" + Number(n).toLocaleString("en-AU", {minimumFractionDigits:2, maximumFractionDigits:2}); };
+  var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+
+  // Build quote (mirror of server)
+  var lines = [], payableToday, balance;
+  if (mode === "inspect") {
+    lines.push({ label:"Compliance inspection", qty:1, amount:FEE_INSPECT });
+    payableToday = FEE_INSPECT; balance = 0;
+  } else {
+    lines.push({ label:"Smoke alarms — supplied & installed", qty:alarms, amount:alarms*PRICE_ALARM });
+    if (ctrl > 0) lines.push({ label:"Remote controller", qty:ctrl, amount:ctrl*PRICE_CTRL });
+    lines.push({ label:"Booking fee", qty:1, amount:FEE_BOOKING });
+    payableToday = FEE_BOOKING; balance = alarms*PRICE_ALARM + ctrl*PRICE_CTRL;
+  }
+  var total = lines.reduce(function(s,l){ return s + l.amount; }, 0);
+
+  document.getElementById("head-ref").textContent = ref ? ("Ref: " + ref) : "";
+  if (name) document.getElementById("head-title").textContent = "Accept your quote, " + esc(name).split(" ")[0];
+  if (mode === "inspect") {
+    document.getElementById("intro").textContent = "Please review your inspection quote below. Accepting will take you to secure payment of your inspection fee.";
+    document.getElementById("btnLabel").textContent = "Accept & pay inspection fee";
+  }
+
+  var rowsHtml = lines.map(function(l){
+    return '<div class="row"><span>' + esc(l.label) + (l.qty > 1 ? ' <span style="color:#8AA0A5">&times; ' + l.qty + '</span>' : '') + '</span><strong>' + fmt(l.amount) + '</strong></div>';
+  }).join("");
+  rowsHtml += '<div class="row total"><span>Total (incl. GST)</span><strong>' + fmt(total) + '</strong></div>';
+  if (balance > 0) rowsHtml += '<div class="row sub"><span>Payable today</span><strong>' + fmt(payableToday) + '</strong></div>';
+  document.getElementById("rows").innerHTML = rowsHtml;
+
+  document.getElementById("terms").innerHTML = '<strong>Payment terms:</strong> ' + fmt(payableToday) + ' payable today to secure your electrician' +
+    (balance > 0 ? ', with the balance of <strong>' + fmt(balance) + '</strong> payable on installation day' : '') +
+    '. Fully refundable if we can’t complete your ' + (mode === "inspect" ? "inspection" : "installation") + '.';
+
+  var btn = document.getElementById("acceptBtn");
+  var errBox = document.getElementById("err");
+
+  function goToStripe(url){
+    var target = url || STRIPE_FALLBACK;
+    document.getElementById("payLink").href = target;
+    document.getElementById("main").classList.add("hidden");
+    document.getElementById("done").classList.add("show");
+    window.location.href = target;
+  }
+
+  btn.addEventListener("click", function(){
+    btn.disabled = true;
+    document.getElementById("btnLabel").textContent = "One moment…";
+    errBox.classList.remove("show");
+
+    fetch("/api/accept-quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl })
+    }).then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){ goToStripe(d && d.stripeUrl); })
+      .catch(function(){ goToStripe(STRIPE_FALLBACK); }); // never block payment on notify failure
+  });
+})();
+</script>
+</body>
+</html>

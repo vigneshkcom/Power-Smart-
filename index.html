@@ -537,7 +537,7 @@
     </a>
     <nav class="nav-links" aria-label="Main navigation">
       <a href="#legislation">The Law</a>
-      <a href="#calculator">Instant Estimate</a>
+      <a href="#product">Alarms</a>
       <a href="#pricing">Pricing</a>
       <a href="#process">How It Works</a>
       <a href="#faq">FAQ</a>
@@ -570,8 +570,8 @@
         <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Same-day compliance certificate</li>
       </ul>
       <div class="hero-ctas">
-        <a class="btn btn-primary btn-lg" href="#calculator">
-          Get an instant estimate
+        <a class="btn btn-primary btn-lg" href="#quote">
+          Get my free quote
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </a>
         <a class="btn btn-ghost btn-lg" href="tel:+61721417792">
@@ -700,102 +700,6 @@
   </div>
 </section>
 
-<!-- ============ CALCULATOR ============ -->
-<section class="section calc-section" id="calculator">
-  <div class="container">
-    <div class="section-head center reveal">
-      <span class="eyebrow">Instant Estimate</span>
-      <h2 class="h2">How many alarms does your home need?</h2>
-      <p class="lead">Answer three quick questions and see your compliance cost instantly — the same fixed pricing our electricians work to.</p>
-    </div>
-    <div class="calc-grid">
-      <div class="card reveal">
-        <div class="stepper-row">
-          <div class="stepper-info">
-            <span class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg></span>
-            <div><h4>Bedrooms</h4><p>The law requires an alarm in every bedroom</p></div>
-          </div>
-          <div class="stepper">
-            <button type="button" data-target="bedrooms" data-delta="-1" aria-label="Decrease bedrooms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-            <span class="val" id="v-bedrooms" aria-live="polite">3</span>
-            <button type="button" data-target="bedrooms" data-delta="1" aria-label="Increase bedrooms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-          </div>
-        </div>
-        <div class="stepper-row">
-          <div class="stepper-info">
-            <span class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
-            <div><h4>Storeys</h4><p>At least one alarm on every level of the home</p></div>
-          </div>
-          <div class="stepper">
-            <button type="button" data-target="storeys" data-delta="-1" aria-label="Decrease storeys"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-            <span class="val" id="v-storeys" aria-live="polite">1</span>
-            <button type="button" data-target="storeys" data-delta="1" aria-label="Increase storeys"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-          </div>
-        </div>
-        <div class="stepper-row">
-          <div class="stepper-info">
-            <span class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V3h18v18"/><path d="M9 21V9h6v12"/></svg></span>
-            <div><h4>Hallways connecting bedrooms</h4><p>Alarms are required in hallways that serve bedrooms</p></div>
-          </div>
-          <div class="stepper">
-            <button type="button" data-target="hallways" data-delta="-1" aria-label="Decrease hallways"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-            <span class="val" id="v-hallways" aria-live="polite">1</span>
-            <button type="button" data-target="hallways" data-delta="1" aria-label="Increase hallways"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-          </div>
-        </div>
-
-        <div class="calc-sub" id="storey-q" style="display:none">
-          <p>Does every storey have a bedroom on it?</p>
-          <div class="radio-pills">
-            <label><input type="radio" name="allbeds" value="yes" checked> Yes, all of them</label>
-            <label><input type="radio" name="allbeds" value="no"> No, some don't</label>
-          </div>
-        </div>
-
-        <div class="calc-sub" style="margin-top:1rem">
-          <div class="switch-row">
-            <div>
-              <p style="margin-bottom:.15rem">Add a smoke alarm controller? <strong style="color:var(--teal-deep)">+$49</strong></p>
-              <span style="font-size:.78rem;color:var(--muted);line-height:1.45;display:block">Test, hush and locate every alarm from one wall-mounted remote — no ladder needed.</span>
-            </div>
-            <div class="switch">
-              <input type="checkbox" id="ctrl-toggle" aria-label="Add smoke alarm controller">
-              <span class="track"></span><span class="thumb"></span>
-            </div>
-          </div>
-          <div id="ctrl-qty-row">
-            <span>How many controllers?</span>
-            <div class="stepper">
-              <button type="button" data-target="ctrlqty" data-delta="-1" aria-label="Decrease controllers"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-              <span class="val" id="v-ctrlqty" aria-live="polite">1</span>
-              <button type="button" data-target="ctrlqty" data-delta="1" aria-label="Increase controllers"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="quote-card reveal">
-        <p class="qc-label">Your instant estimate</p>
-        <div class="qc-count"><strong id="s-count">4</strong><span>interconnected alarms</span></div>
-        <p class="qc-sub">Final count &amp; placement confirmed on-site by your licensed electrician.</p>
-        <div class="qc-rows">
-          <div class="qc-row"><span id="s-alarms-label">Alarms — 4 × $90</span><strong id="s-alarms-amt">$360</strong></div>
-          <div class="qc-row" id="qc-ctrl-row"><span id="s-ctrl-label">Controller — 1 × $49</span><strong id="s-ctrl-amt">$49</strong></div>
-          <div class="qc-row"><span>Booking fee — secures your electrician</span><strong>$35</strong></div>
-          <div class="qc-row total"><span>Total investment</span><strong id="s-total-amt">$395</strong></div>
-          <div class="qc-row balance"><span>Payable today: $35 &middot; balance on installation day</span><strong id="s-balance-amt">$360</strong></div>
-        </div>
-        <a class="btn btn-primary btn-lg" href="https://book.stripe.com/14AeVc6Xk57J7QF4CXao802" target="_blank" rel="noopener">
-          Secure my booking — $35
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </a>
-        <a class="btn btn-ghost" href="#quote">Prefer a callback? Request a quote</a>
-        <p class="qc-fine">Booking fee is fully refundable if we can't complete your installation. Secure payment via Stripe. Estimate based on QLD placement rules — homes with unusual layouts may vary.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ============ PRICING ============ -->
 <section class="section" id="pricing">
   <div class="container">
@@ -818,7 +722,7 @@
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Compliance certificate issued on the day</li>
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 10-year manufacturer warranty</li>
         </ul>
-        <a class="btn btn-primary" href="#calculator">Estimate my home</a>
+        <a class="btn btn-primary" href="#quote">Get my free quote</a>
       </div>
       <div class="price-card reveal">
         <p class="pc-name">Compliance Inspection</p>
@@ -842,7 +746,7 @@
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Locate which alarm triggered</li>
           <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Installed on the same visit — no extra labour</li>
         </ul>
-        <a class="btn btn-ghost-ink" href="#calculator">Add to my estimate</a>
+        <a class="btn btn-ghost-ink" href="#quote">Ask about a controller</a>
       </div>
     </div>
     <p class="price-foot">All prices in AUD. The $35 booking fee is fully refundable if your installation can't be completed.</p>
@@ -862,7 +766,7 @@
         <p class="step-num">STEP 01</p>
         <span class="ic"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
         <h4>Tell us about your home</h4>
-        <p>Use the instant estimate or request a callback. We confirm your alarm count and lock in a fixed price — over the phone, no pushy sales visit.</p>
+        <p>Send us your details and we'll give you a call. We confirm your alarm count and lock in a fixed price — over the phone, no pushy sales visit.</p>
       </div>
       <div class="step-card reveal">
         <p class="step-num">STEP 02</p>
@@ -1062,7 +966,7 @@
       </details>
       <details class="faq-item">
         <summary>How many alarms will my home need?<span class="plus"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></summary>
-        <div class="faq-body">As a rule: one per bedroom, one per hallway that connects bedrooms, and at least one on every storey. A typical 3-bedroom single-storey home needs 4 alarms. Try our <a href="#calculator">instant estimate calculator</a> — your electrician confirms the exact count and placement on site.</div>
+        <div class="faq-body">As a rule: one per bedroom, one per hallway that connects bedrooms, and at least one on every storey. A typical 3-bedroom single-storey home needs 4 alarms. <a href="#quote">Request a free quote</a> and we'll confirm the exact count and a fixed price over the phone — your electrician verifies placement on site.</div>
       </details>
       <details class="faq-item">
         <summary>What does it cost, and are there any hidden fees?<span class="plus"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span></summary>
@@ -1122,7 +1026,7 @@
         <h5>Quick links</h5>
         <ul class="footer-links">
           <li><a href="#legislation">QLD 2027 legislation</a></li>
-          <li><a href="#calculator">Instant estimate</a></li>
+          <li><a href="#quote">Get a free quote</a></li>
           <li><a href="#pricing">Pricing</a></li>
           <li><a href="#faq">FAQ</a></li>
         </ul>
@@ -1194,15 +1098,10 @@
   document.documentElement.classList.add("js");
 
   /* ---------- Config ---------- */
-  // Set FORM_ENDPOINT to a Formspree/webhook URL to POST leads directly.
-  // Leave empty to fall back to an email draft to the address below.
-  var FORM_ENDPOINT = "";
   var LEAD_EMAIL = "support@powersmartco.com.au";
-  var PRICE_ALARM = 90, PRICE_CTRL = 49, FEE_BOOKING = 35;
   var DEADLINE = new Date("2027-01-01T00:00:00+10:00"); // QLD (AEST)
 
   var $ = function(id){ return document.getElementById(id); };
-  var fmt = function(n){ return "$" + n.toLocaleString("en-AU"); };
 
   /* ---------- Header shadow ---------- */
   var header = $("site-header");
@@ -1226,64 +1125,11 @@
   tick();
   setInterval(tick, 1000);
 
-  /* ---------- Calculator ---------- */
-  var state = { bedrooms:3, storeys:1, hallways:1, ctrlqty:1 };
-  var bounds = { bedrooms:[0,12], storeys:[1,4], hallways:[0,8], ctrlqty:[1,6] };
-
-  function alarmCount(){
-    var n = state.bedrooms + state.hallways;
-    var allBedsEl = document.querySelector('input[name="allbeds"]:checked');
-    var allBeds = allBedsEl ? allBedsEl.value === "yes" : true;
-    if (state.storeys > 1 && !allBeds) n += (state.storeys - 1);
-    return n;
-  }
-
-  function render(){
-    ["bedrooms","storeys","hallways","ctrlqty"].forEach(function(k){
-      $("v-" + k).textContent = state[k];
-    });
-    document.querySelectorAll(".stepper button").forEach(function(btn){
-      var k = btn.dataset.target, delta = +btn.dataset.delta;
-      btn.disabled = (delta < 0 && state[k] <= bounds[k][0]) || (delta > 0 && state[k] >= bounds[k][1]);
-    });
-    $("storey-q").style.display = state.storeys > 1 ? "" : "none";
-
-    var n = alarmCount();
-    var wantCtrl = $("ctrl-toggle").checked;
-    var ctrlQty = wantCtrl ? state.ctrlqty : 0;
-    var alarmsTotal = n * PRICE_ALARM;
-    var ctrlTotal = ctrlQty * PRICE_CTRL;
-    var balance = alarmsTotal + ctrlTotal;
-    var total = balance + FEE_BOOKING;
-
-    $("s-count").textContent = n;
-    $("s-alarms-label").textContent = "Alarms — " + n + " × $" + PRICE_ALARM;
-    $("s-alarms-amt").textContent = fmt(alarmsTotal);
-    $("qc-ctrl-row").classList.toggle("show", wantCtrl);
-    $("ctrl-qty-row").classList.toggle("show", wantCtrl);
-    if (wantCtrl){
-      $("s-ctrl-label").textContent = "Controller — " + ctrlQty + " × $" + PRICE_CTRL;
-      $("s-ctrl-amt").textContent = fmt(ctrlTotal);
-    }
-    $("s-total-amt").textContent = fmt(total);
-    $("s-balance-amt").textContent = fmt(balance);
-  }
-
-  document.querySelectorAll(".stepper button").forEach(function(btn){
-    btn.addEventListener("click", function(){
-      var k = btn.dataset.target, delta = +btn.dataset.delta;
-      state[k] = Math.min(bounds[k][1], Math.max(bounds[k][0], state[k] + delta));
-      render();
-    });
-  });
-  document.querySelectorAll('input[name="allbeds"]').forEach(function(r){
-    r.addEventListener("change", render);
-  });
-  $("ctrl-toggle").addEventListener("change", render);
-  render();
-
   /* ---------- Lead form ---------- */
   var form = $("lead-form");
+  var submitBtn = form.querySelector('button[type="submit"]');
+  var submitLabel = submitBtn ? submitBtn.innerHTML : "";
+
   form.addEventListener("submit", function(e){
     e.preventDefault();
     var name = $("lf-name").value.trim();
@@ -1292,44 +1138,35 @@
     var postcode = $("lf-postcode").value.trim();
     if (!name || !phone || !email || !postcode){ form.reportValidity(); return; }
 
-    var lead = {
-      name: name,
-      phone: phone,
-      email: email,
-      postcode: postcode,
-      source: "QLD Smoke Alarm Landing Page",
-      submitted: new Date().toISOString()
-    };
+    var lead = { name:name, phone:phone, email:email, postcode:postcode };
 
     function done(){
       form.style.display = "none";
       $("form-success").classList.add("show");
     }
-
-    if (FORM_ENDPOINT){
-      fetch(FORM_ENDPOINT, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-        body: JSON.stringify(lead)
-      }).then(done).catch(function(){ mailtoFallback(lead); done(); });
-    } else {
-      mailtoFallback(lead);
-      done();
+    function mailtoFallback(){
+      var body = "New smoke alarm quote request\n\nName: " + name + "\nPhone: " + phone +
+        "\nEmail: " + email + "\nPostcode: " + postcode;
+      window.location.href = "mailto:" + LEAD_EMAIL +
+        "?subject=" + encodeURIComponent("Quote request — " + name + " (" + postcode + ")") +
+        "&body=" + encodeURIComponent(body);
     }
-  });
 
-  function mailtoFallback(lead){
-    var body =
-      "New smoke alarm quote request\n\n" +
-      "Name: " + lead.name + "\n" +
-      "Phone: " + lead.phone + "\n" +
-      "Email: " + lead.email + "\n" +
-      "Postcode: " + lead.postcode + "\n" +
-      "Source: " + lead.source;
-    window.location.href = "mailto:" + LEAD_EMAIL +
-      "?subject=" + encodeURIComponent("Quote request — " + lead.name + " (" + lead.postcode + ")") +
-      "&body=" + encodeURIComponent(body);
-  }
+    if (submitBtn){ submitBtn.disabled = true; submitBtn.innerHTML = "Sending…"; }
+
+    fetch("/api/lead", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(lead)
+    }).then(function(r){
+      if (r.ok){ done(); }
+      else { mailtoFallback(); done(); }
+    }).catch(function(){
+      mailtoFallback(); done();
+    }).finally(function(){
+      if (submitBtn){ submitBtn.disabled = false; submitBtn.innerHTML = submitLabel; }
+    });
+  });
 
   /* ---------- Reveal on scroll ---------- */
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

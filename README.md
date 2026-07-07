@@ -19,16 +19,32 @@ Old links still work via redirects in `vercel.json`:
 ## Structure
 
 ```
-index.html            Customer-facing landing page (root of the site)
-tools/index.html      Staff sales portal — quote calculator, SMS/email/PDF
+index.html            Customer landing page — info + lead-capture form (no self-quoting)
+accept.html           Quote acceptance page (/accept) → Stripe
+tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
+api/_quote.js         Shared pricing + quote-email rendering (not a route)
+api/send-quote.js     POST /api/send-quote  — emails a customer their quotation
+api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was accepted
+api/lead.js           POST /api/lead         — emails staff a new website lead
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
-assets/email/         Images for quote emails (upload via GitHub web UI)
-api/                  (planned) Vercel serverless functions
+assets/email/         Product photos used on the site and in quote emails
 archive/              Retired / other-brand files, kept for reference
 ```
 
 See `assets/README.md` for how to upload media and get its public URL.
+
+## Lead & quote flow
+
+1. **Landing page** collects name / phone / email / postcode and POSTs to
+   `/api/lead`, which emails the lead to the team so they can **call and quote
+   over the phone**. No self-service pricing or payment on the landing page.
+2. **Staff** build the quote in `/tools` and hit *Email Quote to Customer* →
+   `/api/send-quote` sends a branded quotation (ref, GST, valid-until, product
+   photos) with an **Accept this quote** button.
+3. The button opens `/accept?...`; the customer reviews and clicks **Accept &
+   pay**, which calls `/api/accept-quote` (emails the team that they accepted)
+   and forwards them to the **Stripe** booking-fee payment.
 
 ## Sending quotes via Resend
 
@@ -41,7 +57,8 @@ Environment variables (Vercel → Settings → Environment Variables):
 
 | Name | Required | Purpose |
 |---|---|---|
-| `RESEND_API_KEY` | yes | Resend API key |
+| `RESEND_API_KEY` | yes | Resend API key (used by all three API routes) |
+| `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
 
