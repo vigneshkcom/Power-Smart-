@@ -2,8 +2,8 @@
 // Uses SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY — server only, never the browser.
 // Underscore prefix => Vercel does not expose this file as a route.
 
-const URL_ = process.env.SUPABASE_URL;
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const URL_ = (process.env.SUPABASE_URL || "").trim();
+const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
 function configured() {
   return Boolean(URL_ && KEY);
@@ -27,9 +27,10 @@ async function sb(path, { method = "GET", body, prefer } = {}) {
   });
   if (!res.ok) {
     let msg = `Supabase ${res.status}`;
-    try { const j = await res.json(); msg = j.message || j.hint || msg; } catch (_) {}
+    try { const j = await res.json(); msg = (j.message || j.hint || msg) + ` (HTTP ${res.status})`; } catch (_) {}
     const e = new Error(msg);
     e.status = res.status;
+    e.path = path;
     throw e;
   }
   if (res.status === 204) return null;

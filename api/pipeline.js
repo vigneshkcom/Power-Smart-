@@ -23,12 +23,16 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const leads = await sb("leads?select=*,lead_comments(count)&order=updated_at.desc&limit=1000");
-      const out = (leads || []).map((l) => ({
-        ...l,
-        comment_count: Array.isArray(l.lead_comments) && l.lead_comments[0] ? l.lead_comments[0].count : 0,
-        lead_comments: undefined,
-      }));
+      const cols = "id,created_at,updated_at,name,phone,email,postcode,source,stage,agent,quote_ref,quote_total";
+      const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
+      // Comment counts via a plain query, tallied here. (Supabase disables
+      // embedded aggregate functions like lead_comments(count) by default.)
+      const counts = {};
+      try {
+        const cmts = await sb("lead_comments?select=lead_id&limit=10000");
+        (cmts || []).forEach((c) => { counts[c.lead_id] = (counts[c.lead_id] || 0) + 1; });
+      } catch (_) { /* counts are cosmetic — don't fail the board over them */ }
+      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0 }));
       return res.status(200).json({ leads: out, stages: STAGES });
     }
 
@@ -90,8 +94,8 @@ module.exports = async (req, res) => {
         method: "POST",
         body: { lead_id: leadId, author: clean(b.author, 120) || null, body },
       });
-      // bump the card so it floats to the top of its column
-      await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: {}, prefer: "return=minimal" }).catch(() => {});
+      // bump the card so it floats to the top of its column (trigger forces updated_at=now())
+      await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
       return res.status(200).json({ ok: true, comment: rows && rows[0] });
     }
 
