@@ -12,7 +12,7 @@ const S = require("./_senders");
 const { logEmail } = require("./_maillog");
 
 async function recordInPipeline({ customerName, customerEmail, agentName, ref, total }) {
-  if (!SB.configured()) return;
+  if (!SB.configured()) return null;
   try {
     const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
     let leadId;
@@ -33,11 +33,12 @@ async function recordInPipeline({ customerName, customerEmail, agentName, ref, t
     if (leadId) {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: agentName || "System", body: `Quote ${ref} emailed — total ${Q.fmt(total)} incl. GST.` },
+        body: { lead_id: leadId, author: agentName || "System", body: `📧 Quote ${ref} emailed — total ${Q.fmt(total)} incl. GST.` },
         prefer: "return=minimal",
       });
     }
-  } catch (e) { console.error("send-quote → pipeline update failed:", e.message); }
+    return leadId || null;
+  } catch (e) { console.error("send-quote → pipeline update failed:", e.message); return null; }
 }
 
 function isValidEmail(v) {
@@ -92,8 +93,8 @@ module.exports = async (req, res) => {
       await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
       return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     }
-    await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total });
-    await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, provider_id: data && data.id, status: "sent" });
+    const leadId = await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total });
+    await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
     return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error sending email" });

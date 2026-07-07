@@ -106,6 +106,24 @@ module.exports = async (req, res) => {
       return res.status(200).json({ comments: rows || [] });
     }
 
+    if (action === "emails") {
+      const leadId = clean(b.lead_id, 40);
+      const email = clean(b.email, 254).toLowerCase();
+      if (!leadId && !email) return res.status(400).json({ error: "lead_id or email is required" });
+      const cols = "id,created_at,kind,sender,agent,to_email,to_name,subject,body_html,body_text,quote_ref,quote_total,status,error";
+      let q;
+      if (leadId && email) q = `sent_emails?select=${cols}&or=(lead_id.eq.${leadId},to_email.eq.${encodeURIComponent(email)})&order=created_at.desc&limit=100`;
+      else if (leadId)     q = `sent_emails?select=${cols}&lead_id=eq.${leadId}&order=created_at.desc&limit=100`;
+      else                 q = `sent_emails?select=${cols}&to_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=100`;
+      try {
+        const rows = await sb(q);
+        return res.status(200).json({ emails: rows || [] });
+      } catch (e) {
+        // sent_emails table not created yet (emails.sql not run) — degrade gracefully
+        return res.status(200).json({ emails: [], unavailable: true, note: e.message });
+      }
+    }
+
     if (action === "delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });

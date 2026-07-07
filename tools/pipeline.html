@@ -92,6 +92,24 @@
   .cmt .who{font-size:.68rem;color:var(--muted);margin-bottom:.15rem}
   .cmt .who strong{color:var(--teal-deep)}
   .cmt p{font-size:.84rem;color:var(--body);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .cmt.cmt-email{cursor:pointer;border:1px solid transparent;transition:border-color .15s ease,background .15s ease}
+  .cmt.cmt-email:hover{border-color:var(--teal);background:var(--teal-soft)}
+  .cmt.cmt-email .view-hint{display:inline-block;margin-top:.3rem;font-size:.68rem;font-weight:700;color:var(--teal-deep)}
+  /* thread viewer */
+  .th-row{border:1px solid var(--line);border-radius:11px;padding:.7rem .9rem;margin-bottom:.6rem;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+  .th-row:hover{border-color:var(--teal);box-shadow:var(--shadow-sm)}
+  .th-row .r1{display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem}
+  .th-row .subj{font-weight:700;font-size:.9rem;flex:1;word-break:break-word}
+  .th-badge{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:.12rem .5rem;border-radius:999px;flex:none}
+  .th-badge.quote{background:#FDF3DC;color:#8a6a14}
+  .th-badge.email{background:var(--teal-soft);color:var(--teal-deep)}
+  .th-badge.failed{background:#FDECEC;color:#8A2B2B}
+  .th-row .meta{font-size:.72rem;color:var(--muted)}
+  .th-empty{text-align:center;color:var(--muted);font-size:.85rem;padding:1.4rem}
+  .th-view-meta{background:var(--paper);border-radius:10px;padding:.7rem .9rem;margin-bottom:.7rem;font-size:.78rem;color:var(--body);line-height:1.6}
+  .th-view-meta strong{color:var(--ink)}
+  .th-frame{width:100%;height:60vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .th-text{white-space:pre-wrap;word-break:break-word;font-size:.86rem;color:var(--body);line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:1rem}
   .cmt-add{display:flex;gap:.5rem;margin-top:.6rem}
   .cmt-add textarea{flex:1;min-height:44px;resize:vertical}
 
@@ -219,6 +237,21 @@
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="em-cancel">Cancel</button>
         <button class="btn btn-primary" id="em-send">Send email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- sent-email thread viewer -->
+  <div class="overlay" id="thread-overlay">
+    <div class="modal" style="width:min(720px,100%)">
+      <div class="modal-head">
+        <button class="x" id="th-back" style="display:none" title="Back to list">‹</button>
+        <h3 id="th-title">Emails</h3>
+        <button class="x" id="th-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="th-list"></div>
+        <div id="th-view" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -415,9 +448,16 @@
     if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
     $("cmt-list").innerHTML = cs.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
-      return '<div class="cmt"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p></div>';
+      var isEmail = /^📧/.test(c.body || "");
+      var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : '';
+      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
     }).join("");
   }
+  // clicking an email log entry opens the sent-email thread for this lead
+  $("cmt-list").addEventListener("click", function(e){
+    var el = e.target.closest(".cmt-email");
+    if (el && currentId) openEmailThread(currentId);
+  });
 
   function openNewLead(){
     currentId = null;
@@ -437,7 +477,7 @@
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); } });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); } });
 
   $("lm-save").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
@@ -548,6 +588,71 @@
       .catch(function(err){ toast("Couldn't send: " + err.message); })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
+
+  /* ---------- sent-email thread viewer ---------- */
+  var SENDER_LABEL = { customer_service:"Customer Service", mani:"Mani", vignesh:"Vignesh" };
+  function senderLabel(k){ return SENDER_LABEL[k] || "Customer Service"; }
+  var threadEmails = [];
+
+  function openEmailThread(leadId){
+    var l = leads.find(function(x){ return x.id === leadId; });
+    $("th-title").textContent = "Emails" + (l ? (" — " + l.name) : "");
+    $("th-back").style.display = "none";
+    $("th-view").style.display = "none";
+    $("th-list").style.display = "";
+    $("th-list").innerHTML = '<div class="th-empty">Loading…</div>';
+    $("thread-overlay").classList.add("show");
+    api("POST", { action:"emails", lead_id: leadId, email: l ? (l.email || "") : "" })
+      .then(function(d){
+        threadEmails = d.emails || [];
+        renderThreadList(d);
+        if (threadEmails.length === 1) openThreadEmail(threadEmails[0]);
+      })
+      .catch(function(err){ $("th-list").innerHTML = '<div class="th-empty">' + esc(err.message) + '</div>'; });
+  }
+
+  function renderThreadList(d){
+    var emails = d.emails || [];
+    if (!emails.length){
+      $("th-list").innerHTML = '<div class="th-empty">' + (d.unavailable ? "Email log isn't set up yet — run supabase/emails.sql in Supabase." : "No sent emails found for this customer yet.") + '</div>';
+      return;
+    }
+    $("th-list").innerHTML = emails.map(function(em, i){
+      var when = new Date(em.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
+      var kind = em.kind === "quote" ? "quote" : "email";
+      var badge = em.status === "failed" ? '<span class="th-badge failed">Failed</span>' : '<span class="th-badge ' + kind + '">' + (kind === "quote" ? "Quote" : "Email") + '</span>';
+      return '<div class="th-row" data-i="' + i + '"><div class="r1"><span class="subj">' + esc(em.subject || "(no subject)") + '</span>' + badge + '</div>' +
+        '<div class="meta">' + esc(when) + ' · as ' + esc(senderLabel(em.sender)) + (em.agent ? (" by " + esc(em.agent)) : "") + ' · to ' + esc(em.to_email || "") + '</div></div>';
+    }).join("");
+  }
+
+  function openThreadEmail(em){
+    $("th-list").style.display = "none";
+    var v = $("th-view"); v.style.display = ""; v.innerHTML = "";
+    var when = new Date(em.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});
+    var meta = document.createElement("div"); meta.className = "th-view-meta";
+    meta.innerHTML = "<div><strong>" + esc(em.subject || "(no subject)") + "</strong></div>" +
+      "<div>To: " + esc(em.to_email || "") + " · Sent as <strong>" + esc(senderLabel(em.sender)) + "</strong>" + (em.agent ? (" by " + esc(em.agent)) : "") + "</div>" +
+      "<div>" + esc(when) + " · " + esc(em.status || "sent") + (em.quote_ref ? (" · " + esc(em.quote_ref)) : "") + "</div>" +
+      (em.status === "failed" && em.error ? ('<div style="color:var(--red)">' + esc(em.error) + "</div>") : "");
+    v.appendChild(meta);
+    if (em.body_html){
+      var f = document.createElement("iframe"); f.className = "th-frame"; f.setAttribute("sandbox", ""); f.srcdoc = em.body_html; v.appendChild(f);
+    } else {
+      var t = document.createElement("div"); t.className = "th-text"; t.textContent = em.body_text || "(no content)"; v.appendChild(t);
+    }
+    $("th-back").style.display = "";
+  }
+
+  $("th-list").addEventListener("click", function(e){
+    var row = e.target.closest(".th-row");
+    if (row){ var em = threadEmails[+row.dataset.i]; if (em) openThreadEmail(em); }
+  });
+  function threadBackToList(){ $("th-view").style.display = "none"; $("th-list").style.display = ""; $("th-back").style.display = "none"; }
+  function closeThread(){ $("thread-overlay").classList.remove("show"); }
+  $("th-back").addEventListener("click", threadBackToList);
+  $("th-close").addEventListener("click", closeThread);
+  $("thread-overlay").addEventListener("click", function(e){ if (e.target === this) closeThread(); });
 
   /* ---------- top bar ---------- */
   $("add-btn").addEventListener("click", openNewLead);
