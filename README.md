@@ -22,10 +22,14 @@ Old links still work via redirects in `vercel.json`:
 index.html            Customer landing page — info + lead-capture form (no self-quoting)
 accept.html           Quote acceptance page (/accept) → Stripe
 tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
+tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
+api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/send-quote.js     POST /api/send-quote  — emails a customer their quotation
 api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was accepted
 api/lead.js           POST /api/lead         — emails staff a new website lead
+api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
+supabase/schema.sql   Run once in Supabase SQL Editor to create the tables
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
 assets/email/         Product photos used on the site and in quote emails
@@ -57,10 +61,31 @@ Environment variables (Vercel → Settings → Environment Variables):
 
 | Name | Required | Purpose |
 |---|---|---|
-| `RESEND_API_KEY` | yes | Resend API key (used by all three API routes) |
+| `RESEND_API_KEY` | yes | Resend API key (used by all email routes) |
+| `SUPABASE_URL` | for pipeline | Supabase project URL (Settings → API) |
+| `SUPABASE_SERVICE_ROLE_KEY` | for pipeline | Supabase **service_role** key — server-side only, never in HTML |
+| `PORTAL_KEY` | for pipeline | Passcode staff enter to open /tools/pipeline |
 | `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
+
+## Sales pipeline (/tools/pipeline)
+
+GHL-style kanban backed by Supabase. Stages: New Lead, Follow-Up, Shopping
+Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
+
+- Website enquiries land in **New Lead** automatically (`/api/lead` inserts them).
+- Sending a quote from /tools moves (or creates) the lead in **Quote Sent**
+  with the quote ref + total, and logs a comment.
+- A customer accepting their quote logs a "✅ accepted" comment on the lead.
+- Drag cards between stages, click a card for details + comments, add leads
+  manually, search by name/phone/postcode.
+- Access requires the `PORTAL_KEY` passcode (asked once per device).
+- Data lives in Supabase with RLS enabled and **no** anon policies — only the
+  serverless functions (service_role key) can touch it.
+
+Setup: run `supabase/schema.sql` in the Supabase SQL Editor, then add the
+three pipeline env vars in Vercel and redeploy.
 
 Sending only works once `powersmartco.com.au` is **verified** in Resend →
 Domains (SPF/DKIM DNS records added at the DNS provider). If sending fails,

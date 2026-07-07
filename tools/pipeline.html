@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Pipeline — PowerSmart</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1B1F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--teal-bright:#7FD6E2;
+    --ink:#0B1B1F;--ink-2:#102529;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
+    --amber:#F5B841;--green:#3BAE6A;--red:#D96B6B;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#EDF3F4;
+    display:flex;flex-direction:column;overflow:hidden}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;border:none;background:none}
+  img{display:block}
+
+  /* ---------- top bar ---------- */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:.65rem 1.1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;flex:none}
+  .topbar .logo img{height:28px}
+  .topbar h1{font-size:1rem;font-weight:800;letter-spacing:-.01em}
+  .topbar h1 span{color:var(--teal-dark)}
+  .tb-count{font-size:.74rem;font-weight:600;color:var(--teal-deep);background:var(--teal-soft);border-radius:999px;padding:.25rem .75rem}
+  .tb-search{flex:1;min-width:160px;max-width:340px;position:relative}
+  .tb-search input{width:100%;padding:.5rem .9rem .5rem 2.2rem;border:1.5px solid var(--line);border-radius:999px;background:var(--paper);outline:none;font-size:.85rem}
+  .tb-search input:focus{border-color:var(--teal);background:#fff}
+  .tb-search svg{position:absolute;left:.8rem;top:50%;transform:translateY(-50%);color:var(--muted)}
+  .tb-actions{display:flex;gap:.5rem;margin-left:auto;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:.4rem;font-weight:700;font-size:.8rem;padding:.5rem 1rem;border-radius:999px;transition:transform .15s ease,background .15s ease}
+  .btn-primary{background:var(--teal);color:var(--ink)}
+  .btn-primary:hover{background:var(--teal-bright);transform:translateY(-1px)}
+  .btn-ghost{border:1.5px solid var(--line);color:var(--body)}
+  .btn-ghost:hover{border-color:var(--teal-dark);color:var(--teal-deep)}
+  .btn:disabled{opacity:.55;cursor:wait}
+
+  /* ---------- board ---------- */
+  .board-wrap{flex:1;overflow-x:auto;overflow-y:hidden;padding:1rem 1.1rem 1.2rem}
+  .board{display:flex;gap:.9rem;height:100%;min-width:max-content}
+  .col{width:272px;flex:none;display:flex;flex-direction:column;background:#E4EDEE;border-radius:14px;max-height:100%}
+  .col-head{padding:.8rem 1rem .6rem;display:flex;align-items:center;gap:.5rem;flex:none}
+  .col-head .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .col-head h2{font-size:.82rem;font-weight:700}
+  .col-head .n{margin-left:auto;font-size:.72rem;font-weight:700;color:var(--muted);background:#fff;border-radius:999px;padding:.1rem .55rem}
+  .col-body{flex:1;overflow-y:auto;padding:.25rem .6rem .8rem;display:flex;flex-direction:column;gap:.55rem;scrollbar-width:thin}
+  .col.dragover{outline:2px dashed var(--teal);outline-offset:-4px}
+
+  .cardk{background:#fff;border:1px solid var(--line);border-radius:11px;padding:.7rem .8rem .6rem;cursor:grab;
+    box-shadow:0 2px 8px -3px rgba(11,27,31,.12);transition:box-shadow .15s ease,transform .15s ease}
+  .cardk:hover{box-shadow:0 8px 20px -8px rgba(11,27,31,.25);transform:translateY(-1px)}
+  .cardk.dragging{opacity:.45;cursor:grabbing}
+  .cardk h3{font-size:.86rem;font-weight:700;line-height:1.3;margin-bottom:.3rem}
+  .cardk .meta{display:flex;flex-wrap:wrap;gap:.3rem .45rem;font-size:.68rem;color:var(--muted);margin-bottom:.45rem}
+  .chip{background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:.08rem .5rem;font-weight:600}
+  .chip.src{background:var(--teal-soft);border-color:transparent;color:var(--teal-deep)}
+  .chip.quote{background:#FDF3DC;border-color:transparent;color:#8a6a14}
+  .cardk .foot{display:flex;align-items:center;gap:.55rem;border-top:1px solid var(--line);padding-top:.45rem}
+  .icb{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.7rem;font-weight:600;padding:.15rem .3rem;border-radius:6px;text-decoration:none}
+  .icb:hover{background:var(--teal-soft);color:var(--teal-deep)}
+  .cardk .age{margin-left:auto;font-size:.66rem;color:var(--muted)}
+  .cardk .age.stale{color:var(--red);font-weight:700}
+
+  /* ---------- modals ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(11,27,31,.55);display:none;align-items:center;justify-content:center;padding:1rem;z-index:50}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:16px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(11,27,31,.5)}
+  .modal-head{padding:1.1rem 1.4rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.8rem;flex:none}
+  .modal-head h3{font-size:1.05rem;font-weight:800;flex:1}
+  .modal-head .x{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .modal-head .x:hover{background:var(--paper);color:var(--ink)}
+  .modal-body{padding:1.1rem 1.4rem;overflow-y:auto}
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+  .field{display:flex;flex-direction:column;gap:.25rem}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .field input,.field select,.field textarea{padding:.55rem .75rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);outline:none;font-size:.86rem}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal);background:#fff}
+  .modal-foot{padding:.9rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.6rem;align-items:center;flex:none}
+  .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
+  .modal-foot .spacer{flex:1}
+
+  /* comments */
+  .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
+  .cmts h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem}
+  .cmt{background:var(--paper);border-radius:10px;padding:.55rem .8rem;margin-bottom:.5rem}
+  .cmt .who{font-size:.68rem;color:var(--muted);margin-bottom:.15rem}
+  .cmt .who strong{color:var(--teal-deep)}
+  .cmt p{font-size:.84rem;color:var(--body);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .cmt-add{display:flex;gap:.5rem;margin-top:.6rem}
+  .cmt-add textarea{flex:1;min-height:44px;resize:vertical}
+
+  /* gate */
+  .gate{position:fixed;inset:0;background:linear-gradient(160deg,#0B1B1F,#0E2227);display:none;align-items:center;justify-content:center;padding:1rem;z-index:100}
+  .gate.show{display:flex}
+  .gate .box{background:#fff;border-radius:18px;padding:2rem;width:min(380px,100%);text-align:center}
+  .gate img{height:34px;margin:0 auto 1rem}
+  .gate h2{font-size:1.1rem;margin-bottom:.35rem}
+  .gate p{font-size:.82rem;color:var(--muted);margin-bottom:1.1rem}
+  .gate input{width:100%;padding:.7rem .9rem;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);outline:none;text-align:center;font-size:1rem;letter-spacing:.1em}
+  .gate input:focus{border-color:var(--teal);background:#fff}
+  .gate .btn{width:100%;justify-content:center;margin-top:.8rem;padding:.7rem}
+  .gate .err{color:var(--red);font-size:.78rem;margin-top:.6rem;min-height:1.1em}
+
+  /* toast + loading */
+  .toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:.65rem 1.2rem;border-radius:999px;font-size:.82rem;opacity:0;pointer-events:none;transition:all .25s ease;z-index:120;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem}
+  .empty-col{font-size:.72rem;color:var(--muted);text-align:center;padding:.9rem .4rem;border:1.5px dashed rgba(11,27,31,.15);border-radius:10px}
+  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%} }
+</style>
+</head>
+<body>
+
+  <!-- passcode gate -->
+  <div class="gate" id="gate">
+    <div class="box">
+      <img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co">
+      <h2>Sales Pipeline</h2>
+      <p>Enter the portal key to continue.</p>
+      <input type="password" id="gate-key" placeholder="Portal key" autocomplete="current-password">
+      <button class="btn btn-primary" id="gate-btn">Unlock</button>
+      <div class="err" id="gate-err"></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a class="logo" href="/tools" title="Back to Sales Portal"><img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
+    <h1>Sales <span>Pipeline</span></h1>
+    <span class="tb-count" id="total-count">— leads</span>
+    <div class="tb-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" id="search" placeholder="Search name, phone, postcode…">
+    </div>
+    <div class="tb-actions">
+      <a class="btn btn-ghost" href="/tools">Quote Tool</a>
+      <button class="btn btn-ghost" id="refresh" title="Refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+      <button class="btn btn-primary" id="add-btn">＋ Add lead</button>
+    </div>
+  </header>
+
+  <div class="board-wrap" style="position:relative">
+    <div class="loading" id="loading">Loading pipeline…</div>
+    <div class="board" id="board" style="display:none"></div>
+  </div>
+
+  <!-- lead modal -->
+  <div class="overlay" id="lead-overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="lm-title">Lead</h3>
+        <button class="x" id="lm-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="fgrid">
+          <div class="field full"><label>Name</label><input id="lm-name"></div>
+          <div class="field"><label>Phone</label><input id="lm-phone"></div>
+          <div class="field"><label>Email</label><input id="lm-email" type="email"></div>
+          <div class="field"><label>Postcode</label><input id="lm-postcode"></div>
+          <div class="field"><label>Source</label><input id="lm-source" placeholder="Website / Facebook / Google…"></div>
+          <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
+          <div class="field"><label>Agent</label><input id="lm-agent"></div>
+        </div>
+        <div class="fgrid" id="lm-quote-row" style="display:none;margin-top:.7rem">
+          <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
+          <div class="field"><label>Quote total</label><input id="lm-qtotal" readonly style="background:#F8FBFB"></div>
+        </div>
+        <div class="cmts" id="lm-cmts">
+          <h4>Comments</h4>
+          <div id="cmt-list"><p style="font-size:.8rem;color:var(--muted)">Loading…</p></div>
+          <div class="cmt-add">
+            <textarea id="cmt-body" class="field-input" placeholder="Add a note about this customer…" style="padding:.55rem .75rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);outline:none;font-size:.86rem"></textarea>
+            <button class="btn btn-primary" id="cmt-send" style="align-self:flex-end">Post</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="del" id="lm-delete">Delete lead</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="lm-cancel">Close</button>
+        <button class="btn btn-primary" id="lm-save">Save changes</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STAGES = [
+    { id:"new_lead",     label:"New Lead",       color:"#43A8B6" },
+    { id:"follow_up",    label:"Follow-Up",      color:"#7FB0F5" },
+    { id:"shopping",     label:"Shopping Around",color:"#B58AE0" },
+    { id:"quote_sent",   label:"Quote Sent",     color:"#F5B841" },
+    { id:"won",          label:"Won / Installed",color:"#3BAE6A" },
+    { id:"not_reachable",label:"Not Reachable",  color:"#9AA9AC" },
+    { id:"out_of_area",  label:"Out of Area",    color:"#D96B6B" }
+  ];
+  var KEY_LS = "powersmart_portal_key";
+  var AGENT_LS = "powersmart_agent_name";
+
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
+  var fmt$ = function(n){ return "$" + Number(n).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  var leads = [];
+  var currentId = null;
+  var searchTerm = "";
+
+  /* ---------- api ---------- */
+  function portalKey(){ try{ return localStorage.getItem(KEY_LS) || ""; }catch(e){ return ""; } }
+  function api(method, body){
+    return fetch("/api/pipeline", {
+      method: method,
+      headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        if (r.status === 401){ showGate(true); throw new Error("Invalid portal key"); }
+        if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+        return d;
+      });
+    });
+  }
+
+  function toast(msg){
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200);
+  }
+
+  /* ---------- gate ---------- */
+  function showGate(bad){
+    $("gate").classList.add("show");
+    $("gate-err").textContent = bad ? "That key wasn't accepted — try again." : "";
+    $("gate-key").focus();
+  }
+  function tryUnlock(){
+    var v = $("gate-key").value.trim();
+    if (!v) return;
+    try{ localStorage.setItem(KEY_LS, v); }catch(e){}
+    $("gate-btn").disabled = true;
+    load().then(function(){
+      $("gate").classList.remove("show");
+    }).catch(function(){ /* gate re-shown by api() on 401 */ })
+      .finally(function(){ $("gate-btn").disabled = false; });
+  }
+  $("gate-btn").addEventListener("click", tryUnlock);
+  $("gate-key").addEventListener("keydown", function(e){ if (e.key === "Enter") tryUnlock(); });
+
+  /* ---------- board ---------- */
+  function daysAgo(iso){
+    var d = Math.floor((Date.now() - new Date(iso).getTime())/864e5);
+    return d <= 0 ? "Today" : d === 1 ? "1 day" : d + " days";
+  }
+  function isStale(iso){ return (Date.now() - new Date(iso).getTime())/864e5 >= 7; }
+
+  function matches(l){
+    if (!searchTerm) return true;
+    var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.quote_ref||"")).toLowerCase();
+    return hay.indexOf(searchTerm) !== -1;
+  }
+
+  function renderBoard(){
+    var board = $("board");
+    board.innerHTML = "";
+    var visible = leads.filter(matches);
+    $("total-count").textContent = leads.length + " lead" + (leads.length===1?"":"s");
+
+    STAGES.forEach(function(st){
+      var col = document.createElement("div");
+      col.className = "col";
+      col.dataset.stage = st.id;
+      var inCol = visible.filter(function(l){ return l.stage === st.id; });
+
+      col.innerHTML =
+        '<div class="col-head"><span class="dot" style="background:' + st.color + '"></span><h2>' + st.label + '</h2><span class="n">' + inCol.length + '</span></div>' +
+        '<div class="col-body"></div>';
+      var bodyEl = col.querySelector(".col-body");
+
+      if (!inCol.length){
+        bodyEl.innerHTML = '<div class="empty-col">No leads</div>';
+      }
+      inCol.forEach(function(l){
+        var card = document.createElement("div");
+        card.className = "cardk";
+        card.draggable = true;
+        card.dataset.id = l.id;
+        var chips = '<span class="chip src">' + esc(l.source || "—") + '</span>';
+        if (l.postcode) chips += '<span class="chip">' + esc(l.postcode) + '</span>';
+        if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
+        var foot = "";
+        if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
+        if (l.email) foot += '<a class="icb" href="mailto:' + esc(l.email) + '" onclick="event.stopPropagation()" title="Email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></a>';
+        foot += '<span class="icb" title="Comments"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> ' + (l.comment_count || 0) + '</span>';
+        foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
+
+        card.innerHTML = '<h3>' + esc(l.name) + '</h3><div class="meta">' + chips + '</div><div class="foot">' + foot + '</div>';
+        card.addEventListener("click", function(){ openLead(l.id); });
+        card.addEventListener("dragstart", function(e){
+          card.classList.add("dragging");
+          e.dataTransfer.setData("text/plain", l.id);
+          e.dataTransfer.effectAllowed = "move";
+        });
+        card.addEventListener("dragend", function(){ card.classList.remove("dragging"); });
+        bodyEl.appendChild(card);
+      });
+
+      col.addEventListener("dragover", function(e){ e.preventDefault(); col.classList.add("dragover"); });
+      col.addEventListener("dragleave", function(){ col.classList.remove("dragover"); });
+      col.addEventListener("drop", function(e){
+        e.preventDefault(); col.classList.remove("dragover");
+        var id = e.dataTransfer.getData("text/plain");
+        var lead = leads.find(function(x){ return x.id === id; });
+        if (!lead || lead.stage === st.id) return;
+        var prev = lead.stage;
+        lead.stage = st.id; lead.updated_at = new Date().toISOString();
+        renderBoard(); // optimistic
+        api("POST", { action:"move", id:id, stage:st.id }).catch(function(err){
+          lead.stage = prev; renderBoard(); toast("Move failed: " + err.message);
+        });
+      });
+
+      board.appendChild(col);
+    });
+  }
+
+  function load(){
+    return api("GET").then(function(d){
+      leads = d.leads || [];
+      $("loading").style.display = "none";
+      $("board").style.display = "";
+      renderBoard();
+    });
+  }
+
+  /* ---------- lead modal ---------- */
+  var stageSel = $("lm-stage");
+  STAGES.forEach(function(s){
+    var o = document.createElement("option"); o.value = s.id; o.textContent = s.label; stageSel.appendChild(o);
+  });
+
+  function openLead(id){
+    currentId = id;
+    var l = leads.find(function(x){ return x.id === id; });
+    if (!l) return;
+    $("lm-title").textContent = l.name;
+    $("lm-name").value = l.name || "";
+    $("lm-phone").value = l.phone || "";
+    $("lm-email").value = l.email || "";
+    $("lm-postcode").value = l.postcode || "";
+    $("lm-source").value = l.source || "";
+    $("lm-agent").value = l.agent || "";
+    stageSel.value = l.stage;
+    if (l.quote_ref){
+      $("lm-quote-row").style.display = "";
+      $("lm-qref").value = l.quote_ref;
+      $("lm-qtotal").value = l.quote_total ? fmt$(l.quote_total) : "—";
+    } else {
+      $("lm-quote-row").style.display = "none";
+    }
+    $("lm-delete").style.display = "";
+    $("lm-cmts").style.display = "";
+    $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Loading…</p>';
+    $("lead-overlay").classList.add("show");
+    api("POST", { action:"comments", lead_id:id }).then(function(d){
+      renderComments(d.comments || []);
+    }).catch(function(err){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--red)">' + esc(err.message) + '</p>'; });
+  }
+
+  function renderComments(cs){
+    if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
+    $("cmt-list").innerHTML = cs.map(function(c){
+      var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
+      return '<div class="cmt"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p></div>';
+    }).join("");
+  }
+
+  function openNewLead(){
+    currentId = null;
+    $("lm-title").textContent = "Add lead";
+    ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent"].forEach(function(i){ $(i).value = ""; });
+    $("lm-source").value = "Phone";
+    try{ $("lm-agent").value = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
+    stageSel.value = "new_lead";
+    $("lm-quote-row").style.display = "none";
+    $("lm-delete").style.display = "none";
+    $("lm-cmts").style.display = "none";
+    $("lead-overlay").classList.add("show");
+    $("lm-name").focus();
+  }
+
+  function closeModal(){ $("lead-overlay").classList.remove("show"); currentId = null; }
+  $("lm-close").addEventListener("click", closeModal);
+  $("lm-cancel").addEventListener("click", closeModal);
+  $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeModal(); });
+
+  $("lm-save").addEventListener("click", function(){
+    var btn = this; btn.disabled = true;
+    var fields = {
+      name: $("lm-name").value.trim(),
+      phone: $("lm-phone").value.trim(),
+      email: $("lm-email").value.trim(),
+      postcode: $("lm-postcode").value.trim(),
+      source: $("lm-source").value.trim(),
+      agent: $("lm-agent").value.trim()
+    };
+    if (!fields.name){ toast("Name is required"); btn.disabled = false; return; }
+    var p;
+    if (currentId){
+      var stage = stageSel.value;
+      p = api("POST", Object.assign({ action:"update", id:currentId }, fields)).then(function(){
+        var l = leads.find(function(x){ return x.id === currentId; });
+        if (l && l.stage !== stage) return api("POST", { action:"move", id:currentId, stage:stage });
+      });
+    } else {
+      p = api("POST", Object.assign({ action:"create", stage: stageSel.value }, fields));
+    }
+    p.then(function(){ closeModal(); return load(); })
+     .then(function(){ toast(currentId ? "Saved" : "Lead added"); })
+     .catch(function(err){ toast(err.message); })
+     .finally(function(){ btn.disabled = false; });
+  });
+
+  $("lm-delete").addEventListener("click", function(){
+    if (!currentId) return;
+    var l = leads.find(function(x){ return x.id === currentId; });
+    if (!confirm("Delete " + (l ? l.name : "this lead") + " and all their comments? This can't be undone.")) return;
+    api("POST", { action:"delete", id:currentId }).then(function(){
+      closeModal(); return load();
+    }).then(function(){ toast("Lead deleted"); }).catch(function(err){ toast(err.message); });
+  });
+
+  $("cmt-send").addEventListener("click", function(){
+    var body = $("cmt-body").value.trim();
+    if (!body || !currentId) return;
+    var author = "";
+    try{ author = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
+    if (!author){
+      author = prompt("Your name (saved for next time):") || "";
+      if (author){ try{ localStorage.setItem(AGENT_LS, author); }catch(e){} }
+    }
+    var btn = this; btn.disabled = true;
+    api("POST", { action:"comment", lead_id:currentId, author:author, body:body }).then(function(){
+      $("cmt-body").value = "";
+      return api("POST", { action:"comments", lead_id:currentId });
+    }).then(function(d){
+      renderComments(d.comments || []);
+      var l = leads.find(function(x){ return x.id === currentId; });
+      if (l){ l.comment_count = (l.comment_count||0) + 1; l.updated_at = new Date().toISOString(); renderBoard(); }
+    }).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+
+  /* ---------- top bar ---------- */
+  $("add-btn").addEventListener("click", openNewLead);
+  $("refresh").addEventListener("click", function(){
+    var b = this; b.disabled = true;
+    load().then(function(){ toast("Refreshed"); }).catch(function(err){ toast(err.message); }).finally(function(){ b.disabled = false; });
+  });
+  $("search").addEventListener("input", function(){
+    searchTerm = this.value.trim().toLowerCase();
+    renderBoard();
+  });
+
+  /* ---------- boot ---------- */
+  if (!portalKey()){
+    $("loading").style.display = "none";
+    showGate(false);
+  } else {
+    load().catch(function(err){
+      $("loading").textContent = "Couldn't load: " + err.message;
+    });
+  }
+})();
+</script>
+</body>
+</html>

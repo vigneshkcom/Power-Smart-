@@ -5,6 +5,7 @@
 //           RESEND_FROM_EMAIL / RESEND_REPLY_TO (optional).
 
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
+const SB = require("./_supabase");
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -56,6 +57,17 @@ module.exports = async (req, res) => {
     </div>`;
 
   const text = `New website lead — call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "—"}\nPostcode: ${postcode || "—"}\n\nSubmitted via the landing page.`;
+
+  // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
+  if (SB.configured()) {
+    try {
+      await SB.sb("leads", {
+        method: "POST",
+        body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source: "Website", stage: "new_lead" },
+        prefer: "return=minimal",
+      });
+    } catch (e) { console.error("lead → pipeline insert failed:", e.message); }
+  }
 
   try {
     const { Resend } = require("resend");

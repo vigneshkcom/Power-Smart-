@@ -7,6 +7,36 @@
 //   NOTIFY_EMAIL        optional, address BCC'd a copy of each quote (default support)
 
 const Q = require("./_quote");
+const SB = require("./_supabase");
+
+async function recordInPipeline({ customerName, customerEmail, agentName, ref, total }) {
+  if (!SB.configured()) return;
+  try {
+    const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
+    let leadId;
+    if (found && found[0]) {
+      leadId = found[0].id;
+      await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}`, {
+        method: "PATCH",
+        body: { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null },
+        prefer: "return=minimal",
+      });
+    } else {
+      const rows = await SB.sb("leads", {
+        method: "POST",
+        body: { name: customerName || customerEmail, email: customerEmail.toLowerCase(), source: "Phone quote", stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null },
+      });
+      leadId = rows && rows[0] && rows[0].id;
+    }
+    if (leadId) {
+      await SB.sb("lead_comments", {
+        method: "POST",
+        body: { lead_id: leadId, author: agentName || "System", body: `Quote ${ref} emailed — total ${Q.fmt(total)} incl. GST.` },
+        prefer: "return=minimal",
+      });
+    }
+  } catch (e) { console.error("send-quote → pipeline update failed:", e.message); }
+}
 
 function isValidEmail(v) {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -54,6 +84,7 @@ module.exports = async (req, res) => {
       text: rendered.text,
     });
     if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total });
     return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error sending email" });

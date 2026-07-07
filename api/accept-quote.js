@@ -5,6 +5,29 @@
 //           RESEND_FROM_EMAIL / RESEND_REPLY_TO (optional).
 
 const Q = require("./_quote");
+const SB = require("./_supabase");
+
+async function logAcceptance({ ref, customerName, customerEmail, payableToday }) {
+  if (!SB.configured()) return;
+  try {
+    let lead = null;
+    if (ref) {
+      const byRef = await SB.sb(`leads?quote_ref=eq.${encodeURIComponent(ref)}&select=id&limit=1`);
+      lead = byRef && byRef[0];
+    }
+    if (!lead && customerEmail) {
+      const byEmail = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
+      lead = byEmail && byEmail[0];
+    }
+    if (lead) {
+      await SB.sb("lead_comments", {
+        method: "POST",
+        body: { lead_id: lead.id, author: "System", body: `✅ ${customerName || "Customer"} ACCEPTED quote ${ref || ""} and was sent to Stripe for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.` },
+        prefer: "return=minimal",
+      });
+    }
+  } catch (e) { console.error("accept-quote → pipeline comment failed:", e.message); }
+}
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -68,6 +91,8 @@ module.exports = async (req, res) => {
       console.error("accept-quote notify failed:", err && err.message);
     }
   }
+
+  await logAcceptance({ ref, customerName, customerEmail, payableToday: q.payableToday });
 
   return res.status(200).json({ ok: true, stripeUrl });
 };
