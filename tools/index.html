@@ -154,7 +154,7 @@
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: PRESENTING THE QUOTE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
                     <p>"Based on your information you have provided, you will need <span id="script-qty" class="font-bold">0</span> smoke alarms, and the electrician will confirm exactly how many you need and where in each room they are to be located, to make your house compliant."</p>
-                    <p>"The cost is $90 per smoke alarm payable on the day of installation and a $35 electrician fee which I need to take upfront to secure your booking."</p>
+                    <p>"The cost is $88 per smoke alarm payable on the day of installation and a $35 electrician fee which I need to take upfront to secure your booking."</p>
                 </div>
             </div>
 
@@ -183,7 +183,7 @@
                 <h4 class="text-center font-bold text-[10px] tracking-widest mb-3 opacity-70 uppercase">PRICING SUMMARY</h4>
                 <div class="space-y-2 text-xs">
                     <div class="flex justify-between border-b border-gray-800 pb-1.5">
-                        <span>Alarms (<span id="res_alarmQty">0</span> x $90.00):</span>
+                        <span>Alarms (<span id="res_alarmQty">0</span> x $88.00):</span>
                         <span id="res_alarmTotal" class="font-bold">$0.00</span>
                     </div>
                     <div id="summary-controller-row" class="hidden flex justify-between border-b border-gray-800 pb-1.5">
@@ -444,7 +444,7 @@ function calculate() {
         alarmCount += (storeys - 1); 
     }
 
-    const PRICE_ALARM = 90;
+    const PRICE_ALARM = 88;
     const PRICE_CTRL = 49;
     const FEE_BOOKING = serviceMode === 'install' ? 35 : 131;
 
@@ -495,7 +495,7 @@ function copySMS() {
     
     let breakdown = "";
     if (serviceMode === 'install') {
-        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $90.00): ${alarmTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $88.00): ${alarmTotal}`;
         if (hasControllers) {
             breakdown += `\n- Controllers (${controllerQty} x $49.00): ${controllerTotal}`;
         }
@@ -543,7 +543,7 @@ function buildPlainTextQuote() {
 
     let breakdown = "";
     if (serviceMode === 'install') {
-        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $90.00): ${alarmTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $88.00): ${alarmTotal}`;
         if (controllerQty > 0) {
             breakdown += `\n- Controllers (${controllerQty} x $49.00): ${controllerTotal}`;
         }
@@ -664,7 +664,7 @@ function generatePDF() {
     let rows = '';
     if (serviceMode === 'install') {
         if (alarmQty > 0) {
-            rows += `<tr><td class="py-2 border-b">Anka Smoke Alarms - Photoelectric, Interconnected</td><td class="text-center border-b">${alarmQty}</td><td class="text-right border-b">$90.00</td><td class="text-right border-b">${formatter.format(alarmQty * 90)}</td></tr>`;
+            rows += `<tr><td class="py-2 border-b">Anka Smoke Alarms - Photoelectric, Interconnected</td><td class="text-center border-b">${alarmQty}</td><td class="text-right border-b">$88.00</td><td class="text-right border-b">${formatter.format(alarmQty * 88)}</td></tr>`;
         }
         if (ctrlQty > 0) {
             rows += `<tr><td class="py-2 border-b">Smoke Alarm Controller</td><td class="text-center border-b">${ctrlQty}</td><td class="text-right border-b">$49.00</td><td class="text-right border-b">${formatter.format(ctrlQty * 49)}</td></tr>`;

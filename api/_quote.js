@@ -10,7 +10,7 @@ const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const ABN = "41 669 943 720";
 const QUOTE_VALID_DAYS = 30;
 
-const PRICE_ALARM = 90;
+const PRICE_ALARM = 88;
 const PRICE_CTRL = 49;
 const FEE_BOOKING = 35;
 const FEE_INSPECT = 131;
