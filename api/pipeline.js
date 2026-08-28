@@ -1,6 +1,6 @@
 // /api/pipeline — backend for the staff sales pipeline (kanban) page.
 //
-// Auth: every request must carry header  x-portal-key: <PORTAL_KEY env var>.
+// Auth: every request must carry header  x-portal-key: <PORTAL_KEY below>.
 // Data: Supabase via service-role key (see api/_supabase.js). RLS blocks all
 //       other access, so this function is the only door to the data.
 //
@@ -9,14 +9,15 @@
 
 const { sb, configured } = require("./_supabase");
 
+// Passcode staff enter to open /tools/pipeline.
+const PORTAL_KEY = "2026";
+
 const STAGES = ["new_lead", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
 module.exports = async (req, res) => {
-  const portalKey = process.env.PORTAL_KEY;
-  if (!portalKey) return res.status(500).json({ error: "Portal is not configured (missing PORTAL_KEY)" });
-  if ((req.headers["x-portal-key"] || "") !== portalKey) {
+  if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) {
     return res.status(401).json({ error: "Invalid portal key" });
   }
   if (!configured()) return res.status(500).json({ error: "Supabase is not configured (missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" });

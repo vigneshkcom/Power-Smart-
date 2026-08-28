@@ -68,7 +68,6 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `RESEND_API_KEY` | yes | Resend API key (used by all email routes) |
 | `SUPABASE_URL` | for pipeline | Supabase project URL (Settings → API) |
 | `SUPABASE_SERVICE_ROLE_KEY` | for pipeline | Supabase **service_role** key — server-side only, never in HTML |
-| `PORTAL_KEY` | for pipeline | Passcode staff enter to open /tools/pipeline |
 | `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
@@ -84,12 +83,14 @@ Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
 - A customer accepting their quote logs a "✅ accepted" comment on the lead.
 - Drag cards between stages, click a card for details + comments, add leads
   manually, search by name/phone/postcode.
-- Access requires the `PORTAL_KEY` passcode (asked once per device).
+- Access requires the portal passcode `2026`, hardcoded in `api/pipeline.js`
+  and `api/send-email.js` (asked once per device).
 - Data lives in Supabase with RLS enabled and **no** anon policies — only the
   serverless functions (service_role key) can touch it.
 
 Setup: run `supabase/schema.sql` in the Supabase SQL Editor, then add the
-three pipeline env vars in Vercel and redeploy.
+two Supabase env vars in Vercel and redeploy. The portal passcode needs no
+env var — it lives in the code.
 
 ## Senders, composer & email log
 

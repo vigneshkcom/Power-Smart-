@@ -9,6 +9,9 @@ const S = require("./_senders");
 const SB = require("./_supabase");
 const { logEmail } = require("./_maillog");
 
+// Passcode staff enter to open /tools/pipeline.
+const PORTAL_KEY = "2026";
+
 function isValidEmail(v) {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
@@ -19,9 +22,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const portalKey = process.env.PORTAL_KEY;
-  if (!portalKey) return res.status(500).json({ error: "Portal is not configured (missing PORTAL_KEY)" });
-  if ((req.headers["x-portal-key"] || "") !== portalKey) return res.status(401).json({ error: "Invalid portal key" });
+  if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) return res.status(401).json({ error: "Invalid portal key" });
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Email service is not configured (missing RESEND_API_KEY)" });
