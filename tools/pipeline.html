@@ -114,6 +114,30 @@
   .cmt-add textarea{flex:1;min-height:44px;resize:vertical}
 
 
+  .btn{white-space:nowrap}
+  .modal-foot{flex-wrap:wrap}
+  .btn svg,.x svg{flex:none}
+  .cmt-ic{display:inline-flex;vertical-align:-2px;margin-right:.4rem;color:var(--teal-dark)}
+  .cmt-ic.bad{color:var(--red)}
+  .view-hint svg{vertical-align:-1px}
+  .form-err{color:#B03A3A;font-size:.76rem;font-weight:600;flex:1;line-height:1.4}
+  /* search dropdown */
+  .sr-drop{position:absolute;top:calc(100% + 8px);left:0;width:max(100%,420px);max-width:92vw;background:#fff;border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 24px 50px -16px rgba(11,27,31,.35);padding:.35rem;z-index:40;max-height:min(70vh,440px);overflow-y:auto}
+  .sr-drop[hidden]{display:none}
+  .sr-item{width:100%;text-align:left;display:flex;align-items:center;gap:.7rem;padding:.55rem .65rem;border-radius:10px}
+  .sr-item:hover,.sr-item.on{background:var(--teal-soft)}
+  .sr-av{width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:var(--paper);color:var(--teal-deep);font-size:.72rem;font-weight:700}
+  .sr-item.on .sr-av,.sr-item:hover .sr-av{background:#fff}
+  .sr-main{min-width:0;flex:1}
+  .sr-name{font-size:.85rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sr-meta{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sr-tags{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex:none}
+  .sr-stage{display:inline-flex;align-items:center;gap:.35rem;font-size:.66rem;font-weight:700;color:var(--body)}
+  .sr-stage i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .sr-ref{font-size:.64rem;font-weight:600;background:#FDF3DC;color:#8a6a14;border-radius:999px;padding:.05rem .5rem}
+  .sr-empty{padding:.9rem 1rem;font-size:.8rem;color:var(--muted);text-align:center}
+  .sr-foot{padding:.4rem .7rem .3rem;font-size:.66rem;color:var(--muted);border-top:1px solid var(--line);margin-top:.25rem}
   /* quote composer */
   .seg{display:flex;background:var(--paper);border:1.5px solid var(--line);border-radius:999px;padding:3px;gap:3px}
   .seg button{flex:1;padding:.4rem .8rem;border-radius:999px;font-size:.78rem;font-weight:700;color:var(--muted)}
@@ -168,7 +192,8 @@
     <span class="tb-count" id="total-count">— leads</span>
     <div class="tb-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="search" id="search" placeholder="Search name, phone, postcode…">
+      <input type="search" id="search" placeholder="Search name, phone, email, quote no…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="search-drop" aria-autocomplete="list">
+      <div class="sr-drop" id="search-drop" role="listbox" hidden></div>
     </div>
     <div class="tb-actions">
       <a class="btn btn-ghost" href="/tools">Quote Tool</a>
@@ -176,7 +201,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
       </button>
-      <button class="btn btn-primary" id="add-btn">＋ Add lead</button>
+      <button class="btn btn-primary" id="add-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add lead</button>
     </div>
   </header>
 
@@ -190,7 +215,7 @@
     <div class="modal">
       <div class="modal-head">
         <h3 id="lm-title">Lead</h3>
-        <button class="x" id="lm-close" aria-label="Close">✕</button>
+        <button class="x" id="lm-close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="fgrid">
@@ -218,8 +243,8 @@
       <div class="modal-foot">
         <button class="del" id="lm-delete">Delete lead</button>
         <span class="spacer"></span>
-        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">📄 Send quote</button>
-        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">✉ Email</button>
+        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Send quote</button>
+        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</button>
         <button class="btn btn-ghost" id="lm-cancel">Close</button>
         <button class="btn btn-primary" id="lm-save">Save changes</button>
       </div>
@@ -231,7 +256,7 @@
     <div class="modal">
       <div class="modal-head">
         <h3 id="em-title">Send email</h3>
-        <button class="x" id="em-close" aria-label="Close">✕</button>
+        <button class="x" id="em-close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="fgrid">
@@ -249,6 +274,7 @@
         <p style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Sent through Resend as a branded PowerSmart email with the selected sender's signature. A note is logged on this lead.</p>
       </div>
       <div class="modal-foot">
+        <span class="form-err" id="em-err" role="alert"></span>
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="em-cancel">Cancel</button>
         <button class="btn btn-primary" id="em-send">Send email</button>
@@ -261,7 +287,7 @@
     <div class="modal" style="width:min(600px,100%)">
       <div class="modal-head">
         <h3 id="q-title">Send quote</h3>
-        <button class="x" id="q-close" aria-label="Close">✕</button>
+        <button class="x" id="q-close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="seg" id="q-mode">
@@ -300,6 +326,7 @@
         <p class="qnote">Emails the branded PowerSmart quotation with a link to accept, moves this lead to <strong>Quote Sent</strong> and logs it in the comments.</p>
       </div>
       <div class="modal-foot">
+        <span class="form-err" id="q-err" role="alert"></span>
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="q-cancel">Cancel</button>
         <button class="btn btn-primary" id="q-send">Send quote</button>
@@ -311,9 +338,9 @@
   <div class="overlay" id="thread-overlay">
     <div class="modal" style="width:min(720px,100%)">
       <div class="modal-head">
-        <button class="x" id="th-back" style="display:none" title="Back to list">‹</button>
+        <button class="x" id="th-back" style="display:none" title="Back to list"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>
         <h3 id="th-title">Emails</h3>
-        <button class="x" id="th-close" aria-label="Close">✕</button>
+        <button class="x" id="th-close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="modal-body">
         <div id="th-list"></div>
@@ -343,6 +370,10 @@
   var $ = function(id){ return document.getElementById(id); };
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
   var fmt$ = function(n){ return "$" + Number(n).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+  var ICON_MAIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>';
+  var ICON_ALERT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  var ICON_ARROW = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
 
   var leads = [];
   var currentId = null;
@@ -395,10 +426,92 @@
   }
   function isStale(iso){ return (Date.now() - new Date(iso).getTime())/864e5 >= 7; }
 
-  function matches(l){
-    if (!searchTerm) return true;
-    var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.quote_ref||"")).toLowerCase();
-    return hay.indexOf(searchTerm) !== -1;
+  /* ---------- search ---------- */
+  // Phones in any format: 0451 898 761, 0451898761, +61 451 898 761, (04) 5189 8761 → "0451898761".
+  function natPhone(v){
+    var d = String(v || "").replace(/\D/g, "");
+    if (d.indexOf("61") === 0 && d.length >= 11) d = "0" + d.slice(2);   // +61 4xx → 04xx
+    return d;
+  }
+  var alnum = function(v){ return String(v || "").toLowerCase().replace(/[^a-z0-9]/g, ""); };
+  var stageLabel = function(id){ var st = STAGES.filter(function(x){ return x.id === id; })[0]; return st ? st.label : ""; };
+
+  // Returns 0 for no match, higher for a better match. Every word typed must match something.
+  function leadScore(l, query){
+    var q = query.trim().toLowerCase();
+    if (!q) return 1;
+    var phone = natPhone(l.phone), name = (l.name || "").toLowerCase(), email = (l.email || "").toLowerCase();
+    var ref = alnum(l.quote_ref), pc = String(l.postcode || ""), src = (l.source || "").toLowerCase();
+    var agent = (l.agent || "").toLowerCase(), stage = stageLabel(l.stage).toLowerCase();
+
+    // A number typed on its own (any spacing / +61) is matched against the phone, partial or whole.
+    if (/^[\d\s+\-().]+$/.test(q)){
+      var qd = natPhone(q);
+      var hit = qd.length >= 3 && (phone.indexOf(qd) !== -1 || (qd.charAt(0) !== "0" && phone.indexOf("0" + qd) !== -1));
+      if (hit) return phone.indexOf(qd) === 0 || phone.indexOf("0" + qd) === 0 ? 4 : 3;
+      if (qd && (pc.indexOf(qd) === 0)) return 3;                       // postcode
+      if (qd.length >= 3 && ref.indexOf(qd) !== -1) return 2;           // digits inside a quote number
+      if (qd.length >= 3 && String(l.quote_total || "").indexOf(qd) !== -1) return 1;
+      if (!/\D/.test(q) && qd.length < 3) return (name + email).indexOf(q) !== -1 ? 1 : 0;
+    }
+
+    var score = 0, words = q.split(/\s+/);
+    for (var i = 0; i < words.length; i++){
+      var w = words[i], wn = alnum(w), wd = w.replace(/\D/g, ""), s = 0;
+      if (name.indexOf(w) === 0 || name.split(/\s+/).some(function(p){ return p.indexOf(w) === 0; })) s = 4;
+      else if (name.indexOf(w) !== -1) s = 3;
+      else if (email.indexOf(w) !== -1) s = 2;
+      else if (wn.length >= 2 && ref.indexOf(wn) !== -1) s = 3;                 // PS-261001-FLRG, "261001", "flrg", "ps26"
+      else if (wd.length >= 3 && wd.length === w.length && phone.indexOf(wd) !== -1) s = 3;
+      else if (pc.indexOf(w) === 0) s = 2;
+      else if (src.indexOf(w) !== -1 || agent.indexOf(w) !== -1 || stage.indexOf(w) !== -1) s = 1;
+      if (!s) return 0;
+      score += s;
+    }
+    return score;
+  }
+  function matches(l){ return leadScore(l, searchTerm) > 0; }
+
+  var srItems = [], srIndex = -1;
+  function initials(n){
+    var parts = String(n || "").trim().split(/\s+/).filter(Boolean);
+    return parts.length ? (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() : "?";
+  }
+  function closeDrop(){ var d = $("search-drop"); d.hidden = true; $("search").setAttribute("aria-expanded", "false"); srIndex = -1; }
+  function setActive(i){
+    srIndex = i;
+    Array.prototype.forEach.call($("search-drop").querySelectorAll(".sr-item"), function(el, k){
+      el.classList.toggle("on", k === i);
+      if (k === i) el.scrollIntoView({ block: "nearest" });
+    });
+  }
+  function renderDrop(){
+    var q = $("search").value.trim(), d = $("search-drop");
+    if (!q){ closeDrop(); return; }
+    srItems = leads.map(function(l){ return { l: l, s: leadScore(l, q) }; })
+      .filter(function(x){ return x.s > 0; })
+      .sort(function(a, b){ return b.s - a.s || new Date(b.l.updated_at) - new Date(a.l.updated_at); });
+    var shown = srItems.slice(0, 8);
+    if (!shown.length){
+      d.innerHTML = '<div class="sr-empty">No leads match “' + esc(q) + '”.</div>';
+    } else {
+      d.innerHTML = shown.map(function(x, i){
+        var l = x.l, st = STAGES.filter(function(s){ return s.id === l.stage; })[0] || { label: l.stage, color: "#9AA9AC" };
+        var meta = [l.phone, l.email, l.postcode].filter(Boolean).map(esc).join(" · ");
+        return '<button type="button" class="sr-item" role="option" data-id="' + esc(l.id) + '">' +
+          '<span class="sr-av">' + esc(initials(l.name)) + '</span>' +
+          '<span class="sr-main"><div class="sr-name">' + esc(l.name) + '</div><div class="sr-meta">' + (meta || "No contact details") + '</div></span>' +
+          '<span class="sr-tags"><span class="sr-stage"><i style="background:' + st.color + '"></i>' + esc(st.label) + '</span>' +
+          (l.quote_ref ? '<span class="sr-ref">' + esc(l.quote_ref) + '</span>' : '') + '</span></button>';
+      }).join("") + (srItems.length > shown.length ? '<div class="sr-foot">Showing ' + shown.length + ' of ' + srItems.length + ' — keep typing to narrow down.</div>' : '');
+    }
+    d.hidden = false; $("search").setAttribute("aria-expanded", "true");
+    setActive(shown.length ? 0 : -1);
+  }
+  function pickLead(id){
+    closeDrop();
+    $("search").value = ""; searchTerm = ""; renderBoard();
+    openLead(id);
   }
 
   function renderBoard(){
@@ -514,9 +627,12 @@
     if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
     $("cmt-list").innerHTML = cs.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
-      var isEmail = /^📧/.test(c.body || "");
-      var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : '';
-      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
+      var raw = String(c.body || "");
+      var isEmail = /^📧/.test(raw), isFail = /^⚠/.test(raw);
+      var text = raw.replace(/^(📧|⚠️?)\s*/, "");          // the icon is drawn, not typed
+      var icon = (isEmail || isFail) ? '<span class="cmt-ic' + (isFail ? ' bad' : '') + '">' + (isFail ? ICON_ALERT : ICON_MAIL) + '</span>' : '';
+      var hint = isEmail ? '<span class="view-hint">Read the full email ' + ICON_ARROW + '</span>' : '';
+      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + icon + esc(text) + '</p>' + hint + '</div>';
     }).join("");
   }
   // clicking an email log entry opens the sent-email thread for this lead
@@ -617,6 +733,7 @@
     $("em-subject").value = "";
     $("em-message").value = "Hi " + (l.name ? l.name.split(" ")[0] : "there") + ",\n\n";
     $("em-sendas").value = AGENT_TO_SENDER[currentAgent()] || "customer_service";
+    $("em-err").textContent = "";
     $("email-overlay").classList.add("show");
     $("em-subject").focus();
   }
@@ -630,9 +747,10 @@
     var to = $("em-to").value.trim();
     var subject = $("em-subject").value.trim();
     var message = $("em-message").value.trim();
-    if (!to){ toast("Recipient email is required"); return; }
-    if (!subject){ toast("Subject is required"); return; }
-    if (!message){ toast("Write a message"); return; }
+    var eerr = $("em-err"); eerr.textContent = "";
+    if (!to){ eerr.textContent = "Recipient email is required."; return; }
+    if (!subject){ eerr.textContent = "Add a subject."; $("em-subject").focus(); return; }
+    if (!message){ eerr.textContent = "Write a message."; return; }
     var l = leads.find(function(x){ return x.id === emailLeadId; });
     var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
     fetch("/api/send-email", {
@@ -648,10 +766,10 @@
       }); })
       .then(function(){
         closeEmail();
-        toast("Email sent to " + to + " ✓");
+        toast("Email sent to " + to);
         return load(); // reflect the logged comment on the card
       })
-      .catch(function(err){ toast("Couldn't send: " + err.message); })
+      .catch(function(err){ eerr.textContent = "Couldn't send: " + err.message; })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
 
@@ -713,6 +831,7 @@
     $("q-ctrlqty").value = 1;
     $("q-sendas").value = AGENT_TO_SENDER[currentAgent()] || "customer_service";
     setQuoteMode("install");
+    $("q-err").textContent = "";
     $("quote-overlay").classList.add("show");
     $("q-bed").focus();
   }
@@ -729,9 +848,10 @@
   $("q-send").addEventListener("click", function(){
     var l = leads.find(function(x){ return x.id === quoteLeadId; });
     var to = $("q-to").value.trim();
-    if (!to){ toast("Enter the customer's email address"); $("q-to").focus(); return; }
+    var qerr = $("q-err"); qerr.textContent = "";
+    if (!to){ qerr.textContent = "Enter the customer's email address."; $("q-to").focus(); return; }
     var c = quoteCalc();
-    if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first — the quote needs at least 1 alarm"); $("q-bed").focus(); return; }
+    if (quoteMode === "install" && c.alarms < 1){ qerr.textContent = "Enter the property details first: the quote needs at least 1 alarm."; $("q-bed").focus(); return; }
     var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
     fetch("/api/send-quote", {
       method: "POST",
@@ -751,7 +871,7 @@
         toast("Quote " + d.ref + " (" + fmt$(d.total) + ") emailed to " + to + " ✓");
         return load();   // card moves to Quote Sent with its quote ref
       })
-      .catch(function(err){ toast("Couldn't send: " + err.message); })
+      .catch(function(err){ qerr.textContent = "Couldn't send: " + err.message; })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
 
@@ -827,9 +947,21 @@
     load().then(function(){ toast("Refreshed"); }).catch(function(err){ toast(err.message); }).finally(function(){ b.disabled = false; });
   });
   $("search").addEventListener("input", function(){
-    searchTerm = this.value.trim().toLowerCase();
+    searchTerm = this.value.trim();
     renderBoard();
+    renderDrop();
   });
+  $("search").addEventListener("focus", function(){ if (this.value.trim()) renderDrop(); });
+  $("search").addEventListener("keydown", function(e){
+    var items = $("search-drop").querySelectorAll(".sr-item");
+    if (e.key === "ArrowDown" && items.length){ e.preventDefault(); setActive((srIndex + 1) % items.length); }
+    else if (e.key === "ArrowUp" && items.length){ e.preventDefault(); setActive((srIndex - 1 + items.length) % items.length); }
+    else if (e.key === "Enter" && items[srIndex]){ e.preventDefault(); pickLead(items[srIndex].dataset.id); }
+    else if (e.key === "Escape"){ closeDrop(); }
+  });
+  $("search-drop").addEventListener("mousedown", function(e){ e.preventDefault(); });   // keep focus in the box
+  $("search-drop").addEventListener("click", function(e){ var it = e.target.closest(".sr-item"); if (it) pickLead(it.dataset.id); });
+  document.addEventListener("click", function(e){ if (!e.target.closest(".tb-search")) closeDrop(); });
 
   /* ---------- boot ---------- */
   if (!portalKey()){

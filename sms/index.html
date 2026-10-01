@@ -39,6 +39,8 @@
   .btn-ghost{border:1.5px solid var(--line);color:var(--body)}
   .btn-ghost:hover{border-color:var(--teal-dark);color:var(--teal-deep)}
   .btn:disabled{opacity:.55;cursor:wait}
+  .btn{white-space:nowrap}
+  .btn svg,.x svg{flex:none}
 
   /* ---------- two-pane layout ---------- */
   .wrap{flex:1;min-height:0;display:grid;grid-template-columns:340px 1fr;gap:.9rem;padding:1rem 1.1rem 1.2rem}
@@ -149,7 +151,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Sync inbox
       </button>
-      <button class="btn btn-primary" id="new-btn">＋ New message</button>
+      <button class="btn btn-primary" id="new-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New message</button>
     </div>
   </header>
 
@@ -184,7 +186,7 @@
   <!-- new message modal -->
   <div class="overlay" id="new-overlay">
     <div class="modal">
-      <div class="modal-head"><h3>New message</h3><button class="x" id="new-close" aria-label="Close">✕</button></div>
+      <div class="modal-head"><h3>New message</h3><button class="x" id="new-close" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div class="modal-body">
         <div class="field"><label for="newPhone">Mobile number</label><input id="newPhone" type="tel" placeholder="e.g. 0412 345 678 or +61412345678"></div>
       </div>
