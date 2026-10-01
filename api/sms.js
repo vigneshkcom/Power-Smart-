@@ -1,13 +1,9 @@
 // Two-way SMS portal API. Credentials stay server-side in Vercel environment variables.
 const { sb, configured } = require('./_supabase');
 
-const SMS_API = () => `${(process.env.SMSGATE_API_URL || 'https://api.sms-gate.app').replace(/\/+$/, '')}/3rdparty/v1`;
+const SMS_API = 'https://api.sms-gate.app/3rdparty/v1';
 const smsConfigured = () => Boolean(process.env.SMSGATE_USERNAME && process.env.SMSGATE_PASSWORD);
 const cleanPhone = value => String(value || '').replace(/[^\d+]/g, '').trim();
-const hasPortalAccess = req => {
-  const supplied = String(req.headers['x-sms-portal-key'] || (req.body && req.body.portalKey) || '');
-  return Boolean(process.env.SMS_PORTAL_KEY) && supplied === process.env.SMS_PORTAL_KEY;
-};
 const headers = () => ({
   Authorization: `Basic ${Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64')}`,
   'Content-Type': 'application/json',
@@ -17,7 +13,7 @@ async function gateway(path, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 9000);
   try {
-    return await fetch(`${SMS_API()}${path}`, { ...options, signal: controller.signal });
+    return await fetch(`${SMS_API}${path}`, { ...options, signal: controller.signal });
   } finally { clearTimeout(timer); }
 }
 
@@ -49,15 +45,13 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true });
     }
 
-    if (!hasPortalAccess(req)) return res.status(401).json({ error: 'Enter the SMS portal passcode.' });
-
     if (req.method === 'GET') {
       const action = String(req.query.action || 'contacts');
       if (action === 'health') return res.status(200).json({
         storageConfigured: true,
         smsGateConfigured: smsConfigured(),
         deviceConfigured: Boolean(process.env.SMSGATE_DEVICE_ID),
-        apiBase: SMS_API().replace('/3rdparty/v1', ''),
+        apiBase: 'https://api.sms-gate.app',
       });
       if (action === 'conversation') {
         const phone = cleanPhone(req.query.phone);

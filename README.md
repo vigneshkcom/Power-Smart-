@@ -78,8 +78,6 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `SMSGATE_USERNAME` | for SMS | SMS Gate Cloud Server username from the gateway phone |
 | `SMSGATE_PASSWORD` | for SMS | SMS Gate Cloud Server password from the gateway phone |
 | `SMSGATE_DEVICE_ID` | for SMS | SMS Gate device ID from the gateway phone |
-| `SMSGATE_API_URL` | no | Optional private SMS Gate URL; defaults to `https://api.sms-gate.app` |
-| `SMS_PORTAL_KEY` | yes for SMS | A long, unique passcode protecting the inbox, sends, and sync actions |
 
 ## Sales pipeline (/tools/pipeline)
 
