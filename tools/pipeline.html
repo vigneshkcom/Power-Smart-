@@ -113,6 +113,16 @@
   .cmt-add{display:flex;gap:.5rem;margin-top:.6rem}
   .cmt-add textarea{flex:1;min-height:44px;resize:vertical}
 
+  /* sms conversation */
+  .sms-thread{background:var(--paper);border-radius:12px;padding:.8rem;height:46vh;min-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:.45rem}
+  .sms-b{max-width:78%;padding:.5rem .75rem;border-radius:14px;font-size:.85rem;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .sms-b.out{align-self:flex-end;background:var(--teal);color:var(--ink);border-bottom-right-radius:4px}
+  .sms-b.in{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+  .sms-b .st{display:block;font-size:.62rem;opacity:.65;margin-top:.2rem}
+  .sms-compose{display:flex;gap:.5rem;margin-top:.7rem}
+  .sms-compose textarea{flex:1;min-height:46px;resize:none;padding:.55rem .75rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);outline:none;font-size:.86rem}
+  .sms-compose textarea:focus{border-color:var(--teal);background:#fff}
+
   /* gate */
   .gate{position:fixed;inset:0;background:linear-gradient(160deg,#0B1B1F,#0E2227);display:none;align-items:center;justify-content:center;padding:1rem;z-index:100}
   .gate.show{display:flex}
@@ -204,6 +214,7 @@
       <div class="modal-foot">
         <button class="del" id="lm-delete">Delete lead</button>
         <span class="spacer"></span>
+        <button class="btn btn-ghost" id="lm-sms" title="Text this customer via the SMS portal">💬 SMS</button>
         <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">✉ Email</button>
         <button class="btn btn-ghost" id="lm-cancel">Close</button>
         <button class="btn btn-primary" id="lm-save">Save changes</button>
@@ -237,6 +248,25 @@
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="em-cancel">Cancel</button>
         <button class="btn btn-primary" id="em-send">Send email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SMS conversation (shared with the /sms portal) -->
+  <div class="overlay" id="sms-overlay">
+    <div class="modal" style="width:min(560px,100%)">
+      <div class="modal-head">
+        <h3 id="sms-title">SMS</h3>
+        <a class="icb" id="sms-portal" href="/sms" target="_blank" rel="noopener" title="Open in the SMS portal">SMS portal ↗</a>
+        <button class="x" id="sms-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="sms-thread" id="sms-thread"><div class="th-empty">Loading…</div></div>
+        <div class="sms-compose">
+          <textarea id="sms-message" maxlength="1600" placeholder="Write an SMS…  (Ctrl+Enter to send)"></textarea>
+          <button class="btn btn-primary" id="sms-send" style="align-self:flex-end">Send</button>
+        </div>
+        <p style="font-size:.72rem;color:var(--muted);margin-top:.5rem">Sent from the PowerSmart SMS gateway. Replies appear here and in the SMS portal; a note is logged on this lead.</p>
       </div>
     </div>
   </div>
@@ -316,6 +346,7 @@
     $("gate-btn").disabled = true;
     load().then(function(){
       $("gate").classList.remove("show");
+      handleDeepLink();
     }).catch(function(){ /* gate re-shown by api() on 401 */ })
       .finally(function(){ $("gate-btn").disabled = false; });
   }
@@ -366,10 +397,13 @@
         var foot = "";
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
         if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';
+        if (l.phone) foot += '<button type="button" class="icb sms-btn" title="Text message"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>';
         foot += '<span class="icb" title="Comments"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> ' + (l.comment_count || 0) + '</span>';
         foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
 
         card.innerHTML = '<h3>' + esc(l.name) + '</h3><div class="meta">' + chips + '</div><div class="foot">' + foot + '</div>';
+        var smsBtn = card.querySelector(".sms-btn");
+        if (smsBtn) smsBtn.addEventListener("click", function(e){ e.stopPropagation(); openSms(l.id); });
         var emailBtn = card.querySelector(".email-btn");
         if (emailBtn) emailBtn.addEventListener("click", function(e){ e.stopPropagation(); openEmail(l.id); });
         card.addEventListener("click", function(){ openLead(l.id); });
@@ -449,14 +483,17 @@
     $("cmt-list").innerHTML = cs.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
       var isEmail = /^📧/.test(c.body || "");
-      var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : '';
-      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
+      var isSms = /^💬/.test(c.body || "");
+      var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : (isSms ? '<span class="view-hint">Click to open the SMS conversation →</span>' : '');
+      return '<div class="cmt' + ((isEmail || isSms) ? ' cmt-email' : '') + (isSms ? ' cmt-sms' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
     }).join("");
   }
   // clicking an email log entry opens the sent-email thread for this lead
   $("cmt-list").addEventListener("click", function(e){
     var el = e.target.closest(".cmt-email");
-    if (el && currentId) openEmailThread(currentId);
+    if (!el || !currentId) return;
+    if (el.classList.contains("cmt-sms")){ var id = currentId; closeModal(); openSms(id); }
+    else openEmailThread(currentId);
   });
 
   function openNewLead(){
@@ -477,7 +514,7 @@
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); } });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); closeSms(); } });
 
   $("lm-save").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
@@ -589,6 +626,84 @@
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
 
+  /* ---------- SMS conversation ---------- */
+  var smsLeadId = null, smsTimer = null;
+
+  function renderSms(msgs){
+    var box = $("sms-thread");
+    var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    if (!msgs.length){ box.innerHTML = '<div class="th-empty">No messages yet — say hello below.</div>'; return; }
+    box.innerHTML = msgs.map(function(m){
+      var when = new Date(m.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
+      var tag = (m.status === "optout") ? " · opted out" : "";
+      return '<div class="sms-b ' + (m.direction === "outbound" ? "out" : "in") + '">' + esc(m.message) + '<span class="st">' + esc(when) + tag + '</span></div>';
+    }).join("");
+    if (atBottom || !box._seen) box.scrollTop = box.scrollHeight;
+    box._seen = true;
+  }
+  function refreshSms(){
+    if (!smsLeadId) return Promise.resolve();
+    var id = smsLeadId;
+    return api("POST", { action:"sms_thread", lead_id:id }).then(function(d){
+      if (id !== smsLeadId) return;
+      $("sms-portal").href = "/sms?phone=" + encodeURIComponent(d.phone || "");
+      renderSms(d.messages || []);
+    }).catch(function(err){ if (id === smsLeadId) $("sms-thread").innerHTML = '<div class="th-empty">' + esc(err.message) + '</div>'; });
+  }
+  function openSms(id){
+    var l = leads.find(function(x){ return x.id === id; });
+    if (!l) return;
+    if (!l.phone){ toast("This lead has no phone number — add one first."); openLead(id); return; }
+    smsLeadId = id;
+    $("sms-title").textContent = "SMS — " + l.name + " (" + l.phone + ")";
+    $("sms-thread").innerHTML = '<div class="th-empty">Loading…</div>';
+    $("sms-thread")._seen = false;
+    $("sms-message").value = "";
+    $("sms-overlay").classList.add("show");
+    refreshSms();
+    clearInterval(smsTimer);
+    smsTimer = setInterval(refreshSms, 10000); // pick up customer replies while open
+    $("sms-message").focus();
+  }
+  function closeSms(){ $("sms-overlay").classList.remove("show"); smsLeadId = null; clearInterval(smsTimer); }
+  $("sms-close").addEventListener("click", closeSms);
+  $("sms-overlay").addEventListener("click", function(e){ if (e.target === this) closeSms(); });
+  $("lm-sms").addEventListener("click", function(){ if (currentId){ var id = currentId; closeModal(); openSms(id); } });
+
+  function sendSms(){
+    var message = $("sms-message").value.trim();
+    if (!message || !smsLeadId) return;
+    var author = currentAgent();
+    if (!author){
+      author = prompt("Your name (saved for next time):") || "";
+      if (author){ try{ localStorage.setItem(AGENT_LS, author); }catch(e){} }
+    }
+    var btn = $("sms-send"); btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
+    var id = smsLeadId;
+    api("POST", { action:"sms_send", lead_id:id, message:message, author:author }).then(function(){
+      $("sms-message").value = "";
+      toast("SMS sent ✓");
+      $("sms-thread")._seen = false;
+      return Promise.all([refreshSms(), load()]); // reflect the logged note on the card
+    }).catch(function(err){ toast("Couldn't send: " + err.message); })
+      .finally(function(){ btn.disabled = false; btn.textContent = orig; });
+  }
+  $("sms-send").addEventListener("click", sendSms);
+  $("sms-message").addEventListener("keydown", function(e){ if (e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); sendSms(); } });
+
+  // deep link from the SMS portal: /tools/pipeline?phone=+61412345678  (or ?lead=<id>)
+  function tail(p){ return String(p||"").replace(/\D/g,"").slice(-9); }
+  function handleDeepLink(){
+    var q = new URLSearchParams(location.search);
+    var leadId = q.get("lead"), phone = q.get("phone");
+    if (!leadId && !phone) return;
+    history.replaceState(null, "", location.pathname);
+    var l = leadId ? leads.find(function(x){ return x.id === leadId; })
+                   : leads.find(function(x){ return tail(x.phone) && tail(x.phone) === tail(phone); });
+    if (l) openSms(l.id);
+    else if (phone) toast("No lead found with that phone number.");
+  }
+
   /* ---------- sent-email thread viewer ---------- */
   var SENDER_LABEL = { customer_service:"Customer Service", mani:"Mani", vignesh:"Vignesh" };
   function senderLabel(k){ return SENDER_LABEL[k] || "Customer Service"; }
@@ -670,7 +785,7 @@
     $("loading").style.display = "none";
     showGate(false);
   } else {
-    load().catch(function(err){
+    load().then(handleDeepLink).catch(function(err){
       $("loading").textContent = "Couldn't load: " + err.message;
     });
   }

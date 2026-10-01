@@ -34,6 +34,7 @@ api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was acce
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
+api/_sms.js           Shared SMS helpers (gateway send, phone matching) used by sms.js + pipeline.js
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
@@ -90,6 +91,12 @@ Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
 - A customer accepting their quote logs a "✅ accepted" comment on the lead.
 - Drag cards between stages, click a card for details + comments, add leads
   manually, search by name/phone/postcode.
+- **SMS**: each lead card (phone icon) and the lead modal (💬 SMS) open the
+  customer's text conversation — send, and see replies (refreshes every 10s).
+  Numbers match across `0412…` / `+61412…` spellings. Sent texts log a 💬 note
+  on the lead. The `/sms` portal has an *Open in pipeline* link per
+  conversation, and `/tools/pipeline?phone=+61…` opens that lead's SMS thread.
+  Needs the SMS env vars below and `supabase/sms.sql`.
 - Access requires the portal passcode `2026`, hardcoded in `api/pipeline.js`
   and `api/send-email.js` (asked once per device).
 - Data lives in Supabase with RLS enabled and **no** anon policies — only the

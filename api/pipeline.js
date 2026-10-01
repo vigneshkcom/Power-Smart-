@@ -5,9 +5,10 @@
 //       other access, so this function is the only door to the data.
 //
 // GET  → { leads:[ ...with comment counts ] }
-// POST → { action:"create"|"move"|"update"|"comment"|"comments"|"delete", ... }
+// POST → { action:"create"|"move"|"update"|"comment"|"comments"|"emails"|"sms_thread"|"sms_send"|"delete", ... }
 
 const { sb, configured } = require("./_supabase");
+const SMS = require("./_sms");
 
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
@@ -123,6 +124,36 @@ module.exports = async (req, res) => {
         // sent_emails table not created yet (emails.sql not run) — degrade gracefully
         return res.status(200).json({ emails: [], unavailable: true, note: e.message });
       }
+    }
+
+    if (action === "sms_thread" || action === "sms_send") {
+      const leadId = clean(b.lead_id, 40);
+      if (!leadId) return res.status(400).json({ error: "lead_id is required" });
+      const found = await sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`);
+      const lead = found && found[0];
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      if (!lead.phone) return res.status(400).json({ error: "This lead has no phone number — add one first." });
+      const phone = SMS.toE164(lead.phone);
+
+      if (action === "sms_thread") {
+        const messages = await SMS.conversationFor(phone);
+        return res.status(200).json({ phone, messages, smsConfigured: SMS.smsConfigured() });
+      }
+
+      const message = clean(b.message, 1600);
+      if (!message) return res.status(400).json({ error: "Write a message" });
+      let saved;
+      try {
+        saved = await SMS.sendSms(phone, message);
+      } catch (e) {
+        return res.status(e.status || 500).json({ error: e.message, ...(e.detail ? { detail: e.detail } : {}) });
+      }
+      // log on the lead like emails do, and float the card to the top
+      const who = clean(b.author, 120) || "Team";
+      const preview = message.length > 140 ? message.slice(0, 140) + "…" : message;
+      await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: who, body: `💬 SMS sent by ${who} — "${preview}"` }, prefer: "return=minimal" }).catch(() => {});
+      await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
+      return res.status(200).json({ ok: true, message: saved });
     }
 
     if (action === "delete") {
