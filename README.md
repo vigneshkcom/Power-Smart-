@@ -8,6 +8,7 @@ Static site deployed on Vercel (production branch: `main`).
 |---|---|---|
 | **Customer landing page** (public, for ads/marketing) | `https://smokealarms.powersmartco.com.au/` | `index.html` |
 | **Staff quote tool** (internal — build & send quotes) | `https://smokealarms.powersmartco.com.au/tools` | `tools/index.html` |
+| **SMS portal** (internal) | `https://smokealarms.powersmartco.com.au/sms` | `sms/index.html` |
 
 The Vercel-provided domain (`https://power-smart-two.vercel.app/`) still works and serves
 the same content — `smokealarms.powersmartco.com.au` is a custom domain attached to the
@@ -32,6 +33,9 @@ api/send-email.js     POST /api/send-email  — free-form branded email (compose
 api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was accepted
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
+api/sms.js            GET/POST /api/sms — two-way SMS portal API
+sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
+supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
 vercel.json           Clean URLs + redirects (preserves old links)
@@ -71,6 +75,11 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
+| `SMSGATE_USERNAME` | for SMS | SMS Gate Cloud Server username from the gateway phone |
+| `SMSGATE_PASSWORD` | for SMS | SMS Gate Cloud Server password from the gateway phone |
+| `SMSGATE_DEVICE_ID` | for SMS | SMS Gate device ID from the gateway phone |
+| `SMSGATE_API_URL` | no | Optional private SMS Gate URL; defaults to `https://api.sms-gate.app` |
+| `SMS_PORTAL_KEY` | yes for SMS | A long, unique passcode protecting the inbox, sends, and sync actions |
 
 ## Sales pipeline (/tools/pipeline)
 
