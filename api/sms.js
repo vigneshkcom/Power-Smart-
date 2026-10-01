@@ -3,7 +3,13 @@ const { sb, configured } = require('./_supabase');
 
 const SMS_API = 'https://api.sms-gate.app/3rdparty/v1';
 const smsConfigured = () => Boolean(process.env.SMSGATE_USERNAME && process.env.SMSGATE_PASSWORD);
-const cleanPhone = value => String(value || '').replace(/[^\d+]/g, '').trim();
+function cleanPhone(value) {
+  let phone = String(value || '').replace(/[^\d+]/g, '').trim();
+  // Staff commonly enter Australian mobiles as 04xx xxx xxx. SMS Gate requires E.164.
+  if (/^04\d{8}$/.test(phone)) phone = `+61${phone.slice(1)}`;
+  else if (/^614\d{8}$/.test(phone)) phone = `+${phone}`;
+  return phone;
+}
 const headers = () => ({
   Authorization: `Basic ${Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64')}`,
   'Content-Type': 'application/json',
