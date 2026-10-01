@@ -82,7 +82,14 @@ module.exports = async (req, res) => {
         body: JSON.stringify({ phoneNumbers: [phone], textMessage: { text: message }, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) return res.status(502).json({ error: 'SMS Gate rejected the message.', detail: result.message || result.error || `HTTP ${response.status}` });
+      if (!response.ok) {
+        const detail = typeof result.message === 'string'
+          ? result.message
+          : typeof result.error === 'string'
+            ? result.error
+            : JSON.stringify(result).slice(0, 600) || `HTTP ${response.status}`;
+        return res.status(502).json({ error: 'SMS Gate rejected the message.', detail });
+      }
       const gatewayId = String(result.id || result.messageId || (result.messages && result.messages[0] && result.messages[0].id) || '');
       const saved = await insertMessage({ phone_number: phone, message, direction: 'outbound', status: 'sent', sms_gate_id: gatewayId || null });
       return res.status(200).json({ ok: true, message: saved });
