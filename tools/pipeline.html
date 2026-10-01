@@ -113,6 +113,20 @@
   .cmt-add{display:flex;gap:.5rem;margin-top:.6rem}
   .cmt-add textarea{flex:1;min-height:44px;resize:vertical}
 
+
+  /* quote composer */
+  .seg{display:flex;background:var(--paper);border:1.5px solid var(--line);border-radius:999px;padding:3px;gap:3px}
+  .seg button{flex:1;padding:.4rem .8rem;border-radius:999px;font-size:.78rem;font-weight:700;color:var(--muted)}
+  .seg button.on{background:var(--teal);color:var(--ink)}
+  .qbox{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem;margin-top:.9rem}
+  .qrow{display:flex;justify-content:space-between;gap:1rem;font-size:.82rem;color:var(--body);padding:.28rem 0}
+  .qrow.sub{border-top:1px dashed var(--line);margin-top:.25rem;padding-top:.5rem}
+  .qrow.total{border-top:1.5px solid var(--line);margin-top:.35rem;padding-top:.55rem;font-weight:800;color:var(--ink);font-size:.95rem}
+  .qrow b{color:var(--ink)}
+  .qnote{font-size:.72rem;color:var(--muted);margin-top:.5rem;line-height:1.5}
+  .qradio{display:flex;gap:1rem;font-size:.82rem;padding:.35rem 0}
+  .qradio label{display:flex;align-items:center;gap:.35rem;cursor:pointer;font-weight:500;text-transform:none;letter-spacing:0;color:var(--body);font-size:.82rem}
+
   /* gate */
   .gate{position:fixed;inset:0;background:linear-gradient(160deg,#0B1B1F,#0E2227);display:none;align-items:center;justify-content:center;padding:1rem;z-index:100}
   .gate.show{display:flex}
@@ -204,6 +218,7 @@
       <div class="modal-foot">
         <button class="del" id="lm-delete">Delete lead</button>
         <span class="spacer"></span>
+        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">📄 Send quote</button>
         <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">✉ Email</button>
         <button class="btn btn-ghost" id="lm-cancel">Close</button>
         <button class="btn btn-primary" id="lm-save">Save changes</button>
@@ -237,6 +252,57 @@
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="em-cancel">Cancel</button>
         <button class="btn btn-primary" id="em-send">Send email</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- quote composer -->
+  <div class="overlay" id="quote-overlay">
+    <div class="modal" style="width:min(600px,100%)">
+      <div class="modal-head">
+        <h3 id="q-title">Send quote</h3>
+        <button class="x" id="q-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="seg" id="q-mode">
+          <button type="button" data-mode="install" class="on">Install quote</button>
+          <button type="button" data-mode="inspect">Inspection only</button>
+        </div>
+
+        <div id="q-install">
+          <div class="fgrid" style="margin-top:.9rem">
+            <div class="field"><label>Bedrooms</label><input id="q-bed" type="number" min="0" max="50" placeholder="0" inputmode="numeric"></div>
+            <div class="field"><label>Storeys</label><input id="q-lvl" type="number" min="1" max="10" placeholder="1" inputmode="numeric"></div>
+            <div class="field"><label>Hallways connecting bedrooms</label><input id="q-hall" type="number" min="0" max="20" placeholder="0" inputmode="numeric"></div>
+            <div class="field" id="q-allbed-wrap" style="display:none"><label>Every level has a bedroom?</label>
+              <div class="qradio"><label><input type="radio" name="q-allbed" value="yes" checked> Yes</label><label><input type="radio" name="q-allbed" value="no"> No</label></div>
+            </div>
+            <div class="field"><label>Smoke alarm controller ($49)</label>
+              <div class="qradio"><label><input type="radio" name="q-ctrl" value="no" checked> No</label><label><input type="radio" name="q-ctrl" value="yes"> Yes</label></div>
+            </div>
+            <div class="field" id="q-ctrlqty-wrap" style="display:none"><label>Controllers</label><input id="q-ctrlqty" type="number" min="1" max="10" value="1" inputmode="numeric"></div>
+          </div>
+          <p class="qnote">One alarm per bedroom and per connecting hallway, plus one on each level that has no bedroom — the same count as the Quote Tool.</p>
+        </div>
+
+        <div class="qbox" id="q-sum"></div>
+
+        <div class="fgrid" style="margin-top:.9rem">
+          <div class="field"><label>To</label><input id="q-to" type="email"></div>
+          <div class="field"><label>Send as</label>
+            <select id="q-sendas">
+              <option value="customer_service">Customer Service</option>
+              <option value="mani">Mani</option>
+              <option value="vignesh">Vignesh</option>
+            </select>
+          </div>
+        </div>
+        <p class="qnote">Emails the branded PowerSmart quotation with a link to accept, moves this lead to <strong>Quote Sent</strong> and logs it in the comments.</p>
+      </div>
+      <div class="modal-foot">
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="q-cancel">Cancel</button>
+        <button class="btn btn-primary" id="q-send">Send quote</button>
       </div>
     </div>
   </div>
@@ -477,7 +543,7 @@
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); } });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("quote-overlay")) $("quote-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); } });
 
   $("lm-save").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
@@ -584,6 +650,106 @@
         closeEmail();
         toast("Email sent to " + to + " ✓");
         return load(); // reflect the logged comment on the card
+      })
+      .catch(function(err){ toast("Couldn't send: " + err.message); })
+      .finally(function(){ btn.disabled = false; btn.textContent = orig; });
+  });
+
+  /* ---------- quote composer ---------- */
+  // Mirrors /tools (calculate()) — the server re-prices from these quantities, so this
+  // is only the live preview. Keep PRICE_* in step with api/_quote.js.
+  var PRICE_ALARM = 88, PRICE_CTRL = 49, FEE_BOOKING = 35, FEE_INSPECT = 131;
+  var quoteLeadId = null, quoteMode = "install";
+
+  function quoteCalc(){
+    var bed = parseInt($("q-bed").value, 10) || 0;
+    var hall = parseInt($("q-hall").value, 10) || 0;
+    var lvl = parseInt($("q-lvl").value, 10) || 1;
+    var allBed = document.querySelector('input[name="q-allbed"]:checked').value === "yes";
+    var wantCtrl = document.querySelector('input[name="q-ctrl"]:checked').value === "yes";
+    var ctrl = wantCtrl ? Math.max(1, parseInt($("q-ctrlqty").value, 10) || 1) : 0;
+    var alarms = bed + hall;
+    if (lvl > 1 && !allBed) alarms += lvl - 1;
+    return { alarms: Math.min(alarms, 50), ctrl: Math.min(ctrl, 10) };
+  }
+
+  function renderQuoteSummary(){
+    var box = $("q-sum");
+    $("q-allbed-wrap").style.display = (parseInt($("q-lvl").value, 10) || 1) > 1 ? "" : "none";
+    var wantCtrl = document.querySelector('input[name="q-ctrl"]:checked').value === "yes";
+    $("q-ctrlqty-wrap").style.display = wantCtrl ? "" : "none";
+    if (quoteMode === "inspect"){
+      box.innerHTML = '<div class="qrow"><span>Smoke alarm compliance inspection</span><b>' + fmt$(FEE_INSPECT) + '</b></div>' +
+        '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(FEE_INSPECT) + '</span></div>' +
+        '<p class="qnote">Waived in full if the customer proceeds with an install — they pay only the $35 booking fee plus the alarms.</p>';
+      return;
+    }
+    var c = quoteCalc(), alarmTotal = c.alarms * PRICE_ALARM, ctrlTotal = c.ctrl * PRICE_CTRL;
+    var rows = '<div class="qrow"><span>Alarms (' + c.alarms + ' × ' + fmt$(PRICE_ALARM) + ')</span><b>' + fmt$(alarmTotal) + '</b></div>';
+    if (c.ctrl) rows += '<div class="qrow"><span>Controllers (' + c.ctrl + ' × ' + fmt$(PRICE_CTRL) + ')</span><b>' + fmt$(ctrlTotal) + '</b></div>';
+    rows += '<div class="qrow"><span>Booking fee</span><b>' + fmt$(FEE_BOOKING) + '</b></div>' +
+      '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(alarmTotal + ctrlTotal + FEE_BOOKING) + '</span></div>' +
+      '<div class="qrow sub"><span>Payable today (booking fee)</span><b>' + fmt$(FEE_BOOKING) + '</b></div>' +
+      '<div class="qrow"><span>Balance after installation</span><b>' + fmt$(alarmTotal + ctrlTotal) + '</b></div>';
+    box.innerHTML = rows;
+  }
+
+  function setQuoteMode(mode){
+    quoteMode = mode;
+    Array.prototype.forEach.call($("q-mode").querySelectorAll("button"), function(b){ b.classList.toggle("on", b.dataset.mode === mode); });
+    $("q-install").style.display = mode === "install" ? "" : "none";
+    renderQuoteSummary();
+  }
+
+  function openQuote(id){
+    var l = leads.find(function(x){ return x.id === id; });
+    if (!l) return;
+    quoteLeadId = id;
+    $("q-title").textContent = "Send quote to " + l.name;
+    $("q-to").value = l.email || "";
+    ["q-bed","q-lvl","q-hall"].forEach(function(i){ $(i).value = ""; });
+    document.querySelector('input[name="q-allbed"][value="yes"]').checked = true;
+    document.querySelector('input[name="q-ctrl"][value="no"]').checked = true;
+    $("q-ctrlqty").value = 1;
+    $("q-sendas").value = AGENT_TO_SENDER[currentAgent()] || "customer_service";
+    setQuoteMode("install");
+    $("quote-overlay").classList.add("show");
+    $("q-bed").focus();
+  }
+  function closeQuote(){ $("quote-overlay").classList.remove("show"); quoteLeadId = null; }
+
+  $("lm-quote").addEventListener("click", function(){ if (currentId){ var id = currentId; closeModal(); openQuote(id); } });
+  $("q-close").addEventListener("click", closeQuote);
+  $("q-cancel").addEventListener("click", closeQuote);
+  $("quote-overlay").addEventListener("click", function(e){ if (e.target === this) closeQuote(); });
+  $("q-mode").addEventListener("click", function(e){ var b = e.target.closest("button"); if (b) setQuoteMode(b.dataset.mode); });
+  $("quote-overlay").addEventListener("input", renderQuoteSummary);
+  $("quote-overlay").addEventListener("change", renderQuoteSummary);
+
+  $("q-send").addEventListener("click", function(){
+    var l = leads.find(function(x){ return x.id === quoteLeadId; });
+    var to = $("q-to").value.trim();
+    if (!to){ toast("Enter the customer's email address"); $("q-to").focus(); return; }
+    var c = quoteCalc();
+    if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first — the quote needs at least 1 alarm"); $("q-bed").focus(); return; }
+    var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
+    fetch("/api/send-quote", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: JSON.stringify({
+        customerEmail: to, customerName: l ? l.name : "", agentName: currentAgent(),
+        sendAs: $("q-sendas").value, serviceMode: quoteMode,
+        alarmQty: quoteMode === "install" ? c.alarms : 0, controllerQty: quoteMode === "install" ? c.ctrl : 0,
+        leadId: quoteLeadId
+      })
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){
+        if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+        return d;
+      }); })
+      .then(function(d){
+        closeQuote();
+        toast("Quote " + d.ref + " (" + fmt$(d.total) + ") emailed to " + to + " ✓");
+        return load();   // card moves to Quote Sent with its quote ref
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });

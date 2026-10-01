@@ -11,18 +11,29 @@ const SB = require("./_supabase");
 const S = require("./_senders");
 const { logEmail } = require("./_maillog");
 
-async function recordInPipeline({ customerName, customerEmail, agentName, ref, total }) {
+// Same passcode the pipeline page and /api/send-email use.
+const PORTAL_KEY = "2026";
+
+// leadId is only honoured when the call came from the pipeline (portal key), so a
+// quote sent from a lead card updates that exact lead instead of matching by email.
+async function recordInPipeline({ customerName, customerEmail, agentName, ref, total, leadId: hintId }) {
   if (!SB.configured()) return null;
   try {
-    const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
-    let leadId;
-    if (found && found[0]) {
-      leadId = found[0].id;
-      await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}`, {
-        method: "PATCH",
-        body: { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null },
-        prefer: "return=minimal",
-      });
+    const patch = { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null };
+    let leadId = null;
+    if (hintId) {
+      const byId = await SB.sb(`leads?id=eq.${encodeURIComponent(hintId)}&select=id,email&limit=1`);
+      if (byId && byId[0]) {
+        leadId = byId[0].id;
+        if (!byId[0].email) patch.email = customerEmail.toLowerCase();   // remember the address we just used
+      }
+    }
+    if (!leadId) {
+      const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
+      if (found && found[0]) leadId = found[0].id;
+    }
+    if (leadId) {
+      await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
     } else {
       const rows = await SB.sb("leads", {
         method: "POST",
@@ -59,6 +70,8 @@ module.exports = async (req, res) => {
   const customerName = String(b.customerName || "").slice(0, 120).trim();
   const agentName = String(b.agentName || "").slice(0, 120).trim();
   const sender = S.resolveSender(b.sendAs);
+  const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
+  const hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";
   const { serviceMode, alarmQty, controllerQty } = Q.normalise(b);
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
@@ -93,7 +106,7 @@ module.exports = async (req, res) => {
       await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
       return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     }
-    const leadId = await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total });
+    const leadId = await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total, leadId: hintLeadId });
     await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
     return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total });
   } catch (err) {
