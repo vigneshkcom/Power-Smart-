@@ -10,6 +10,22 @@ function cleanPhone(value) {
   else if (/^614\d{8}$/.test(phone)) phone = `+${phone}`;
   return phone;
 }
+// Customer names live on the pipeline leads, not on the SMS rows. Match on the
+// last 9 digits so 0451 898 761, +61451898761 and 61451898761 are one person.
+const phoneKey = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : '';
+};
+async function leadNamesByPhone() {
+  const names = new Map();
+  try {
+    const leads = await sb('leads?select=name,phone&phone=not.is.null&order=updated_at.desc&limit=5000');
+    // Newest lead wins when the same number appears twice.
+    (leads || []).forEach((l) => { const k = phoneKey(l.phone); if (k && l.name && !names.has(k)) names.set(k, l.name); });
+  } catch (e) { console.error('[SMS] lead name lookup failed:', e.message); }
+  return names;
+}
+
 const headers = () => ({
   Authorization: `Basic ${Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64')}`,
   'Content-Type': 'application/json',
@@ -63,7 +79,8 @@ module.exports = async (req, res) => {
         const phone = cleanPhone(req.query.phone);
         if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
         const rows = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&order=created_at.asc&select=id,phone_number,message,direction,status,created_at`);
-        return res.status(200).json({ messages: rows || [] });
+        const names = await leadNamesByPhone();
+        return res.status(200).json({ messages: rows || [], name: names.get(phoneKey(phone)) || '' });
       }
       const rows = await sb('sms_messages?order=created_at.desc&limit=1000&select=id,phone_number,message,direction,status,created_at');
       const conversations = [];
@@ -71,6 +88,8 @@ module.exports = async (req, res) => {
       for (const row of rows || []) {
         if (!seen.has(row.phone_number)) { seen.add(row.phone_number); conversations.push(row); }
       }
+      const names = await leadNamesByPhone();
+      conversations.forEach((c) => { c.name = names.get(phoneKey(c.phone_number)) || ''; });
       return res.status(200).json({ conversations });
     }
 
