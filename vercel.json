@@ -12,6 +12,46 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/staff-hub",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/",
+      "permanent": false
+    },
+    {
+      "source": "/tools",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/tools",
+      "permanent": false
+    },
+    {
+      "source": "/tools/:path*",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/tools/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/sms",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/sms",
+      "permanent": false
+    },
+    {
+      "source": "/sms/:path*",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/sms/:path*",
+      "permanent": false
+    },
     { "source": "/sales-portal.html", "destination": "/tools", "permanent": true },
     { "source": "/sales-portal", "destination": "/tools", "permanent": true },
     { "source": "/portal", "destination": "/tools", "permanent": false },

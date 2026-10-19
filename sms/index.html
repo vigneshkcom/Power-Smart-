@@ -135,16 +135,16 @@
 <body>
 
   <header class="topbar">
-    <a class="logo" href="/tools" title="Back to Sales Portal"><img src="/assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
+    <a class="logo" href="https://portal.powersmartco.com.au/tools" title="Back to Sales Portal"><img src="/assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
     <h1>SMS <span>Inbox</span></h1>
-    <span class="tb-count" id="total-count">— conversations</span>
+    <span class="tb-count" id="total-count">0 conversations</span>
     <div class="tb-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="search" id="search" placeholder="Search name, phone, message…" autocomplete="off">
     </div>
     <div class="tb-actions">
-      <a class="btn btn-ghost hide-sm" href="/tools">Quote Tool</a>
-      <a class="btn btn-ghost hide-sm" href="/tools/pipeline">Pipeline</a>
+      <a class="btn btn-ghost hide-sm" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
+      <a class="btn btn-ghost hide-sm" href="https://portal.powersmartco.com.au/tools/pipeline">Pipeline</a>
       <button class="btn btn-ghost" id="sync" title="Pull new replies from the SMS gateway">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Sync inbox
@@ -255,7 +255,7 @@ function renderList() {
         ${c.name ? `<div class="c-phone">${esc(c.phone_number)}</div>` : ''}
         <div class="c-msg ${unread ? 'unread' : ''}">${c.direction === 'outbound' ? 'You: ' : ''}${esc(c.message)}</div>
       </div></button>`;
-  }).join('') || `<div class="empty-col">${q ? 'No conversations match your search.' : 'No conversations yet — start one with “New message”.'}</div>`;
+  }).join('') || `<div class="empty-col">${q ? 'No conversations match your search.' : 'No conversations yet. Start one with “New message”.'}</div>`;
 }
 
 async function load() {
@@ -280,7 +280,7 @@ function renderMessages(messages, keepScroll) {
     const bad = m.status && !['sent', 'received', 'delivered'].includes(m.status);
     html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}">${esc(m.message)}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(m.status)}</span>` : ''}</span></div>`;
   });
-  box.innerHTML = html || '<div class="th-empty">No messages yet — say hello below.</div>';
+  box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;
 }
 
@@ -334,7 +334,7 @@ async function syncInbox() {
   const btn = $('sync'); btn.disabled = true;
   try {
     await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync' }) });
-    toast('Inbox sync requested — new replies will appear shortly.');
+    toast('Inbox sync requested. New replies will appear shortly.');
     setTimeout(load, 3000);
   } catch (e) { toast(showError(e)); }
   finally { btn.disabled = false; }
