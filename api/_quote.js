@@ -11,7 +11,7 @@ const ABN = "41 669 943 720";
 const QUOTE_VALID_DAYS = 30;
 
 const PRICE_ALARM = 79;
-const PRICE_CTRL = 49;
+const PRICE_CTRL = 35;
 const FEE_BOOKING = 35;
 const FEE_INSPECT = 131;
 

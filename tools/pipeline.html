@@ -277,7 +277,7 @@
             <div class="field" id="q-allbed-wrap" style="display:none"><label>Every level has a bedroom?</label>
               <div class="qradio"><label><input type="radio" name="q-allbed" value="yes" checked> Yes</label><label><input type="radio" name="q-allbed" value="no"> No</label></div>
             </div>
-            <div class="field"><label>Smoke alarm controller ($49)</label>
+            <div class="field"><label>Smoke alarm controller ($35)</label>
               <div class="qradio"><label><input type="radio" name="q-ctrl" value="no" checked> No</label><label><input type="radio" name="q-ctrl" value="yes"> Yes</label></div>
             </div>
             <div class="field" id="q-ctrlqty-wrap" style="display:none"><label>Controllers</label><input id="q-ctrlqty" type="number" min="1" max="10" value="1" inputmode="numeric"></div>
@@ -658,7 +658,7 @@
   /* ---------- quote composer ---------- */
   // Mirrors /tools (calculate()) — the server re-prices from these quantities, so this
   // is only the live preview. Keep PRICE_* in step with api/_quote.js.
-  var PRICE_ALARM = 79, PRICE_CTRL = 49, FEE_BOOKING = 35, FEE_INSPECT = 131;
+  var PRICE_ALARM = 79, PRICE_CTRL = 35, FEE_BOOKING = 35, FEE_INSPECT = 131;
   var quoteLeadId = null, quoteMode = "install";
 
   function quoteCalc(){
