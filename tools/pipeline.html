@@ -165,7 +165,7 @@
   <header class="topbar">
     <a class="logo" href="/tools" title="Back to Sales Portal"><img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
     <h1>Sales <span>Pipeline</span></h1>
-    <span class="tb-count" id="total-count">— leads</span>
+    <span class="tb-count" id="total-count">0 leads</span>
     <div class="tb-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="search" id="search" placeholder="Search name, phone, postcode…">
@@ -206,6 +206,10 @@
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
           <div class="field"><label>Quote total</label><input id="lm-qtotal" readonly style="background:#F8FBFB"></div>
         </div>
+        <div class="fgrid" id="lm-payment-row" style="display:none;margin-top:.7rem">
+          <div class="field"><label>Booking fee</label><input id="lm-payment-amount" readonly style="background:#F8FBFB"></div>
+          <div class="field"><label>Payment status</label><input id="lm-payment-status" readonly style="background:#F8FBFB"></div>
+        </div>
         <div class="cmts" id="lm-cmts">
           <h4>Comments</h4>
           <div id="cmt-list"><p style="font-size:.8rem;color:var(--muted)">Loading…</p></div>
@@ -218,8 +222,9 @@
       <div class="modal-foot">
         <button class="del" id="lm-delete">Delete lead</button>
         <span class="spacer"></span>
-        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">📄 Send quote</button>
-        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">✉ Email</button>
+        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
+        <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
+        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Email</button>
         <button class="btn btn-ghost" id="lm-cancel">Close</button>
         <button class="btn btn-primary" id="lm-save">Save changes</button>
       </div>
@@ -282,7 +287,7 @@
             </div>
             <div class="field" id="q-ctrlqty-wrap" style="display:none"><label>Controllers</label><input id="q-ctrlqty" type="number" min="1" max="10" value="1" inputmode="numeric"></div>
           </div>
-          <p class="qnote">One alarm per bedroom and per connecting hallway, plus one on each level that has no bedroom — the same count as the Quote Tool.</p>
+          <p class="qnote">One alarm per bedroom and per connecting hallway, plus one on each level that has no bedroom. This is the same count as the Quote Tool.</p>
         </div>
 
         <div class="qbox" id="q-sum"></div>
@@ -330,6 +335,7 @@
 
   var STAGES = [
     { id:"new_lead",     label:"New Lead",       color:"#43A8B6" },
+    { id:"quote_accepted",label:"Quote Accepted", color:"#3BAE6A" },
     { id:"follow_up",    label:"Follow-Up",      color:"#7FB0F5" },
     { id:"shopping",     label:"Shopping Around",color:"#B58AE0" },
     { id:"quote_sent",   label:"Quote Sent",     color:"#F5B841" },
@@ -372,7 +378,7 @@
   /* ---------- gate ---------- */
   function showGate(bad){
     $("gate").classList.add("show");
-    $("gate-err").textContent = bad ? "That key wasn't accepted — try again." : "";
+    $("gate-err").textContent = bad ? "That key wasn't accepted. Try again." : "";
     $("gate-key").focus();
   }
   function tryUnlock(){
@@ -426,9 +432,10 @@
         card.className = "cardk";
         card.draggable = true;
         card.dataset.id = l.id;
-        var chips = '<span class="chip src">' + esc(l.source || "—") + '</span>';
+        var chips = '<span class="chip src">' + esc(l.source || "Not provided") + '</span>';
         if (l.postcode) chips += '<span class="chip">' + esc(l.postcode) + '</span>';
         if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
+        if (l.payment) chips += '<span class="chip ' + (l.payment.status === "paid" ? "src" : "quote") + '">' + (l.payment.status === "paid" ? "Paid " : "Booking fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
         var foot = "";
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
         if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';
@@ -497,9 +504,16 @@
     if (l.quote_ref){
       $("lm-quote-row").style.display = "";
       $("lm-qref").value = l.quote_ref;
-      $("lm-qtotal").value = l.quote_total ? fmt$(l.quote_total) : "—";
+      $("lm-qtotal").value = l.quote_total ? fmt$(l.quote_total) : "Not provided";
     } else {
       $("lm-quote-row").style.display = "none";
+    }
+    if (l.payment) {
+      $("lm-payment-row").style.display = "";
+      $("lm-payment-amount").value = fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100);
+      $("lm-payment-status").value = l.payment.status === "paid" ? "Paid" : "Payment link sent";
+    } else {
+      $("lm-payment-row").style.display = "none";
     }
     $("lm-delete").style.display = "";
     $("lm-cmts").style.display = "";
@@ -514,7 +528,7 @@
     if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
     $("cmt-list").innerHTML = cs.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
-      var isEmail = /^📧/.test(c.body || "");
+      var isEmail = /^(Email sent|Email failed|Quote \d+ emailed)/i.test(c.body || "");
       var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : '';
       return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
     }).join("");
@@ -533,6 +547,7 @@
     try{ $("lm-agent").value = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
     stageSel.value = "new_lead";
     $("lm-quote-row").style.display = "none";
+    $("lm-payment-row").style.display = "none";
     $("lm-delete").style.display = "none";
     $("lm-cmts").style.display = "none";
     $("lead-overlay").classList.add("show");
@@ -610,7 +625,7 @@
   function openEmail(id){
     var l = leads.find(function(x){ return x.id === id; });
     if (!l) return;
-    if (!l.email){ toast("This lead has no email address — add one first."); openLead(id); return; }
+    if (!l.email){ toast("This lead has no email address. Add one first."); openLead(id); return; }
     emailLeadId = id;
     $("em-title").textContent = "Email " + l.name;
     $("em-to").value = l.email;
@@ -681,7 +696,7 @@
     if (quoteMode === "inspect"){
       box.innerHTML = '<div class="qrow"><span>Smoke alarm compliance inspection</span><b>' + fmt$(FEE_INSPECT) + '</b></div>' +
         '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(FEE_INSPECT) + '</span></div>' +
-        '<p class="qnote">Waived in full if the customer proceeds with an install — they pay only the $35 booking fee plus the alarms.</p>';
+        '<p class="qnote">Waived in full if the customer proceeds with an install. They pay only the $35 booking fee plus the alarms.</p>';
       return;
     }
     var c = quoteCalc(), alarmTotal = c.alarms * PRICE_ALARM, ctrlTotal = c.ctrl * PRICE_CTRL;
@@ -719,6 +734,19 @@
   function closeQuote(){ $("quote-overlay").classList.remove("show"); quoteLeadId = null; }
 
   $("lm-quote").addEventListener("click", function(){ if (currentId){ var id = currentId; closeModal(); openQuote(id); } });
+  $("lm-booking-fee").addEventListener("click", function(){
+    if (!currentId) return;
+    var lead = leads.find(function(x){ return x.id === currentId; });
+    if (!lead || !lead.email) { toast("Add an email address before sending a booking fee"); return; }
+    if (!confirm("Send a $35.00 Stripe booking fee request to " + lead.email + "?")) return;
+    var button = this, original = button.textContent; button.disabled = true; button.textContent = "Sending…";
+    fetch("/api/send-booking-fee", { method:"POST", headers:{"Content-Type":"application/json","x-portal-key":portalKey()}, body:JSON.stringify({lead_id:currentId}) })
+      .then(function(response){ return response.json().then(function(data){ if (!response.ok) throw new Error(data.error || "Could not send booking fee"); return data; }); })
+      .then(function(){ toast("$35.00 Stripe booking fee request sent"); return load(); })
+      .then(function(){ openLead(currentId); })
+      .catch(function(error){ toast(error.message); })
+      .finally(function(){ button.disabled = false; button.textContent = original; });
+  });
   $("q-close").addEventListener("click", closeQuote);
   $("q-cancel").addEventListener("click", closeQuote);
   $("quote-overlay").addEventListener("click", function(e){ if (e.target === this) closeQuote(); });
@@ -731,7 +759,7 @@
     var to = $("q-to").value.trim();
     if (!to){ toast("Enter the customer's email address"); $("q-to").focus(); return; }
     var c = quoteCalc();
-    if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first — the quote needs at least 1 alarm"); $("q-bed").focus(); return; }
+    if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first. The quote needs at least 1 alarm."); $("q-bed").focus(); return; }
     var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
     fetch("/api/send-quote", {
       method: "POST",
@@ -762,7 +790,7 @@
 
   function openEmailThread(leadId){
     var l = leads.find(function(x){ return x.id === leadId; });
-    $("th-title").textContent = "Emails" + (l ? (" — " + l.name) : "");
+    $("th-title").textContent = "Emails" + (l ? (" - " + l.name) : "");
     $("th-back").style.display = "none";
     $("th-view").style.display = "none";
     $("th-list").style.display = "";
@@ -780,7 +808,7 @@
   function renderThreadList(d){
     var emails = d.emails || [];
     if (!emails.length){
-      $("th-list").innerHTML = '<div class="th-empty">' + (d.unavailable ? "Email log isn't set up yet — run supabase/emails.sql in Supabase." : "No sent emails found for this customer yet.") + '</div>';
+      $("th-list").innerHTML = '<div class="th-empty">' + (d.unavailable ? "Email log isn't set up yet. Run supabase/emails.sql in Supabase." : "No sent emails found for this customer yet.") + '</div>';
       return;
     }
     $("th-list").innerHTML = emails.map(function(em, i){

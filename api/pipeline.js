@@ -12,7 +12,7 @@ const { sb, configured } = require("./_supabase");
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
 
-const STAGES = ["new_lead", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
@@ -26,6 +26,11 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const cols = "id,created_at,updated_at,name,phone,email,postcode,source,stage,agent,quote_ref,quote_total";
       const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
+      const latestPayments = {};
+      try {
+        const payments = await sb("payment_requests?select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
+        (payments || []).forEach((payment) => { if (!latestPayments[payment.lead_id]) latestPayments[payment.lead_id] = payment; });
+      } catch (_) { /* payment tracking is optional until its migration is run */ }
       // Comment counts via a plain query, tallied here. (Supabase disables
       // embedded aggregate functions like lead_comments(count) by default.)
       const counts = {};
@@ -33,7 +38,7 @@ module.exports = async (req, res) => {
         const cmts = await sb("lead_comments?select=lead_id&limit=10000");
         (cmts || []).forEach((c) => { counts[c.lead_id] = (counts[c.lead_id] || 0) + 1; });
       } catch (_) { /* counts are cosmetic — don't fail the board over them */ }
-      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0 }));
+      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null }));
       return res.status(200).json({ leads: out, stages: STAGES });
     }
 
