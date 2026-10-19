@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Power Smart Co | Internal Tools</title>
+  <style>
+    :root {
+      --ink: #10272d;
+      --muted: #60767b;
+      --teal: #50aabb;
+      --teal-dark: #287e8e;
+      --surface: #ffffff;
+      --page: #edf5f6;
+      --line: #d8e7e9;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top right, #d5eef1 0, transparent 32rem), var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .shell { width: min(1060px, calc(100% - 40px)); margin: 0 auto; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 0;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.04em; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 31px;
+      height: 31px;
+      border: 2px solid var(--teal);
+      border-radius: 50%;
+      color: var(--teal-dark);
+      font-size: 19px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .brand-co { color: var(--teal); }
+    .tag { color: var(--muted); font-size: 0.83rem; font-weight: 700; }
+
+    main { padding: 58px 0 78px; }
+    .eyebrow { margin: 0 0 10px; color: var(--teal-dark); font-size: 0.77rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    h1 { max-width: 720px; margin: 0; font-size: clamp(2rem, 5vw, 3.8rem); line-height: 1.04; letter-spacing: -0.06em; }
+    .intro { max-width: 650px; margin: 20px 0 42px; color: var(--muted); font-size: 1.1rem; line-height: 1.65; }
+
+    .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .tool {
+      display: flex;
+      min-height: 260px;
+      flex-direction: column;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: 0 10px 28px rgba(27, 83, 91, 0.07);
+      color: inherit;
+      text-decoration: none;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+    .tool:hover, .tool:focus-visible {
+      transform: translateY(-4px);
+      border-color: #99d0d8;
+      box-shadow: 0 16px 34px rgba(27, 83, 91, 0.14);
+      outline: none;
+    }
+    .icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 13px;
+      background: #e4f4f6;
+      color: var(--teal-dark);
+    }
+    .icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; }
+    .tool h2 { margin: 26px 0 9px; font-size: 1.35rem; letter-spacing: -0.035em; }
+    .tool p { margin: 0; color: var(--muted); line-height: 1.55; }
+    .open { margin-top: auto; padding-top: 25px; color: var(--teal-dark); font-size: 0.9rem; font-weight: 800; }
+
+    footer { padding: 0 0 30px; color: var(--muted); font-size: 0.8rem; }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 32px, 560px); }
+      header { padding: 20px 0; }
+      main { padding: 38px 0 54px; }
+      .tools { grid-template-columns: 1fr; }
+      .tool { min-height: 210px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand" aria-label="Power Smart Co">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span>POWER SMART <span class="brand-co">Co</span></span>
+      </div>
+      <span class="tag">Internal workspace</span>
+    </header>
+
+    <main>
+      <p class="eyebrow">Smoke alarm operations</p>
+      <h1>Choose a staff tool</h1>
+      <p class="intro">Access the operational tools for quoting, customer follow-up and SMS conversations. The public smoke alarm website remains separate.</p>
+
+      <section class="tools" aria-label="Internal Power Smart tools">
+        <a class="tool" href="/tools">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h10v18H7z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg></span>
+          <h2>Quote Tool</h2>
+          <p>Build a smoke alarm quotation, review pricing and send it to the customer.</p>
+          <span class="open">Open Quote Tool</span>
+        </a>
+
+        <a class="tool" href="/tools/pipeline">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-8M22 19V3"/><path d="M2 19h21"/></svg></span>
+          <h2>Sales Pipeline</h2>
+          <p>View leads, manage follow-ups and keep customer stages up to date.</p>
+          <span class="open">Open Sales Pipeline</span>
+        </a>
+
+        <a class="tool" href="/sms">
+          <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 3z"/><path d="M8 9h8M8 12h5"/></svg></span>
+          <h2>SMS Inbox</h2>
+          <p>Read and manage customer SMS conversations from one place.</p>
+          <span class="open">Open SMS Inbox</span>
+        </a>
+      </section>
+    </main>
+
+    <footer>Power Smart Co internal operations portal</footer>
+  </div>
+</body>
+</html>

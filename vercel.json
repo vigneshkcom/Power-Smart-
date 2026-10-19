@@ -2,6 +2,15 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "portal.powersmartco.com.au" }
+      ],
+      "destination": "/staff-hub"
+    }
+  ],
   "redirects": [
     { "source": "/sales-portal.html", "destination": "/tools", "permanent": true },
     { "source": "/sales-portal", "destination": "/tools", "permanent": true },
