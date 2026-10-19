@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const cols = "id,created_at,updated_at,name,phone,email,postcode,source,stage,agent,quote_ref,quote_total,payment_preference";
+      const cols = "id,created_at,updated_at,name,phone,email,postcode,address_line1,address_suburb,address_state,address_postcode,source,stage,agent,quote_ref,quote_total,payment_preference";
       const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
       const latestPayments = {};
       try {
@@ -61,6 +61,10 @@ module.exports = async (req, res) => {
           phone: clean(b.phone, 40) || null,
           email: clean(b.email, 254).toLowerCase() || null,
           postcode: clean(b.postcode, 12) || null,
+          address_line1: clean(b.address_line1, 180) || null,
+          address_suburb: clean(b.address_suburb, 100) || null,
+          address_state: clean(b.address_state, 20).toUpperCase() || null,
+          address_postcode: clean(b.address_postcode, 12) || null,
           source: clean(b.source, 60) || "Manual",
           agent: clean(b.agent, 120) || null,
           stage,
@@ -84,6 +88,10 @@ module.exports = async (req, res) => {
       if (b.phone !== undefined) fields.phone = clean(b.phone, 40) || null;
       if (b.email !== undefined) fields.email = clean(b.email, 254).toLowerCase() || null;
       if (b.postcode !== undefined) fields.postcode = clean(b.postcode, 12) || null;
+      if (b.address_line1 !== undefined) fields.address_line1 = clean(b.address_line1, 180) || null;
+      if (b.address_suburb !== undefined) fields.address_suburb = clean(b.address_suburb, 100) || null;
+      if (b.address_state !== undefined) fields.address_state = clean(b.address_state, 20).toUpperCase() || null;
+      if (b.address_postcode !== undefined) fields.address_postcode = clean(b.address_postcode, 12) || null;
       if (b.source !== undefined) fields.source = clean(b.source, 60) || null;
       if (b.agent !== undefined) fields.agent = clean(b.agent, 120) || null;
       if (!Object.keys(fields).length) return res.status(400).json({ error: "Nothing to update" });

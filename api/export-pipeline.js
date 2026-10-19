@@ -41,6 +41,11 @@ function paymentDetails(lead) {
   return { status: "Not requested", amount: null };
 }
 
+function installationAddress(lead) {
+  const locality = [text(lead.address_suburb, 100), text(lead.address_state, 20), text(lead.address_postcode, 12)].filter(Boolean).join(" ");
+  return [text(lead.address_line1, 180), locality].filter(Boolean).join(", ");
+}
+
 module.exports = async (req, res) => {
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) return res.status(401).json({ error: "Invalid portal key" });
   if (req.method !== "POST") {
@@ -56,17 +61,17 @@ module.exports = async (req, res) => {
     workbook.creator = "PowerSmart";
     workbook.created = new Date();
     const sheet = workbook.addWorksheet("Pipeline", { views: [{ state: "frozen", ySplit: 5 }] });
-    sheet.mergeCells("A1:O1");
+    sheet.mergeCells("A1:P1");
     sheet.getCell("A1").value = "PowerSmart Sales Pipeline";
     sheet.getCell("A1").font = { name: "Aptos Display", size: 18, bold: true, color: { argb: "FFFFFFFF" } };
     sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B1B1F" } };
     sheet.getCell("A1").alignment = { vertical: "middle" };
     sheet.getRow(1).height = 32;
 
-    sheet.mergeCells("A2:O2");
+    sheet.mergeCells("A2:P2");
     sheet.getCell("A2").value = `Exported ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}`;
     sheet.getCell("A2").font = { name: "Aptos", size: 10, color: { argb: "FF41585D" } };
-    sheet.mergeCells("A3:O3");
+    sheet.mergeCells("A3:P3");
     const filters = Array.isArray(input.filters) ? input.filters.map((item) => text(item, 120)).filter(Boolean) : [];
     sheet.getCell("A3").value = filters.length ? `Filters: ${filters.join(", ")}` : "Filters: All leads";
     sheet.getCell("A3").font = { name: "Aptos", size: 10, italic: true, color: { argb: "FF6B8288" } };
@@ -74,7 +79,7 @@ module.exports = async (req, res) => {
     const columns = [
       { name: "Created", width: 20 }, { name: "Last activity", width: 20 }, { name: "Days idle", width: 11 },
       { name: "Customer", width: 24 }, { name: "Phone", width: 18 }, { name: "Email", width: 30 },
-      { name: "Postcode", width: 12 }, { name: "Source", width: 18 }, { name: "Stage", width: 20 },
+      { name: "Installation address", width: 42 }, { name: "Postcode", width: 12 }, { name: "Source", width: 18 }, { name: "Stage", width: 20 },
       { name: "Agent", width: 16 }, { name: "Quote reference", width: 17 }, { name: "Quote total", width: 15 },
       { name: "Payment status", width: 22 }, { name: "Payment amount", width: 17 }, { name: "Comments", width: 11 },
     ];
@@ -86,7 +91,7 @@ module.exports = async (req, res) => {
       const daysIdle = updated ? Math.max(0, Math.floor((Date.now() - updated.getTime()) / 864e5)) : null;
       return [
         date(lead.created_at), updated, daysIdle, text(lead.name, 120), text(lead.phone, 60), text(lead.email, 254),
-        text(lead.postcode, 20), text(lead.source, 80), STAGE_LABELS[lead.stage] || text(lead.stage, 50), text(lead.agent, 120),
+        installationAddress(lead), text(lead.postcode, 20), text(lead.source, 80), STAGE_LABELS[lead.stage] || text(lead.stage, 50), text(lead.agent, 120),
         text(lead.quote_ref, 40), number(lead.quote_total), payment.status, payment.amount, number(lead.comment_count) || 0,
       ];
     });
@@ -103,13 +108,13 @@ module.exports = async (req, res) => {
 
     sheet.getColumn(1).numFmt = "dd/mm/yyyy h:mm AM/PM";
     sheet.getColumn(2).numFmt = "dd/mm/yyyy h:mm AM/PM";
-    sheet.getColumn(12).numFmt = '"$"#,##0.00';
-    sheet.getColumn(14).numFmt = '"$"#,##0.00';
+    sheet.getColumn(13).numFmt = '"$"#,##0.00';
+    sheet.getColumn(15).numFmt = '"$"#,##0.00';
     sheet.getRow(5).height = 24;
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber >= 5) row.alignment = { vertical: "middle", wrapText: false };
     });
-    sheet.autoFilter = { from: "A5", to: "O5" };
+    sheet.autoFilter = { from: "A5", to: "P5" };
 
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

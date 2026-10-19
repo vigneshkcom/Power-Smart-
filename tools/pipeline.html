@@ -79,6 +79,7 @@
   .overlay{position:fixed;inset:0;background:rgba(11,27,31,.55);display:none;align-items:center;justify-content:center;padding:1rem;z-index:50}
   .overlay.show{display:flex}
   .modal{background:#fff;border-radius:16px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(11,27,31,.5)}
+  .modal.lead-modal{width:min(760px,100%)}
   .modal-head{padding:1.1rem 1.4rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.8rem;flex:none}
   .modal-head h3{font-size:1.05rem;font-weight:800;flex:1}
   .modal-head .x{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -93,6 +94,12 @@
   .modal-foot{padding:.9rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.6rem;align-items:center;flex:none}
   .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
   .modal-foot .spacer{flex:1}
+  .lead-actions{padding:1rem 1.4rem;border-top:1px solid var(--line);background:#F8FBFB;display:grid;grid-template-columns:1fr auto;gap:.8rem 1rem;align-items:center;flex:none}
+  .lead-workflow{grid-column:1/-1;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}.lead-workflow .action-label{margin-right:.2rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.lead-workflow .btn{border-radius:10px;min-height:42px;padding:.6rem .9rem;background:#fff}
+  .lead-workflow .btn:hover{background:var(--teal-soft)}
+  .lead-delete{grid-row:2;justify-self:start;color:var(--red);font-size:.76rem;font-weight:700;padding:.55rem .15rem}
+  .lead-save{grid-column:2;grid-row:2;display:flex;gap:.55rem;justify-content:flex-end}.lead-save .btn{border-radius:10px;min-height:42px}
+  .section-label{grid-column:1/-1;margin-top:.25rem;padding-top:.75rem;border-top:1px solid var(--line);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--teal-deep)}
 
   /* comments */
   .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
@@ -155,7 +162,7 @@
   .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem}
   .empty-col{font-size:.72rem;color:var(--muted);text-align:center;padding:.9rem .4rem;border:1.5px dashed rgba(11,27,31,.15);border-radius:10px}
   @media (max-width:780px){.filterbar .filter-label{width:100%}.filterbar select{flex:1;width:auto;min-width:145px}.filterbar .spacer{display:none}}
-  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%}.filterbar select{min-width:calc(50% - .3rem)} }
+  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%}.filterbar select{min-width:calc(50% - .3rem)}.fgrid{grid-template-columns:1fr}.field.full,.section-label{grid-column:1}.lead-actions{grid-template-columns:1fr}.lead-workflow,.lead-save{display:grid;grid-template-columns:1fr 1fr;width:100%}.lead-workflow .action-label{grid-column:1/-1}.lead-workflow .btn,.lead-save .btn{justify-content:center}.lead-delete,.lead-save{grid-column:1;grid-row:auto}.lead-delete{order:3}.lead-save{order:4} }
 </style>
 </head>
 <body>
@@ -225,7 +232,7 @@
 
   <!-- lead modal -->
   <div class="overlay" id="lead-overlay">
-    <div class="modal">
+    <div class="modal lead-modal">
       <div class="modal-head">
         <h3 id="lm-title">Lead</h3>
         <button class="x" id="lm-close" aria-label="Close">&times;</button>
@@ -239,6 +246,11 @@
           <div class="field"><label>Source</label><input id="lm-source" placeholder="Website / Facebook / Google…"></div>
           <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
           <div class="field"><label>Agent</label><input id="lm-agent"></div>
+          <div class="section-label">Installation address</div>
+          <div class="field full"><label>Street address</label><input id="lm-address-line1" placeholder="Unit and street number"></div>
+          <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
+          <div class="field"><label>State</label><input id="lm-address-state" maxlength="20"></div>
+          <div class="field"><label>Address postcode</label><input id="lm-address-postcode" maxlength="12"></div>
         </div>
         <div class="fgrid" id="lm-quote-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
@@ -257,14 +269,15 @@
           </div>
         </div>
       </div>
-      <div class="modal-foot">
-        <button class="del" id="lm-delete">Delete lead</button>
-        <span class="spacer"></span>
-        <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
-        <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
-        <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Email</button>
-        <button class="btn btn-ghost" id="lm-cancel">Close</button>
-        <button class="btn btn-primary" id="lm-save">Save changes</button>
+      <div class="lead-actions">
+        <div class="lead-workflow" aria-label="Customer actions">
+          <span class="action-label">Customer actions</span>
+          <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
+          <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
+          <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
+        </div>
+        <button class="lead-delete" id="lm-delete">Delete lead</button>
+        <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
       </div>
     </div>
   </div>
@@ -571,6 +584,10 @@
     $("lm-phone").value = l.phone || "";
     $("lm-email").value = l.email || "";
     $("lm-postcode").value = l.postcode || "";
+    $("lm-address-line1").value = l.address_line1 || "";
+    $("lm-address-suburb").value = l.address_suburb || "";
+    $("lm-address-state").value = l.address_state || "";
+    $("lm-address-postcode").value = l.address_postcode || l.postcode || "";
     $("lm-source").value = l.source || "";
     $("lm-agent").value = l.agent || "";
     stageSel.value = l.stage;
@@ -625,7 +642,7 @@
   function openNewLead(){
     currentId = null;
     $("lm-title").textContent = "Add lead";
-    ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent"].forEach(function(i){ $(i).value = ""; });
+    ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
     $("lm-source").value = "Phone";
     try{ $("lm-agent").value = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
     stageSel.value = "new_lead";
@@ -650,6 +667,10 @@
       phone: $("lm-phone").value.trim(),
       email: $("lm-email").value.trim(),
       postcode: $("lm-postcode").value.trim(),
+      address_line1: $("lm-address-line1").value.trim(),
+      address_suburb: $("lm-address-suburb").value.trim(),
+      address_state: $("lm-address-state").value.trim(),
+      address_postcode: $("lm-address-postcode").value.trim(),
       source: $("lm-source").value.trim(),
       agent: $("lm-agent").value.trim()
     };

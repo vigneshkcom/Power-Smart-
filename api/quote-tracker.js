@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
 
   try {
     const emails = await sb("sent_emails?select=id,created_at,status,error,agent,to_email,to_name,subject,body_text,quote_ref,quote_total,lead_id,provider_id&kind=eq.quote&order=created_at.desc&limit=5000");
-    const leads = await sb("leads?select=id,name,phone,email,postcode,source,stage,quote_ref,quote_total,agent,payment_preference&limit=5000");
+    const leads = await sb("leads?select=id,name,phone,email,postcode,address_line1,address_suburb,address_state,address_postcode,source,stage,quote_ref,quote_total,agent,payment_preference&limit=5000");
     const leadById = {};
     (leads || []).forEach((lead) => { leadById[lead.id] = lead; });
 
@@ -58,6 +58,10 @@ module.exports = async (req, res) => {
         customer_email: email.to_email || (lead && lead.email) || "",
         customer_phone: (lead && lead.phone) || "",
         postcode: (lead && lead.postcode) || "",
+        address_line1: (lead && lead.address_line1) || "",
+        address_suburb: (lead && lead.address_suburb) || "",
+        address_state: (lead && lead.address_state) || "",
+        address_postcode: (lead && lead.address_postcode) || "",
         source: (lead && lead.source) || "",
         agent: email.agent || (lead && lead.agent) || "Customer Service",
         service,

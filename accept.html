@@ -42,6 +42,14 @@
   .row.total strong{color:var(--teal-dark);font-size:1.4rem}
   .terms{background:var(--paper);border-radius:12px;padding:13px 16px;font-size:.82rem;color:var(--body);margin:16px 0 20px;line-height:1.55}
   .terms strong{color:var(--ink)}
+  .address-box{margin:20px 0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#FAFCFC}
+  .address-box h2{font-size:1rem;margin-bottom:4px}
+  .address-box>p{font-size:.78rem;color:var(--muted);margin-bottom:13px}
+  .address-grid{display:grid;grid-template-columns:1fr 110px 110px;gap:10px}
+  .address-field{display:flex;flex-direction:column;gap:5px}.address-field.full{grid-column:1/-1}
+  .address-field label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .address-field input,.address-field select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:.88rem;outline:none}
+  .address-field input:focus,.address-field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(67,168,182,.12)}
   .btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:1.05rem 1.5rem;border:none;border-radius:999px;
     font-family:inherit;font-weight:700;font-size:1.02rem;cursor:pointer;background:var(--teal);color:var(--ink);
     box-shadow:0 12px 26px -10px rgba(67,168,182,.6);transition:transform .16s ease,background .16s ease}
@@ -78,6 +86,7 @@
     .row{font-size:.86rem;gap:.75rem}
     .row.total strong{font-size:1.22rem}
     .btn{font-size:.94rem;padding:.95rem 1.1rem}
+    .address-grid{grid-template-columns:1fr 1fr}.address-field.suburb{grid-column:1/-1}
   }
 </style>
 </head>
@@ -99,6 +108,17 @@
         <div class="rows" id="rows"></div>
 
         <div class="terms" id="terms"></div>
+
+        <section class="address-box" aria-labelledby="address-title">
+          <h2 id="address-title">Installation address</h2>
+          <p>Enter the full address where the smoke alarm work will be completed.</p>
+          <div class="address-grid">
+            <div class="address-field full"><label for="addressLine1">Street address</label><input id="addressLine1" autocomplete="address-line1" placeholder="Unit and street number" required></div>
+            <div class="address-field suburb"><label for="addressSuburb">Suburb</label><input id="addressSuburb" autocomplete="address-level2" required></div>
+            <div class="address-field"><label for="addressState">State</label><select id="addressState" autocomplete="address-level1" required><option value="QLD">QLD</option><option value="NSW">NSW</option><option value="VIC">VIC</option><option value="ACT">ACT</option><option value="SA">SA</option><option value="WA">WA</option><option value="TAS">TAS</option><option value="NT">NT</option></select></div>
+            <div class="address-field"><label for="addressPostcode">Postcode</label><input id="addressPostcode" inputmode="numeric" autocomplete="postal-code" maxlength="4" pattern="[0-9]{4}" required></div>
+          </div>
+        </section>
 
         <div class="actions">
           <button class="btn" id="acceptBtn">
@@ -189,8 +209,16 @@
     return fetch("/api/accept-quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl, paymentMethod:paymentMethod })
+      body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl, paymentMethod:paymentMethod,
+        addressLine1:document.getElementById("addressLine1").value.trim(), addressSuburb:document.getElementById("addressSuburb").value.trim(),
+        addressState:document.getElementById("addressState").value, addressPostcode:document.getElementById("addressPostcode").value.trim() })
     }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok) throw new Error(d.error || "Could not accept the quote"); return d; }); });
+  }
+
+  function validateAddress(){
+    var ids=["addressLine1","addressSuburb","addressState","addressPostcode"];
+    for(var i=0;i<ids.length;i++){var field=document.getElementById(ids[i]);if(!field.checkValidity()){field.reportValidity();field.focus();return false;}}
+    return true;
   }
 
   function goToStripe(url){
@@ -210,15 +238,22 @@
   }
 
   btn.addEventListener("click", function(){
+    if(!validateAddress()) return;
     setBusy(true);
     document.getElementById("btnLabel").textContent = "One moment...";
     errBox.classList.remove("show");
     postAcceptance("stripe")
       .then(function(d){ goToStripe(d && d.stripeUrl); })
-      .catch(function(){ goToStripe(STRIPE_FALLBACK); }); // never block payment on notify failure
+      .catch(function(error){
+        setBusy(false);
+        document.getElementById("btnLabel").textContent = "Accept quote and pay online";
+        errBox.textContent = error.message || "We could not save your address. Please call (07) 2141 7792.";
+        errBox.classList.add("show");
+      });
   });
 
   phoneBtn.addEventListener("click", function(){
+    if(!validateAddress()) return;
     setBusy(true);
     phoneBtn.textContent = "One moment...";
     errBox.classList.remove("show");

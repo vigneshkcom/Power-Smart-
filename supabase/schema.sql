@@ -16,6 +16,10 @@ create table if not exists public.leads (
   phone        text,
   email        text,
   postcode     text,
+  address_line1 text,
+  address_suburb text,
+  address_state text,
+  address_postcode text,
   source       text not null default 'Website',
   stage        text not null default 'new_lead'
                check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','won','not_reachable','out_of_area')),
