@@ -131,7 +131,7 @@
     if(!visible.length){body.innerHTML='<tr><td colspan="9" class="empty">No quotes match these filters.</td></tr>';return;}
     body.innerHTML=visible.map(function(q,i){
       var qty=q.service==="Inspection"?"Inspection":q.alarm_qty+" alarm"+(q.alarm_qty===1?"":"s")+(q.controller_qty?", "+q.controller_qty+" controller":"");
-      var fee=q.payment_status==="paid"?money(q.payment_amount,true)+" paid":q.payment_status?money(q.payment_amount,true)+" link sent":"Not requested";
+      var fee=q.payment_status==="paid"?money(q.payment_amount,true)+" paid":q.payment_status==="phone"?"Phone call requested":q.payment_status?money(q.payment_amount,true)+" link sent":"Not requested";
       return '<tr data-index="'+i+'"><td>'+esc(dateText(q.created_at))+'</td><td><span class="ref">'+esc(q.ref||"Not recorded")+'</span></td><td><span class="customer">'+esc(q.customer_name||"Unnamed customer")+'</span><span class="sub">'+esc(q.customer_email)+'</span><span class="sub">'+esc(q.customer_phone)+'</span></td><td>'+esc(q.agent||"Customer Service")+'</td><td>'+esc(qty)+'</td><td class="money">'+money(q.total,true)+'</td><td><span class="badge '+esc(q.status)+'">'+esc(statusLabels[q.status]||q.status)+'</span></td><td>'+esc(fee)+'</td><td class="hide-mobile">'+esc(stageLabels[q.lead_stage]||"Not linked")+'</td></tr>';
     }).join("");
   }
@@ -156,7 +156,7 @@
   function csvValue(value){var text=String(value==null?"":value);if(/^[=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
   function exportCsv(){
     var rows=[["Date sent","Quote","Customer","Email","Phone","Agent","Service","Alarm quantity","Controller quantity","Total","Status","Booking fee","Pipeline stage"]];
-    visible.forEach(function(q){rows.push([dateText(q.created_at),q.ref,q.customer_name,q.customer_email,q.customer_phone,q.agent,q.service,q.alarm_qty,q.controller_qty,q.total,statusLabels[q.status]||q.status,q.payment_status==="paid"?q.payment_amount+" paid":q.payment_status||"Not requested",stageLabels[q.lead_stage]||"Not linked"]);});
+    visible.forEach(function(q){rows.push([dateText(q.created_at),q.ref,q.customer_name,q.customer_email,q.customer_phone,q.agent,q.service,q.alarm_qty,q.controller_qty,q.total,statusLabels[q.status]||q.status,q.payment_status==="paid"?q.payment_amount+" paid":q.payment_status==="phone"?"Phone call requested":q.payment_status||"Not requested",stageLabels[q.lead_stage]||"Not linked"]);});
     var blob=new Blob([rows.map(function(row){return row.map(csvValue).join(",");}).join("\r\n")],{type:"text/csv;charset=utf-8"});var link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="powersmart-quotes-"+new Date().toISOString().slice(0,10)+".csv";link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
   }
 

@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const cols = "id,created_at,updated_at,name,phone,email,postcode,source,stage,agent,quote_ref,quote_total";
+      const cols = "id,created_at,updated_at,name,phone,email,postcode,source,stage,agent,quote_ref,quote_total,payment_preference";
       const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
       const latestPayments = {};
       try {

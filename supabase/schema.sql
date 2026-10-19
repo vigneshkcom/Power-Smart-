@@ -21,7 +21,8 @@ create table if not exists public.leads (
                check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','won','not_reachable','out_of_area')),
   agent        text,
   quote_ref    text,
-  quote_total  numeric(10,2)
+  quote_total  numeric(10,2),
+  payment_preference text check (payment_preference in ('stripe','phone'))
 );
 
 create index if not exists leads_stage_idx      on public.leads (stage);

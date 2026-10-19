@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
 
   try {
     const emails = await sb("sent_emails?select=id,created_at,status,error,agent,to_email,to_name,subject,body_text,quote_ref,quote_total,lead_id,provider_id&kind=eq.quote&order=created_at.desc&limit=5000");
-    const leads = await sb("leads?select=id,name,phone,email,postcode,source,stage,quote_ref,quote_total,agent&limit=5000");
+    const leads = await sb("leads?select=id,name,phone,email,postcode,source,stage,quote_ref,quote_total,agent,payment_preference&limit=5000");
     const leadById = {};
     (leads || []).forEach((lead) => { leadById[lead.id] = lead; });
 
@@ -46,6 +46,7 @@ module.exports = async (req, res) => {
       const payment = lead ? paymentByLead[lead.id] || null : null;
       const text = email.body_text || "";
       const service = /compliance inspection/i.test(text) ? "Inspection" : "Installation";
+      const phonePayment = Boolean(lead && lead.payment_preference === "phone" && !payment);
       const alarmQty = quantityFromText(text, /smoke alarms[^\n]*\((\d+)\s*x\s*\$/i);
       const controllerQty = quantityFromText(text, /remote controller[^\n]*\((\d+)\s*x\s*\$/i);
       return {
@@ -66,8 +67,8 @@ module.exports = async (req, res) => {
         status: publicStatus(email, lead, payment),
         lead_stage: (lead && lead.stage) || "",
         lead_id: (lead && lead.id) || null,
-        payment_status: payment ? payment.status : "",
-        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : 0,
+        payment_status: payment ? payment.status : phonePayment ? "phone" : "",
+        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : phonePayment ? (service === "Inspection" ? 131 : 35) : 0,
         payment_date: payment ? payment.paid_at || payment.sent_at || null : null,
         subject: email.subject || "",
         body_text: text,
