@@ -108,7 +108,7 @@ module.exports = async (req, res) => {
     if (action === "comments") {
       const leadId = clean(b.lead_id, 40);
       if (!leadId) return res.status(400).json({ error: "lead_id is required" });
-      const rows = await sb(`lead_comments?lead_id=eq.${encodeURIComponent(leadId)}&order=created_at.asc&limit=200`);
+      const rows = await sb(`lead_comments?lead_id=eq.${encodeURIComponent(leadId)}&order=created_at.desc&limit=200`);
       return res.status(200).json({ comments: rows || [] });
     }
 

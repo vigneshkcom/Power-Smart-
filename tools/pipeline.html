@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sales Pipeline — PowerSmart</title>
+<title>Sales Pipeline - PowerSmart</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0B1B1F">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
@@ -526,11 +526,13 @@
 
   function renderComments(cs){
     if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
-    $("cmt-list").innerHTML = cs.map(function(c){
+    var newestFirst = cs.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
+    $("cmt-list").innerHTML = newestFirst.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
-      var isEmail = /^(Email sent|Email failed|Quote \d+ emailed)/i.test(c.body || "");
-      var hint = isEmail ? '<span class="view-hint">Click to read the full email →</span>' : '';
-      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(c.body) + '</p>' + hint + '</div>';
+      var body = String(c.body || "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\uFE0F?/gu, "").replace(/\s{2,}/g, " ").trim();
+      var isEmail = /^(Email sent|Email failed|Quote \d+ emailed)/i.test(body);
+      var hint = isEmail ? '<span class="view-hint">Click to read the full email</span>' : '';
+      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(body) + '</p>' + hint + '</div>';
     }).join("");
   }
   // clicking an email log entry opens the sent-email thread for this lead
@@ -663,7 +665,7 @@
       }); })
       .then(function(){
         closeEmail();
-        toast("Email sent to " + to + " ✓");
+        toast("Email sent to " + to);
         return load(); // reflect the logged comment on the card
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })
@@ -776,7 +778,7 @@
       }); })
       .then(function(d){
         closeQuote();
-        toast("Quote " + d.ref + " (" + fmt$(d.total) + ") emailed to " + to + " ✓");
+        toast("Quote " + d.ref + " (" + fmt$(d.total) + ") emailed to " + to);
         return load();   // card moves to Quote Sent with its quote ref
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })
