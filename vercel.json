@@ -6,7 +6,7 @@
     {
       "source": "/",
       "has": [
-        { "type": "host", "value": "portal.powersmartco.com.au" }
+        { "type": "host", "value": "portal\\.powersmartco\\.com\\.au" }
       ],
       "destination": "/staff-hub"
     }
