@@ -100,6 +100,11 @@
   .lead-delete{grid-row:2;justify-self:start;color:var(--red);font-size:.76rem;font-weight:700;padding:.55rem .15rem}
   .lead-save{grid-column:2;grid-row:2;display:flex;gap:.55rem;justify-content:flex-end}.lead-save .btn{border-radius:10px;min-height:42px}
   .section-label{grid-column:1/-1;margin-top:.25rem;padding-top:.75rem;border-top:1px solid var(--line);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--teal-deep)}
+  .sms-thread{height:min(46vh,420px);overflow-y:auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem}
+  .sms-bubble{max-width:78%;padding:.58rem .8rem;border-radius:13px;font-size:.82rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .sms-bubble.in{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}.sms-bubble.out{align-self:flex-end;background:var(--teal-dark);color:#fff;border-bottom-right-radius:4px}
+  .sms-bubble small{display:block;margin-top:.2rem;font-size:.61rem;opacity:.72}.sms-empty{margin:auto;color:var(--muted);font-size:.82rem;text-align:center}
+  .sms-compose{margin-top:.8rem}.sms-compose textarea{min-height:94px;resize:vertical}.sms-meta{display:flex;align-items:center;gap:.7rem;margin-top:.45rem;font-size:.68rem;color:var(--muted)}.sms-meta a{margin-left:auto;color:var(--teal-deep);font-weight:700;text-decoration:none}
 
   /* comments */
   .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
@@ -190,6 +195,7 @@
     <div class="tb-actions">
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
+      <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/sms">SMS Inbox</a>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -275,10 +281,24 @@
           <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
           <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
+          <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
         </div>
         <button class="lead-delete" id="lm-delete">Delete lead</button>
         <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
       </div>
+    </div>
+  </div>
+
+  <!-- SMS conversation and composer -->
+  <div class="overlay" id="sms-overlay">
+    <div class="modal" style="width:min(680px,100%)">
+      <div class="modal-head"><h3 id="sms-title">Customer SMS</h3><button class="x" id="sms-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="sms-thread" id="sms-thread"><div class="sms-empty">Loading conversation...</div></div>
+        <div class="field sms-compose"><label for="sms-message">Message</label><textarea id="sms-message" maxlength="1600" placeholder="Write an SMS"></textarea></div>
+        <div class="sms-meta"><span id="sms-count">0 characters</span><span id="sms-parts">1 SMS part</span><a id="sms-full-link" href="https://portal.powersmartco.com.au/sms">Open full SMS Inbox</a></div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" id="sms-cancel">Close</button><button class="btn btn-primary" id="sms-send">Send SMS</button></div>
     </div>
   </div>
 
@@ -658,7 +678,7 @@
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("quote-overlay")) $("quote-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); } });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("quote-overlay")) $("quote-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); if ($("sms-overlay")) $("sms-overlay").classList.remove("show"); } });
 
   $("lm-save").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
@@ -772,6 +792,57 @@
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
+  });
+
+  /* ---------- SMS conversation ---------- */
+  var smsLeadId = null, smsPhone = "";
+  function smsApi(url, options){
+    return fetch(url, options || {}).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok){var e=new Error(d.error || "SMS request failed");e.detail=d.detail||"";throw e;}return d; }); });
+  }
+  function renderSmsMessages(messages){
+    var box = $("sms-thread");
+    if (!messages.length){ box.innerHTML = '<div class="sms-empty">No messages yet. Write the first message below.</div>'; return; }
+    box.innerHTML = messages.map(function(m){
+      var when = new Date(m.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
+      return '<div class="sms-bubble '+(m.direction === "outbound" ? "out" : "in")+'">'+esc(m.message)+'<small>'+esc(when)+(m.status ? ' · '+esc(m.status) : '')+'</small></div>';
+    }).join("");
+    box.scrollTop = box.scrollHeight;
+  }
+  function loadSmsThread(){
+    $("sms-thread").innerHTML = '<div class="sms-empty">Loading conversation...</div>';
+    return smsApi("/api/sms?action=conversation&phone="+encodeURIComponent(smsPhone)).then(function(d){ renderSmsMessages(d.messages || []); });
+  }
+  function updateSmsCount(){
+    var length = $("sms-message").value.length, parts = length <= 160 ? 1 : Math.ceil(length / 153);
+    $("sms-count").textContent = length + " character" + (length === 1 ? "" : "s");
+    $("sms-parts").textContent = parts + " SMS part" + (parts === 1 ? "" : "s");
+  }
+  function openSms(id){
+    var lead = leads.find(function(x){return x.id === id;});
+    if(!lead || !lead.phone){toast("Add a mobile number before sending an SMS");if(lead)openLead(id);return;}
+    smsLeadId=id;smsPhone=lead.phone;
+    $("sms-title").textContent="SMS " + lead.name;
+    $("sms-full-link").href="https://portal.powersmartco.com.au/sms?phone="+encodeURIComponent(lead.phone);
+    $("sms-message").value="Hi " + (lead.name ? lead.name.split(" ")[0] : "there") + ",\n\n";
+    updateSmsCount();$("sms-overlay").classList.add("show");loadSmsThread().catch(function(e){$("sms-thread").innerHTML='<div class="sms-empty">'+esc(e.message+(e.detail ? " "+e.detail : ""))+'</div>';});
+    setTimeout(function(){$("sms-message").focus();$("sms-message").setSelectionRange($("sms-message").value.length,$("sms-message").value.length);},40);
+  }
+  function closeSms(){$("sms-overlay").classList.remove("show");smsLeadId=null;smsPhone="";}
+  $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
+  $("sms-close").addEventListener("click",closeSms);$("sms-cancel").addEventListener("click",closeSms);$("sms-overlay").addEventListener("click",function(e){if(e.target===this)closeSms();});
+  $("sms-message").addEventListener("input",updateSmsCount);
+  $("sms-send").addEventListener("click",function(){
+    var message=$("sms-message").value.trim();if(!message){toast("Write an SMS message");return;}
+    var button=this,original=button.textContent,leadId=smsLeadId,phone=smsPhone;button.disabled=true;button.textContent="Sending...";
+    smsApi("/api/sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"send",phone:phone,message:message})})
+      .then(function(){
+        var author=currentAgent();
+        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",body:"SMS sent to "+phone+": "+message}).catch(function(){return null;});
+      })
+      .then(function(){$("sms-message").value="";updateSmsCount();toast("SMS sent to "+phone);return loadSmsThread();})
+      .then(function(){return load();})
+      .catch(function(e){toast("Could not send SMS: "+e.message+(e.detail ? " "+e.detail : ""));})
+      .finally(function(){button.disabled=false;button.textContent=original;});
   });
 
   /* ---------- quote composer ---------- */

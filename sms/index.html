@@ -362,7 +362,8 @@ $('message').addEventListener('input', () => { updateCount(); autoGrow(); });
 $('message').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNew(); });
 
-load();
+const initialPhone = new URLSearchParams(location.search).get('phone');
+load().then(() => { if (initialPhone) openThread(initialPhone); });
 // Keep the inbox and the open thread fresh without disturbing what's being typed or scrolled.
 setInterval(() => { load(); if (active) openThread(active, true); }, 15000);
 </script>
