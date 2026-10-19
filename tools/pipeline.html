@@ -529,7 +529,11 @@
     var newestFirst = cs.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
     $("cmt-list").innerHTML = newestFirst.map(function(c){
       var when = new Date(c.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"});
-      var body = String(c.body || "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\uFE0F?/gu, "").replace(/\s{2,}/g, " ").trim();
+      var body = String(c.body || "")
+        .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\uFE0F?/gu, "")
+        .replace(/[\u2013\u2014]/g, " - ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
       var isEmail = /^(Email sent|Email failed|Quote \d+ emailed)/i.test(body);
       var hint = isEmail ? '<span class="view-hint">Click to read the full email</span>' : '';
       return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(body) + '</p>' + hint + '</div>';
