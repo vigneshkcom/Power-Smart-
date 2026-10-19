@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Accept Your Quote — PowerSmart</title>
+<title>Accept Your Quote - PowerSmart</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0B1B1F">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
@@ -15,18 +15,23 @@
     --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;--amber-soft:#FDF3DC;}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);
-    background:radial-gradient(60rem 32rem at 50% -10%,rgba(67,168,182,.18),transparent 60%),#EAF2F3;
-    line-height:1.6;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;}
+    background:
+      radial-gradient(46rem 24rem at 50% -4%,rgba(67,168,182,.22),transparent 66%),
+      linear-gradient(180deg,#F4F9FA 0%,#E8F1F2 100%);
+    line-height:1.6;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:36px 16px 24px;}
   img{display:block;max-width:100%}
   a{color:inherit}
-  .brandbar{margin-bottom:20px}
-  .brandbar img{height:38px}
-  .card{width:min(540px,100%);background:#fff;border-radius:20px;box-shadow:0 24px 60px -18px rgba(11,27,31,.28);overflow:hidden}
-  .card-head{background:linear-gradient(160deg,#0B1B1F,#0E2227);color:#fff;padding:26px 30px}
+  .brandbar{width:min(244px,68vw);margin:0 auto 24px}
+  .brandbar img{width:100%;height:auto}
+  .card{width:min(580px,100%);background:#fff;border:1px solid rgba(11,27,31,.08);border-radius:22px;
+    box-shadow:0 28px 70px -28px rgba(11,27,31,.4);overflow:hidden}
+  .card-head{position:relative;background:linear-gradient(145deg,#0B1B1F 0%,#123039 100%);color:#fff;padding:28px 32px}
+  .card-head::after{content:"";position:absolute;right:-42px;top:-62px;width:170px;height:170px;border-radius:50%;
+    border:34px solid rgba(67,168,182,.12);pointer-events:none}
   .card-head .eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-bright);margin-bottom:8px}
   .card-head h1{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;line-height:1.2}
   .card-head .ref{font-size:.82rem;color:#9FB6BA;margin-top:8px}
-  .card-body{padding:26px 30px}
+  .card-body{padding:28px 32px 30px}
   .card-body p.intro{font-size:.95rem;color:var(--body);margin-bottom:18px}
   .rows{border-top:1px solid var(--line);margin-bottom:6px}
   .row{display:flex;justify-content:space-between;gap:1rem;padding:11px 0;border-bottom:1px solid var(--line);font-size:.92rem;color:var(--body)}
@@ -51,7 +56,7 @@
   .included li{display:flex;gap:.6rem;align-items:flex-start;font-size:.85rem;color:var(--body);margin-bottom:9px}
   .included li:last-child{margin-bottom:0}
   .included .tk{flex:none;width:20px;height:20px;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;margin-top:.1rem}
-  .foot{text-align:center;font-size:.75rem;color:var(--muted);margin-top:22px;line-height:1.6}
+  .foot{text-align:center;font-size:.75rem;color:var(--muted);margin-top:22px;line-height:1.6;padding:0 12px}
   .foot a{color:var(--muted)}
   /* success state */
   .done{display:none;text-align:center;padding:8px 0}
@@ -60,11 +65,22 @@
   .done h2{font-size:1.3rem;margin-bottom:8px}
   .done p{color:var(--body);font-size:.92rem;margin-bottom:18px}
   .main.hidden{display:none}
+  @media (max-width:600px){
+    body{padding:22px 12px 18px}
+    .brandbar{width:min(210px,64vw);margin-bottom:18px}
+    .card{border-radius:18px}
+    .card-head{padding:24px 22px}
+    .card-head h1{font-size:1.32rem}
+    .card-body{padding:24px 22px 26px}
+    .row{font-size:.86rem;gap:.75rem}
+    .row.total strong{font-size:1.22rem}
+    .btn{font-size:.94rem;padding:.95rem 1.1rem}
+  }
 </style>
 </head>
 <body>
   <div class="brandbar">
-    <img src="assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co" width="1563" height="286">
+    <img src="assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co" width="244" height="45">
   </div>
 
   <div class="card">
@@ -132,7 +148,7 @@
     lines.push({ label:"Compliance inspection", qty:1, amount:FEE_INSPECT });
     payableToday = FEE_INSPECT; balance = 0;
   } else {
-    lines.push({ label:"Smoke alarms — supplied & installed", qty:alarms, amount:alarms*PRICE_ALARM });
+    lines.push({ label:"Smoke alarms - supplied & installed", qty:alarms, amount:alarms*PRICE_ALARM });
     if (ctrl > 0) lines.push({ label:"Remote controller", qty:ctrl, amount:ctrl*PRICE_CTRL });
     lines.push({ label:"Booking fee", qty:1, amount:FEE_BOOKING });
     payableToday = FEE_BOOKING; balance = alarms*PRICE_ALARM + ctrl*PRICE_CTRL;
