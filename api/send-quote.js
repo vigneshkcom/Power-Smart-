@@ -44,7 +44,7 @@ async function recordInPipeline({ customerName, customerEmail, agentName, ref, t
     if (leadId) {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: agentName || "System", body: `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
+        body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
         prefer: "return=minimal",
       });
     }

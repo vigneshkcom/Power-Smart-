@@ -39,6 +39,7 @@ create table if not exists public.lead_comments (
   lead_id    uuid not null references public.leads(id) on delete cascade,
   created_at timestamptz not null default now(),
   author     text,
+  kind       text not null default 'note',
   body       text not null
 );
 

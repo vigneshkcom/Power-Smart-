@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
         const stage = String(body.stage || "").trim();
         if (!leadId || !STAGES.includes(stage)) return res.status(400).json({ error: "A linked lead and valid pipeline status are required" });
         await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { stage }, prefer: "return=minimal" });
-        await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: "System", body: `Pipeline status changed to ${stage.replace(/_/g, " ")} from Quote Tracker.` }, prefer: "return=minimal" }).catch(() => {});
+        await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: "System", kind: "status", body: `Pipeline status changed to ${stage.replace(/_/g, " ")} from Quote Tracker.` }, prefer: "return=minimal" }).catch(() => {});
         return res.status(200).json({ ok: true, stage });
       }
       if (body.action === "delete") {

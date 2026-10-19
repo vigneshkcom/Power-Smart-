@@ -36,7 +36,7 @@ async function logAcceptance({ ref, customerName, customerEmail, payableToday, p
   try {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: lead.id, author: "System", body: paymentMethod === "phone"
+        body: { lead_id: lead.id, author: "System", kind: "status", body: paymentMethod === "phone"
           ? `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and requested a call to arrange the ${Q.fmt(payableToday)} fee. Call the customer, arrange payment, then book them in.`
           : `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and was sent to Stripe for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.` },
         prefer: "return=minimal",

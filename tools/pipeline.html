@@ -110,12 +110,21 @@
   /* comments */
   .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
   .cmts h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem}
-  .cmt{background:var(--paper);border-radius:10px;padding:.55rem .8rem;margin-bottom:.5rem}
-  .cmt .who{font-size:.68rem;color:var(--muted);margin-bottom:.15rem}
+  .cmt{--activity:#85959a;background:#f7fafb;border:1px solid var(--line);border-left:4px solid var(--activity);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem}
+  .cmt.kind-note{--activity:#85959a;background:#f7fafb}
+  .cmt.kind-quote{--activity:#d99b22;background:#fffaf0}
+  .cmt.kind-email{--activity:#398ea0;background:#f2fafb}
+  .cmt.kind-sms{--activity:#7558b7;background:#f8f5ff}
+  .cmt.kind-payment{--activity:#32925d;background:#f2fbf6}
+  .cmt.kind-status{--activity:#3476b9;background:#f3f8fe}
+  .cmt.kind-system{--activity:#52636a;background:#f5f7f8}
+  .cmt-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
+  .cmt .who{font-size:.68rem;color:var(--muted);margin-left:auto;text-align:right}
   .cmt .who strong{color:var(--teal-deep)}
+  .cmt-kind{display:inline-flex;align-items:center;border-radius:999px;background:var(--activity);color:#fff;padding:.18rem .48rem;font-size:.6rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase;white-space:nowrap}
   .cmt p{font-size:.84rem;color:var(--body);line-height:1.5;white-space:pre-wrap;word-break:break-word}
-  .cmt.cmt-email{cursor:pointer;border:1px solid transparent;transition:border-color .15s ease,background .15s ease}
-  .cmt.cmt-email:hover{border-color:var(--teal);background:var(--teal-soft)}
+  .cmt.cmt-email{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
+  .cmt.cmt-email:hover{border-color:var(--teal);border-left-color:var(--activity);box-shadow:var(--shadow-sm)}
   .cmt.cmt-email .view-hint{display:inline-block;margin-top:.3rem;font-size:.68rem;font-weight:700;color:var(--teal-deep)}
   /* thread viewer */
   .th-row{border:1px solid var(--line);border-radius:11px;padding:.7rem .9rem;margin-bottom:.6rem;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
@@ -639,6 +648,18 @@
     }).catch(function(err){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--red)">' + esc(err.message) + '</p>'; });
   }
 
+  function activityKind(c, body){
+    var saved = String(c.kind || "").toLowerCase();
+    if (saved && saved !== "note") return saved;
+    if (/^quote\s+.+\s+emailed|quotation.+emailed/i.test(body)) return "quote";
+    if (/^email\s+(sent|failed)/i.test(body)) return "email";
+    if (/^sms\s+sent|text message/i.test(body)) return "sms";
+    if (/accepted quote|pipeline status changed|moved to/i.test(body)) return "status";
+    if (/stripe|booking fee|payment\s+(paid|request|received)/i.test(body)) return "payment";
+    if (/^system$/i.test(String(c.author || ""))) return "system";
+    return "note";
+  }
+
   function renderComments(cs){
     if (!cs.length){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">No comments yet.</p>'; return; }
     var newestFirst = cs.slice().sort(function(a,b){ return new Date(b.created_at) - new Date(a.created_at); });
@@ -649,9 +670,11 @@
         .replace(/[\u2013\u2014]/g, " - ")
         .replace(/\s{2,}/g, " ")
         .trim();
-      var isEmail = /^(Email sent|Email failed|Quote \d+ emailed)/i.test(body);
-      var hint = isEmail ? '<span class="view-hint">Click to read the full email</span>' : '';
-      return '<div class="cmt' + (isEmail ? ' cmt-email' : '') + '"><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div><p>' + esc(body) + '</p>' + hint + '</div>';
+      var kind = activityKind(c, body);
+      var labels = {note:"Staff note",quote:"Email quote",email:"Email",sms:"SMS",payment:"Payment",status:"Status change",system:"System"};
+      var isEmail = kind === "email" || kind === "quote";
+      var hint = isEmail ? '<span class="view-hint">' + (kind === "quote" ? 'View sent quote' : 'View full email') + '</span>' : '';
+      return '<div class="cmt kind-' + esc(kind) + (isEmail ? ' cmt-email' : '') + '"><div class="cmt-head"><span class="cmt-kind">' + esc(labels[kind] || "Activity") + '</span><div class="who"><strong>' + esc(c.author || "Team") + '</strong> | ' + esc(when) + '</div></div><p>' + esc(body) + '</p>' + hint + '</div>';
     }).join("");
   }
   // clicking an email log entry opens the sent-email thread for this lead
@@ -731,7 +754,7 @@
       if (author){ try{ localStorage.setItem(AGENT_LS, author); }catch(e){} }
     }
     var btn = this; btn.disabled = true;
-    api("POST", { action:"comment", lead_id:currentId, author:author, body:body }).then(function(){
+    api("POST", { action:"comment", lead_id:currentId, author:author, kind:"note", body:body }).then(function(){
       $("cmt-body").value = "";
       return api("POST", { action:"comments", lead_id:currentId });
     }).then(function(d){
@@ -838,7 +861,7 @@
     smsApi("/api/sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"send",phone:phone,message:message})})
       .then(function(){
         var author=currentAgent();
-        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",body:"SMS sent to "+phone+": "+message}).catch(function(){return null;});
+        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:"SMS sent to "+phone+": "+message}).catch(function(){return null;});
       })
       .then(function(){$("sms-message").value="";updateSmsCount();toast("SMS sent to "+phone);return loadSmsThread();})
       .then(function(){return load();})

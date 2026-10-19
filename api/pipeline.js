@@ -103,10 +103,12 @@ module.exports = async (req, res) => {
     if (action === "comment") {
       const leadId = clean(b.lead_id, 40);
       const body = clean(b.body, 2000);
+      const allowedKinds = ["note", "quote", "email", "sms", "payment", "status", "system"];
+      const kind = allowedKinds.includes(b.kind) ? b.kind : "note";
       if (!leadId || !body) return res.status(400).json({ error: "lead_id and body are required" });
       const rows = await sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: clean(b.author, 120) || null, body },
+        body: { lead_id: leadId, author: clean(b.author, 120) || null, kind, body },
       });
       // bump the card so it floats to the top of its column (trigger forces updated_at=now())
       await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
