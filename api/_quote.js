@@ -44,13 +44,13 @@ function buildQuote({ serviceMode, alarmQty, controllerQty }) {
     lines.push({ label: "Smoke alarm compliance inspection", qty: 1, unit: FEE_INSPECT, amount: FEE_INSPECT });
     payableToday = FEE_INSPECT;
     balance = 0;
-    waiverNote = "If your home needs upgrading and you proceed with us, this $131 inspection fee is waived in full — you pay only the $35 booking fee plus the alarms required.";
+    waiverNote = "If your home needs upgrading and you proceed with us, this $131 inspection fee is waived in full. You pay only the $35 booking fee plus the alarms required.";
   } else {
-    lines.push({ label: "Photoelectric interconnected smoke alarms — supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
+    lines.push({ label: "Photoelectric interconnected smoke alarms - supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
     if (controllerQty > 0) {
       lines.push({ label: "Smoke alarm remote controller (test / hush / locate)", qty: controllerQty, unit: PRICE_CTRL, amount: controllerQty * PRICE_CTRL });
     }
-    lines.push({ label: "Booking fee — secures your licensed electrician", qty: 1, unit: FEE_BOOKING, amount: FEE_BOOKING });
+    lines.push({ label: "Booking fee - secures your licensed electrician", qty: 1, unit: FEE_BOOKING, amount: FEE_BOOKING });
     payableToday = FEE_BOOKING;
     balance = alarmQty * PRICE_ALARM + controllerQty * PRICE_CTRL;
   }
@@ -58,17 +58,6 @@ function buildQuote({ serviceMode, alarmQty, controllerQty }) {
   const subtotalExGst = total / 1.1;
   const gst = total - subtotalExGst;
   return { lines, total, subtotalExGst, gst, payableToday, balance, waiverNote };
-}
-
-function makeRef(d) {
-  const dt = d || new Date();
-  const yy = String(dt.getFullYear()).slice(2);
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  let rand = "";
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  for (let i = 0; i < 4; i++) rand += chars[Math.floor(Math.random() * chars.length)];
-  return `PS-${yy}${mm}${dd}-${rand}`;
 }
 
 function fmtDate(d) {
@@ -130,9 +119,9 @@ function renderQuoteEmail(opts) {
     </td>`;
 
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Quotation ${escapeHtml(ref)} — PowerSmart</title></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Quotation ${escapeHtml(ref)} - PowerSmart</title></head>
 <body style="margin:0;padding:0;background-color:#EAF2F3;">
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Your smoke alarm compliance quotation ${escapeHtml(ref)} — ${fmt(q.total)} incl. GST. Valid until ${escapeHtml(validUntil)}.</div>
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Your smoke alarm compliance quotation ${escapeHtml(ref)} - ${fmt(q.total)} incl. GST. Valid until ${escapeHtml(validUntil)}.</div>
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#EAF2F3;"><tr><td align="center" style="padding:26px 12px;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="width:620px;max-width:100%;font-family:Arial,Helvetica,sans-serif;">
 
@@ -204,7 +193,7 @@ function renderQuoteEmail(opts) {
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
             ${tick("Installed by <strong>licensed, insured electricians</strong>")}
             ${tick("<strong>Compliance certificate issued the same day</strong> as installation")}
-            ${tick("Photoelectric &amp; interconnected — certified to AS 3786-2014/2023")}
+            ${tick("Photoelectric &amp; interconnected - certified to AS 3786-2014/2023")}
             ${tick("<strong>10-year manufacturer warranty</strong> on every alarm")}
           </table>
         </td></tr></table>
@@ -233,7 +222,7 @@ function renderQuoteEmail(opts) {
   </td></tr></table>
 </body></html>`;
 
-  const text = `QUOTATION ${ref} — PowerSmart
+  const text = `QUOTATION ${ref} - PowerSmart
 Prepared for: ${customerName || "you"}
 Issued: ${issueDate} | Valid until: ${validUntil}
 
@@ -260,5 +249,5 @@ ${SITE}`;
 
 module.exports = {
   SITE, STRIPE_LINK, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
-  fmt, escapeHtml, normalise, buildQuote, makeRef, fmtDate, acceptUrl, renderQuoteEmail,
+  fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };

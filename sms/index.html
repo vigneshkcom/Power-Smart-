@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SMS Inbox — PowerSmart</title>
+<title>SMS Inbox - PowerSmart</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0B1B1F">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
@@ -145,6 +145,7 @@
     <div class="tb-actions">
       <a class="btn btn-ghost hide-sm" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
       <a class="btn btn-ghost hide-sm" href="https://portal.powersmartco.com.au/tools/pipeline">Pipeline</a>
+      <a class="btn btn-ghost hide-sm" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <button class="btn btn-ghost" id="sync" title="Pull new replies from the SMS gateway">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Sync inbox
@@ -184,7 +185,7 @@
   <!-- new message modal -->
   <div class="overlay" id="new-overlay">
     <div class="modal">
-      <div class="modal-head"><h3>New message</h3><button class="x" id="new-close" aria-label="Close">✕</button></div>
+      <div class="modal-head"><h3>New message</h3><button class="x" id="new-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="field"><label for="newPhone">Mobile number</label><input id="newPhone" type="tel" placeholder="e.g. 0412 345 678 or +61412345678"></div>
       </div>

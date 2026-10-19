@@ -172,6 +172,7 @@
     </div>
     <div class="tb-actions">
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
+      <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -190,7 +191,7 @@
     <div class="modal">
       <div class="modal-head">
         <h3 id="lm-title">Lead</h3>
-        <button class="x" id="lm-close" aria-label="Close">✕</button>
+        <button class="x" id="lm-close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="fgrid">
@@ -236,7 +237,7 @@
     <div class="modal">
       <div class="modal-head">
         <h3 id="em-title">Send email</h3>
-        <button class="x" id="em-close" aria-label="Close">✕</button>
+        <button class="x" id="em-close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="fgrid">
@@ -266,7 +267,7 @@
     <div class="modal" style="width:min(600px,100%)">
       <div class="modal-head">
         <h3 id="q-title">Send quote</h3>
-        <button class="x" id="q-close" aria-label="Close">✕</button>
+        <button class="x" id="q-close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="seg" id="q-mode">
@@ -318,7 +319,7 @@
       <div class="modal-head">
         <button class="x" id="th-back" style="display:none" title="Back to list">‹</button>
         <h3 id="th-title">Emails</h3>
-        <button class="x" id="th-close" aria-label="Close">✕</button>
+        <button class="x" id="th-close" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
         <div id="th-list"></div>
@@ -677,7 +678,7 @@
   });
 
   /* ---------- quote composer ---------- */
-  // Mirrors /tools (calculate()) — the server re-prices from these quantities, so this
+  // Mirrors /tools (calculate()). The server re-prices from these quantities, so this
   // is only the live preview. Keep PRICE_* in step with api/_quote.js.
   var PRICE_ALARM = 79, PRICE_CTRL = 35, FEE_BOOKING = 35, FEE_INSPECT = 131;
   var quoteLeadId = null, quoteMode = "install";

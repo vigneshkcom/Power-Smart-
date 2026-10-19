@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>Quote Tracker - PowerSmart</title>
+<meta name="theme-color" content="#0B1B1F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:#D9E6E8;--paper:#F4F9FA;--green:#2E9D62;--amber:#C98B16;--red:#C95656}
+  *,*::before,*::after{box-sizing:border-box} body{margin:0;background:#EDF3F4;color:var(--ink);font-family:'Poppins',system-ui,sans-serif;font-size:14px} button,input,select{font:inherit;color:inherit} button{cursor:pointer}
+  .gate{position:fixed;inset:0;z-index:100;background:linear-gradient(150deg,#0B1B1F,#123039);display:none;align-items:center;justify-content:center;padding:18px}.gate.show{display:flex}.gate-box{width:min(380px,100%);background:#fff;border-radius:18px;padding:30px;text-align:center}.gate-box img{width:190px;height:auto;margin:0 auto 18px}.gate-box h2{margin:0 0 6px}.gate-box p{margin:0 0 18px;color:var(--muted)}.gate-box input{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:12px;text-align:center}.gate-box .btn{width:100%;justify-content:center;margin-top:10px}.gate-error{min-height:20px;margin-top:8px;color:var(--red);font-size:12px}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;padding:11px 18px;background:#fff;border-bottom:1px solid var(--line)}.logo img{display:block;width:150px;height:auto}.title{font-size:17px;font-weight:800}.title span{color:var(--teal-dark)}.nav{display:flex;align-items:center;gap:8px;margin-left:auto}.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;background:#fff;padding:9px 14px;font-weight:700;font-size:12px;text-decoration:none}.btn:hover{border-color:var(--teal);color:var(--teal-deep)}.btn.primary{border-color:var(--teal);background:var(--teal)}.btn.primary:hover{background:#75C8D4;color:var(--ink)}.btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  main{width:min(1440px,calc(100% - 32px));margin:0 auto;padding:26px 0 42px}.intro{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:20px}.intro h1{margin:0;font-size:clamp(26px,3vw,40px);line-height:1.05;letter-spacing:-.04em}.intro p{margin:8px 0 0;color:var(--muted)}.loaded{font-size:12px;color:var(--muted);white-space:nowrap}
+  .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px}.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px 18px;box-shadow:0 6px 18px rgba(28,80,88,.05)}.stat label{display:block;color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}.stat strong{display:block;margin-top:6px;font-size:24px;letter-spacing:-.04em}.stat small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+  .filters{display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(3,minmax(150px,.7fr)) auto;gap:10px;padding:13px;background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:14px}.filters input,.filters select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:10px 11px;outline:none}.filters input:focus,.filters select:focus{border-color:var(--teal);background:#fff}.clear{border:0;background:transparent;color:var(--teal-deep);font-weight:700;padding:0 10px}
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:auto;box-shadow:0 8px 24px rgba(28,80,88,.05)}table{width:100%;min-width:1080px;border-collapse:collapse}th{position:sticky;top:0;background:#F7FAFA;color:var(--muted);font-size:10px;text-align:left;text-transform:uppercase;letter-spacing:.07em;padding:12px 14px;border-bottom:1px solid var(--line)}td{padding:13px 14px;border-bottom:1px solid #EDF2F3;vertical-align:top}tbody tr{cursor:pointer}tbody tr:hover{background:#F7FBFC}.ref{font-weight:800;color:var(--teal-deep)}.customer{font-weight:700}.sub{display:block;color:var(--muted);font-size:11px;margin-top:2px}.money{font-weight:800}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--paper);color:var(--body)}.badge.sent{background:#E8F1FA;color:#326B9C}.badge.accepted{background:#E7F6ED;color:#227A4B}.badge.paid,.badge.installed{background:#DDF3E6;color:#176A3D}.badge.failed{background:#FBE9E9;color:#9E3434}.empty{text-align:center;color:var(--muted);padding:46px 20px}.loading{text-align:center;color:var(--muted);padding:46px 20px}
+  .overlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(11,27,31,.6)}.overlay.show{display:flex}.modal{width:min(720px,100%);max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden}.modal-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}.modal-head h2{margin:0;font-size:18px}.modal-head button{margin-left:auto;border:0;background:var(--paper);border-radius:999px;padding:7px 12px;font-weight:700}.modal-body{overflow:auto;padding:20px 22px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}.detail{background:var(--paper);border-radius:10px;padding:11px 12px}.detail label{display:block;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.detail strong{display:block;margin-top:4px;font-size:13px;word-break:break-word}.quote-text{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);border-radius:10px;padding:15px;color:var(--body);font-family:inherit;font-size:12px;line-height:1.6;background:#fff}
+  @media(max-width:1050px){.stats{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:1fr 1fr 1fr}.filters .search{grid-column:1/-1}.clear{min-height:40px}}
+  @media(max-width:720px){.topbar{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.nav{width:100%;margin-left:0;overflow:auto}.stats{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.filters .search{grid-column:auto}.intro{align-items:flex-start;flex-direction:column}.detail-grid{grid-template-columns:1fr 1fr}main{width:min(100% - 20px,1440px);padding-top:18px}.hide-mobile{display:none}}
+</style>
+</head>
+<body>
+  <div class="gate" id="gate">
+    <div class="gate-box">
+      <img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co">
+      <h2>Quote Tracker</h2>
+      <p>Enter the portal key to continue.</p>
+      <input type="password" id="gate-key" placeholder="Portal key" autocomplete="current-password">
+      <button class="btn primary" id="gate-btn">Unlock</button>
+      <div class="gate-error" id="gate-error"></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a class="logo" href="https://portal.powersmartco.com.au/"><img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
+    <div class="title">Quote <span>Tracker</span></div>
+    <nav class="nav">
+      <a class="btn" href="/tools">Quote Tool</a>
+      <a class="btn" href="/tools/pipeline">Pipeline</a>
+      <button class="btn" id="export-btn"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>Export CSV</button>
+      <button class="btn primary" id="refresh-btn"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>Refresh</button>
+    </nav>
+  </header>
+
+  <main>
+    <div class="intro">
+      <div><h1>Sent quotes</h1><p>See every PowerSmart quote, customer, value, acceptance and booking-fee payment.</p></div>
+      <div class="loaded" id="loaded"></div>
+    </div>
+
+    <section class="stats" aria-label="Quote summary">
+      <div class="stat"><label>Revenue quoted</label><strong id="stat-value">$0</strong><small>Successfully sent quotes</small></div>
+      <div class="stat"><label>Quotes sent</label><strong id="stat-sent">0</strong><small id="stat-period">All time</small></div>
+      <div class="stat"><label>Accepted</label><strong id="stat-accepted">0</strong><small id="stat-conversion">0% conversion</small></div>
+      <div class="stat"><label>Booking fees paid</label><strong id="stat-paid">0</strong><small id="stat-paid-value">$0 received</small></div>
+      <div class="stat"><label>Average quote</label><strong id="stat-average">$0</strong><small>Average sent value</small></div>
+    </section>
+
+    <section class="filters" aria-label="Quote filters">
+      <input class="search" id="search" type="search" placeholder="Search quote number, customer, email or phone">
+      <select id="agent-filter"><option value="">All agents</option></select>
+      <select id="status-filter">
+        <option value="">All statuses</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="paid">Paid</option><option value="installed">Installed</option><option value="failed">Failed</option>
+      </select>
+      <select id="period-filter"><option value="all">All time</option><option value="today">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select>
+      <button class="clear" id="clear-btn">Clear filters</button>
+    </section>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date sent</th><th>Quote</th><th>Customer</th><th>Agent</th><th>Service</th><th>Total</th><th>Status</th><th>Booking fee</th><th class="hide-mobile">Pipeline stage</th></tr></thead>
+        <tbody id="quote-body"><tr><td colspan="9" class="loading">Loading quotes...</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div class="overlay" id="detail-overlay">
+    <div class="modal">
+      <div class="modal-head"><h2 id="detail-title">Quote details</h2><button id="detail-close">Close</button></div>
+      <div class="modal-body"><div class="detail-grid" id="detail-grid"></div><div class="quote-text" id="detail-text"></div></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY_LS = "powersmart_portal_key";
+  var quotes = [], visible = [];
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(value){ return String(value == null ? "" : value).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
+  var money = function(value, cents){ return "$" + Number(value || 0).toLocaleString("en-AU",{minimumFractionDigits:cents?2:0,maximumFractionDigits:cents?2:0}); };
+  var stageLabels = {new_lead:"New Lead",quote_accepted:"Quote Accepted",follow_up:"Follow-Up",shopping:"Shopping Around",quote_sent:"Quote Sent",won:"Won / Installed",not_reachable:"Not Reachable",out_of_area:"Out of Area"};
+  var statusLabels = {sent:"Sent",accepted:"Accepted",paid:"Paid",installed:"Installed",failed:"Failed"};
+
+  function portalKey(){ try{return localStorage.getItem(KEY_LS)||"";}catch(e){return "";} }
+  function showGate(bad){ $("gate").classList.add("show"); $("gate-error").textContent=bad?"That key was not accepted. Try again.":""; $("gate-key").focus(); }
+  function api(){ return fetch("/api/quote-tracker",{headers:{"x-portal-key":portalKey()}}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(r.status===401){showGate(true);throw new Error("Invalid portal key");}if(!r.ok)throw new Error(d.error||("Error "+r.status));return d;});}); }
+  function unlock(){var value=$("gate-key").value.trim();if(!value)return;try{localStorage.setItem(KEY_LS,value);}catch(e){}$("gate-btn").disabled=true;load().then(function(){$("gate").classList.remove("show");}).catch(function(){}).finally(function(){$("gate-btn").disabled=false;});}
+
+  function cleanText(value){return String(value||"").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]\uFE0F?/gu,"").replace(/[\u2013\u2014]/g," - ").replace(/\s{2,}/g," ").trim();}
+  function dateText(iso){return new Date(iso).toLocaleString("en-AU",{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});}
+  function matchesPeriod(q,period){if(period==="all")return true;var age=Date.now()-new Date(q.created_at).getTime();if(period==="today"){var d=new Date(q.created_at),n=new Date();return d.toDateString()===n.toDateString();}return age<=Number(period)*864e5;}
+
+  function applyFilters(){
+    var term=$("search").value.trim().toLowerCase(), agent=$("agent-filter").value, status=$("status-filter").value, period=$("period-filter").value;
+    visible=quotes.filter(function(q){
+      var hay=[q.ref,q.customer_name,q.customer_email,q.customer_phone,q.postcode].join(" ").toLowerCase();
+      return (!term||hay.indexOf(term)!==-1)&&(!agent||q.agent===agent)&&(!status||q.status===status)&&matchesPeriod(q,period);
+    });
+    render();
+  }
+
+  function renderStats(){
+    var sent=visible.filter(function(q){return q.email_status!=="failed";}), value=sent.reduce(function(sum,q){return sum+Number(q.total||0);},0);
+    var accepted=sent.filter(function(q){return ["accepted","paid","installed"].indexOf(q.status)!==-1;});
+    var paid=sent.filter(function(q){return q.status==="paid"||q.status==="installed";});
+    var paidValue=paid.reduce(function(sum,q){return sum+Number(q.payment_amount||0);},0);
+    $("stat-value").textContent=money(value,false); $("stat-sent").textContent=sent.length; $("stat-accepted").textContent=accepted.length;
+    $("stat-conversion").textContent=(sent.length?Math.round(accepted.length/sent.length*100):0)+"% conversion";
+    $("stat-paid").textContent=paid.length; $("stat-paid-value").textContent=money(paidValue,false)+" received";
+    $("stat-average").textContent=money(sent.length?value/sent.length:0,false); $("stat-period").textContent=$("period-filter").selectedOptions[0].textContent;
+  }
+
+  function render(){
+    renderStats();
+    var body=$("quote-body");
+    if(!visible.length){body.innerHTML='<tr><td colspan="9" class="empty">No quotes match these filters.</td></tr>';return;}
+    body.innerHTML=visible.map(function(q,i){
+      var qty=q.service==="Inspection"?"Inspection":q.alarm_qty+" alarm"+(q.alarm_qty===1?"":"s")+(q.controller_qty?", "+q.controller_qty+" controller":"");
+      var fee=q.payment_status==="paid"?money(q.payment_amount,true)+" paid":q.payment_status?money(q.payment_amount,true)+" link sent":"Not requested";
+      return '<tr data-index="'+i+'"><td>'+esc(dateText(q.created_at))+'</td><td><span class="ref">'+esc(q.ref||"Not recorded")+'</span></td><td><span class="customer">'+esc(q.customer_name||"Unnamed customer")+'</span><span class="sub">'+esc(q.customer_email)+'</span><span class="sub">'+esc(q.customer_phone)+'</span></td><td>'+esc(q.agent||"Customer Service")+'</td><td>'+esc(qty)+'</td><td class="money">'+money(q.total,true)+'</td><td><span class="badge '+esc(q.status)+'">'+esc(statusLabels[q.status]||q.status)+'</span></td><td>'+esc(fee)+'</td><td class="hide-mobile">'+esc(stageLabels[q.lead_stage]||"Not linked")+'</td></tr>';
+    }).join("");
+  }
+
+  function populateAgents(){
+    var agents=Array.from(new Set(quotes.map(function(q){return q.agent||"Customer Service";}))).sort();
+    $("agent-filter").innerHTML='<option value="">All agents</option>'+agents.map(function(a){return '<option value="'+esc(a)+'">'+esc(a)+'</option>';}).join("");
+  }
+
+  function load(){
+    $("quote-body").innerHTML='<tr><td colspan="9" class="loading">Loading quotes...</td></tr>';
+    return api().then(function(data){quotes=(data.quotes||[]).sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at);});populateAgents();applyFilters();$("loaded").textContent="Updated "+new Date().toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit"})+". "+quotes.length+" quote"+(quotes.length===1?"":"s")+" recorded";});
+  }
+
+  function showDetail(q){
+    $("detail-title").textContent="Quote "+(q.ref||"details");
+    var details=[["Customer",q.customer_name||"Not recorded"],["Email",q.customer_email||"Not recorded"],["Phone",q.customer_phone||"Not recorded"],["Agent",q.agent||"Customer Service"],["Total",money(q.total,true)],["Status",statusLabels[q.status]||q.status],["Sent",dateText(q.created_at)],["Service",q.service],["Pipeline",stageLabels[q.lead_stage]||"Not linked"]];
+    $("detail-grid").innerHTML=details.map(function(d){return '<div class="detail"><label>'+esc(d[0])+'</label><strong>'+esc(d[1])+'</strong></div>';}).join("");
+    $("detail-text").textContent=cleanText(q.body_text)||"No plain-text quote copy was recorded."; $("detail-overlay").classList.add("show");
+  }
+
+  function csvValue(value){var text=String(value==null?"":value);if(/^[=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
+  function exportCsv(){
+    var rows=[["Date sent","Quote","Customer","Email","Phone","Agent","Service","Alarm quantity","Controller quantity","Total","Status","Booking fee","Pipeline stage"]];
+    visible.forEach(function(q){rows.push([dateText(q.created_at),q.ref,q.customer_name,q.customer_email,q.customer_phone,q.agent,q.service,q.alarm_qty,q.controller_qty,q.total,statusLabels[q.status]||q.status,q.payment_status==="paid"?q.payment_amount+" paid":q.payment_status||"Not requested",stageLabels[q.lead_stage]||"Not linked"]);});
+    var blob=new Blob([rows.map(function(row){return row.map(csvValue).join(",");}).join("\r\n")],{type:"text/csv;charset=utf-8"});var link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="powersmart-quotes-"+new Date().toISOString().slice(0,10)+".csv";link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
+  }
+
+  $("gate-btn").addEventListener("click",unlock); $("gate-key").addEventListener("keydown",function(e){if(e.key==="Enter")unlock();});
+  ["search","agent-filter","status-filter","period-filter"].forEach(function(id){$(id).addEventListener(id==="search"?"input":"change",applyFilters);});
+  $("clear-btn").addEventListener("click",function(){$("search").value="";$("agent-filter").value="";$("status-filter").value="";$("period-filter").value="all";applyFilters();});
+  $("refresh-btn").addEventListener("click",load); $("export-btn").addEventListener("click",exportCsv);
+  $("quote-body").addEventListener("click",function(e){var row=e.target.closest("tr[data-index]");if(row)showDetail(visible[Number(row.dataset.index)]);});
+  $("detail-close").addEventListener("click",function(){$("detail-overlay").classList.remove("show");}); $("detail-overlay").addEventListener("click",function(e){if(e.target===this)this.classList.remove("show");});
+  if(portalKey())load().catch(function(e){if(e.message!=="Invalid portal key")$("quote-body").innerHTML='<tr><td colspan="9" class="empty">'+esc(e.message)+'</td></tr>';});else showGate(false);
+})();
+</script>
+</body>
+</html>

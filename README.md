@@ -28,9 +28,9 @@ api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
 api/_maillog.js       Logs every outbound email to Supabase sent_emails (not a route)
-api/send-quote.js     POST /api/send-quote  — emails a customer their quotation
+api/send-quote.js     POST /api/send-quote  - emails a customer their quotation
 api/send-email.js     POST /api/send-email  — free-form branded email (composer)
-api/accept-quote.js   POST /api/accept-quote — notifies staff a quote was accepted
+api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accepted
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
@@ -38,6 +38,7 @@ sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
+supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
 assets/email/         Product photos used on the site and in quote emails
@@ -81,13 +82,14 @@ Environment variables (Vercel → Settings → Environment Variables):
 
 ## Sales pipeline (/tools/pipeline)
 
-GHL-style kanban backed by Supabase. Stages: New Lead, Follow-Up, Shopping
-Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
+GHL-style kanban backed by Supabase. Stages: New Lead, Quote Accepted,
+Follow-Up, Shopping Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
 
 - Website enquiries land in **New Lead** automatically (`/api/lead` inserts them).
 - Sending a quote from /tools moves (or creates) the lead in **Quote Sent**
   with the quote ref + total, and logs a comment.
-- A customer accepting their quote logs a "✅ accepted" comment on the lead.
+- A customer accepting their quote moves the lead directly to Quote Accepted and logs a comment.
+- Before sending the next quote, run `supabase/pipeline-quote-accepted-and-numbering.sql` once to create the Quote Accepted database stage and quote numbers beginning at 7000.
 - Drag cards between stages, click a card for details + comments, add leads
   manually, search by name/phone/postcode.
 - Access requires the portal passcode `2026`, hardcoded in `api/pipeline.js`

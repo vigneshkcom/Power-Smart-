@@ -54,6 +54,7 @@
             <h1 class="text-white font-bold tracking-widest uppercase text-lg">POWER SMART CO SALES PORTAL</h1>
             <div class="flex flex-wrap gap-2">
                 <a href="https://portal.powersmartco.com.au/tools/pipeline" class="px-3 py-1.5 rounded text-xs font-bold bg-powersmart text-white transition hover:opacity-90">Pipeline</a>
+                <a href="https://portal.powersmartco.com.au/tools/quote-tracker" class="px-3 py-1.5 rounded text-xs font-bold bg-gray-700 text-white transition hover:opacity-90">Quote Tracker</a>
                 <button onclick="setMode('inbound')" id="btn-inbound" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Inbound Call</button>
                 <button onclick="setMode('outbound')" id="btn-outbound" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Outbound (Missed)</button>
                 <button onclick="setMode('social')" id="btn-social" class="px-3 py-1.5 rounded text-xs font-semibold bg-gray-800 text-gray-300 transition hover:bg-gray-700">Social Media/Online</button>
@@ -138,14 +139,14 @@
                 <div class="bg-gray-100 border rounded p-3">
                     <h5 class="font-bold text-[10px] mb-1 uppercase text-gray-600">QUEENSLAND SMOKE ALARM LEGISLATION (EFFECTIVE 01/01/2027)</h5>
                     <ul class="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-gray-600">
-                        <li>✓ Photoelectric & Interconnected</li>
-                        <li>✓ In each bedroom & connecting hallway</li>
-                        <li>✓ Installed on each level</li>
-                        <li>✓ 10-year backup battery</li>
-                        <li>✓ Less than 10 years old</li>
-                        <li>✓ AS 3786-2014 or AS 3786-2023</li>
-                        <li>✓ Hard-wired replaced with hard-wired</li>
-                        <li>✓ 10 Year Warranty included</li>
+                        <li>Photoelectric & Interconnected</li>
+                        <li>In each bedroom & connecting hallway</li>
+                        <li>Installed on each level</li>
+                        <li>10-year backup battery</li>
+                        <li>Less than 10 years old</li>
+                        <li>AS 3786-2014 or AS 3786-2023</li>
+                        <li>Hard-wired replaced with hard-wired</li>
+                        <li>10 Year Warranty included</li>
                     </ul>
                 </div>
             </div>
@@ -592,7 +593,7 @@ async function sendEmail() {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
-            alert(`Quote emailed to ${toEmail} ✓`);
+            alert(`Quote emailed to ${toEmail}`);
         } else {
             alert(`Couldn't send automatically: ${data.error || 'server error'}.\n\nOpening your email app as a backup.`);
             window.location.href = `mailto:${toEmail}?subject=${encodeURIComponent('Your Smoke Alarm Quote - Power Smart Co')}&body=${encodeURIComponent(buildPlainTextQuote())}`;

@@ -35,8 +35,8 @@ module.exports = async (req, res) => {
   const rows = [
     ["Name", name],
     ["Phone", phone],
-    ["Email", email || "—"],
-    ["Postcode", postcode || "—"],
+    ["Email", email || "Not provided"],
+    ["Postcode", postcode || "Not provided"],
   ].map(([k, v]) =>
     `<tr><td style="padding:7px 12px;color:#6B8288;font-size:13px;width:110px;">${k}</td><td style="padding:7px 12px;font-size:14px;color:#0B1B1F;"><strong>${esc(v)}</strong></td></tr>`
   ).join("");
@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0B1B1F;">
       <div style="background:#43A8B6;padding:16px 20px;border-radius:10px 10px 0 0;">
-        <strong style="font-size:16px;color:#0B1B1F;">🔔 New website lead — call to quote</strong>
+        <strong style="font-size:16px;color:#0B1B1F;">New website lead - call to quote</strong>
       </div>
       <div style="border:1px solid #eee;border-top:none;padding:14px 8px;border-radius:0 0 10px 10px;">
         <table style="width:100%;border-collapse:collapse;">${rows}</table>
@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
       </div>
     </div>`;
 
-  const text = `New website lead — call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "—"}\nPostcode: ${postcode || "—"}\n\nSubmitted via the landing page.`;
+  const text = `New website lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via the landing page.`;
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
   if (SB.configured()) {

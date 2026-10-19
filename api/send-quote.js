@@ -44,12 +44,27 @@ async function recordInPipeline({ customerName, customerEmail, agentName, ref, t
     if (leadId) {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: agentName || "System", body: `📧 Quote ${ref} emailed — total ${Q.fmt(total)} incl. GST.` },
+        body: { lead_id: leadId, author: agentName || "System", body: `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
         prefer: "return=minimal",
       });
     }
     return leadId || null;
   } catch (e) { console.error("send-quote → pipeline update failed:", e.message); return null; }
+}
+
+async function nextQuoteReference() {
+  if (!SB.configured()) {
+    const error = new Error("Quote numbering is not configured");
+    error.status = 500;
+    throw error;
+  }
+  const number = await SB.sb("rpc/next_quote_reference", { method: "POST", body: {} });
+  if (!Number.isInteger(number) || number < 7000) {
+    const error = new Error("Quote numbering returned an invalid reference");
+    error.status = 500;
+    throw error;
+  }
+  return String(number);
 }
 
 function isValidEmail(v) {
@@ -79,7 +94,12 @@ module.exports = async (req, res) => {
 
   const now = new Date();
   const validUntilDate = new Date(now.getTime() + Q.QUOTE_VALID_DAYS * 864e5);
-  const ref = Q.makeRef(now);
+  let ref;
+  try {
+    ref = await nextQuoteReference();
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message || "Could not allocate a quote number" });
+  }
 
   const rendered = Q.renderQuoteEmail({
     customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty,
@@ -90,7 +110,7 @@ module.exports = async (req, res) => {
   const resend = new Resend(apiKey);
   const notify = process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL;
 
-  const subject = `Your Smoke Alarm Compliance Quotation (${ref}) — PowerSmart`;
+  const subject = `Your Smoke Alarm Compliance Quotation (${ref}) - PowerSmart`;
 
   try {
     const { data, error } = await resend.emails.send({

@@ -12,15 +12,15 @@ const LOGO = `${SITE}/assets/logo/power-smart-logo-full-colour.png`;
 // key -> identity
 const SENDERS = {
   customer_service: { key: "customer_service", label: "Customer Service", fromName: "PowerSmart",           signName: "Customer Service Team", title: "PowerSmart" },
-  mani:             { key: "mani",             label: "Mani",             fromName: "Mani — PowerSmart", signName: "Mani",                  title: "PowerSmart" },
-  vignesh:          { key: "vignesh",          label: "Vignesh",          fromName: "Vignesh — PowerSmart", signName: "Vignesh",             title: "PowerSmart" },
+  mani:             { key: "mani",             label: "Mani",             fromName: "Mani - PowerSmart", signName: "Mani",                  title: "PowerSmart" },
+  vignesh:          { key: "vignesh",          label: "Vignesh",          fromName: "Vignesh - PowerSmart", signName: "Vignesh",             title: "PowerSmart" },
 };
 
 function resolveSender(key) {
   return SENDERS[key] || SENDERS.customer_service;
 }
 
-// "Mani — PowerSmart <support@powersmartco.com.au>"
+// "Mani - PowerSmart <support@powersmartco.com.au>"
 function fromHeader(key) {
   const s = resolveSender(key);
   const addr = process.env.RESEND_FROM_ADDRESS || SUPPORT_EMAIL;
@@ -58,7 +58,7 @@ function signatureHtml(key) {
 
 function signatureText(key) {
   const s = resolveSender(key);
-  return `\n\n—\n${s.signName}\n${s.title}\n${PHONE_DISPLAY} · ${SUPPORT_EMAIL}\nsmokealarms.powersmartco.com.au\nPowerSmart Pty Ltd · ABN ${ABN}`;
+  return `\n\n${s.signName}\n${s.title}\n${PHONE_DISPLAY} | ${SUPPORT_EMAIL}\nsmokealarms.powersmartco.com.au\nPowerSmart Pty Ltd | ABN ${ABN}`;
 }
 
 // Full branded wrapper for a free-form message (composer emails).

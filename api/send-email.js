@@ -51,8 +51,8 @@ module.exports = async (req, res) => {
     try {
       const who = agent || sender.label;
       const note = status === "sent"
-        ? `📧 Email sent (as ${sender.label}) by ${who} — "${subject}"`
-        : `⚠️ Email FAILED (as ${sender.label}) — "${subject}"${err ? " · " + err : ""}`;
+        ? `Email sent (as ${sender.label}) by ${who}: "${subject}"`
+        : `Email failed (as ${sender.label}) by ${who}: "${subject}"${err ? ". " + err : ""}`;
       await SB.sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: who, body: note }, prefer: "return=minimal" });
       await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
     } catch (e) { console.error("send-email → comment failed:", e.message); }
