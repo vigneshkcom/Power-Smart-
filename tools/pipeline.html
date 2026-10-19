@@ -91,6 +91,7 @@
   .field label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
   .field input,.field select,.field textarea{padding:.55rem .75rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);outline:none;font-size:.86rem}
   .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal);background:#fff}
+  .quote-view-btn{min-height:42px;border:1.5px solid var(--teal-dark);border-radius:9px;background:#fff;color:var(--teal-deep);font-size:.82rem;font-weight:800;text-align:center;padding:.55rem .75rem}.quote-view-btn:hover{background:var(--teal-soft)}
   .modal-foot{padding:.9rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.6rem;align-items:center;flex:none}
   .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
   .modal-foot .spacer{flex:1}
@@ -260,7 +261,7 @@
         </div>
         <div class="fgrid" id="lm-quote-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
-          <div class="field"><label>Quote total</label><input id="lm-qtotal" readonly style="background:#F8FBFB"></div>
+          <div class="field"><label>Sent quote</label><button class="quote-view-btn" id="lm-view-quote">View quote</button></div>
         </div>
         <div class="fgrid" id="lm-payment-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Booking fee</label><input id="lm-payment-amount" readonly style="background:#F8FBFB"></div>
@@ -614,7 +615,7 @@
     if (l.quote_ref){
       $("lm-quote-row").style.display = "";
       $("lm-qref").value = l.quote_ref;
-      $("lm-qtotal").value = l.quote_total ? fmt$(l.quote_total) : "Not provided";
+      $("lm-view-quote").textContent = "View quote" + (l.quote_total ? " · " + fmt$(l.quote_total) : "");
     } else {
       $("lm-quote-row").style.display = "none";
     }
@@ -963,7 +964,7 @@
   function senderLabel(k){ return SENDER_LABEL[k] || "Customer Service"; }
   var threadEmails = [];
 
-  function openEmailThread(leadId){
+  function openEmailThread(leadId, preferredQuoteRef){
     var l = leads.find(function(x){ return x.id === leadId; });
     $("th-title").textContent = "Emails" + (l ? (" - " + l.name) : "");
     $("th-back").style.display = "none";
@@ -975,7 +976,9 @@
       .then(function(d){
         threadEmails = d.emails || [];
         renderThreadList(d);
-        if (threadEmails.length === 1) openThreadEmail(threadEmails[0]);
+        var preferred = preferredQuoteRef ? threadEmails.find(function(email){return email.kind === "quote" && email.quote_ref === preferredQuoteRef;}) : null;
+        if (preferred) openThreadEmail(preferred);
+        else if (threadEmails.length === 1) openThreadEmail(threadEmails[0]);
       })
       .catch(function(err){ $("th-list").innerHTML = '<div class="th-empty">' + esc(err.message) + '</div>'; });
   }
@@ -1022,6 +1025,7 @@
   $("th-back").addEventListener("click", threadBackToList);
   $("th-close").addEventListener("click", closeThread);
   $("thread-overlay").addEventListener("click", function(e){ if (e.target === this) closeThread(); });
+  $("lm-view-quote").addEventListener("click",function(){if(!currentId)return;var lead=leads.find(function(item){return item.id===currentId;});if(!lead)return;var id=currentId,ref=lead.quote_ref;closeModal();openEmailThread(id,ref);});
 
   /* ---------- top bar ---------- */
   $("add-btn").addEventListener("click", openNewLead);

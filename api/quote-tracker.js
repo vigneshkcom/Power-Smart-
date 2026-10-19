@@ -3,6 +3,7 @@
 const { sb, configured } = require("./_supabase");
 
 const PORTAL_KEY = "2026";
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
 
 function quantityFromText(text, pattern) {
   const match = String(text || "").match(pattern);
@@ -21,13 +22,46 @@ module.exports = async (req, res) => {
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) {
     return res.status(401).json({ error: "Invalid portal key" });
   }
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
   if (!configured()) return res.status(500).json({ error: "Supabase is not configured" });
 
   try {
+    if (req.method === "POST") {
+      const body = req.body || {};
+      if (body.action === "update_stage") {
+        const leadId = String(body.lead_id || "").slice(0, 40).trim();
+        const stage = String(body.stage || "").trim();
+        if (!leadId || !STAGES.includes(stage)) return res.status(400).json({ error: "A linked lead and valid pipeline status are required" });
+        await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { stage }, prefer: "return=minimal" });
+        await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: "System", body: `Pipeline status changed to ${stage.replace(/_/g, " ")} from Quote Tracker.` }, prefer: "return=minimal" }).catch(() => {});
+        return res.status(200).json({ ok: true, stage });
+      }
+      if (body.action === "delete") {
+        const quoteId = String(body.quote_id || "").slice(0, 60).trim();
+        if (!quoteId) return res.status(400).json({ error: "Quote id is required" });
+        const rows = await sb(`sent_emails?id=eq.${encodeURIComponent(quoteId)}&kind=eq.quote&select=id,lead_id,quote_ref&limit=1`);
+        const quote = rows && rows[0];
+        if (!quote) return res.status(404).json({ error: "Quote not found" });
+        await sb(`sent_emails?id=eq.${encodeURIComponent(quoteId)}&kind=eq.quote`, { method: "DELETE", prefer: "return=minimal" });
+        if (quote.lead_id && quote.quote_ref) {
+          const leads = await sb(`leads?id=eq.${encodeURIComponent(quote.lead_id)}&quote_ref=eq.${encodeURIComponent(quote.quote_ref)}&select=id&limit=1`);
+          if (leads && leads[0]) await sb(`leads?id=eq.${encodeURIComponent(quote.lead_id)}`, { method: "PATCH", body: { quote_ref: null, quote_total: null }, prefer: "return=minimal" });
+        }
+        return res.status(200).json({ ok: true });
+      }
+      if (body.action === "content") {
+        const quoteId = String(body.quote_id || "").slice(0, 60).trim();
+        if (!quoteId) return res.status(400).json({ error: "Quote id is required" });
+        const rows = await sb(`sent_emails?id=eq.${encodeURIComponent(quoteId)}&kind=eq.quote&select=body_html,body_text&limit=1`);
+        if (!rows || !rows[0]) return res.status(404).json({ error: "Quote not found" });
+        return res.status(200).json({ body_html: rows[0].body_html || "", body_text: rows[0].body_text || "" });
+      }
+      return res.status(400).json({ error: "Unknown quote action" });
+    }
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET, POST");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
     const emails = await sb("sent_emails?select=id,created_at,status,error,agent,to_email,to_name,subject,body_text,quote_ref,quote_total,lead_id,provider_id&kind=eq.quote&order=created_at.desc&limit=5000");
     const leads = await sb("leads?select=id,name,phone,email,postcode,address_line1,address_suburb,address_state,address_postcode,source,stage,quote_ref,quote_total,agent,payment_preference&limit=5000");
     const leadById = {};
