@@ -40,6 +40,14 @@
   .btn-ghost:hover{border-color:var(--teal-dark);color:var(--teal-deep)}
   .btn:disabled{opacity:.55;cursor:wait}
 
+  /* ---------- filters ---------- */
+  .filterbar{background:#F8FBFB;border-bottom:1px solid var(--line);padding:.55rem 1.1rem;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;flex:none}
+  .filterbar .filter-label{font-size:.72rem;font-weight:800;color:var(--body);margin-right:.15rem}
+  .filterbar select{min-width:138px;padding:.45rem 2rem .45rem .7rem;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:.76rem;outline:none}
+  .filterbar select:focus{border-color:var(--teal)}
+  .filterbar .spacer{flex:1}
+  .filterbar .btn{padding:.45rem .85rem}
+
   /* ---------- board ---------- */
   .board-wrap{flex:1;overflow-x:auto;overflow-y:hidden;padding:1rem 1.1rem 1.2rem}
   .board{display:flex;gap:.9rem;height:100%;min-width:max-content}
@@ -145,7 +153,8 @@
   .toast.show{opacity:1;transform:translateX(-50%)}
   .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem}
   .empty-col{font-size:.72rem;color:var(--muted);text-align:center;padding:.9rem .4rem;border:1.5px dashed rgba(11,27,31,.15);border-radius:10px}
-  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%} }
+  @media (max-width:780px){.filterbar .filter-label{width:100%}.filterbar select{flex:1;min-width:145px}.filterbar .spacer{display:none}}
+  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%}.filterbar select{min-width:calc(50% - .3rem)} }
 </style>
 </head>
 <body>
@@ -168,7 +177,7 @@
     <span class="tb-count" id="total-count">0 leads</span>
     <div class="tb-search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="search" id="search" placeholder="Search name, phone, postcode…">
+      <input type="search" id="search" placeholder="Search name, email, phone, postcode or quote">
     </div>
     <div class="tb-actions">
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
@@ -177,9 +186,36 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
       </button>
-      <button class="btn btn-primary" id="add-btn">＋ Add lead</button>
+      <button class="btn btn-primary" id="add-btn">Add lead</button>
     </div>
   </header>
+
+  <section class="filterbar" aria-label="Pipeline filters">
+    <span class="filter-label">Filter leads</span>
+    <select id="filter-stage" aria-label="Stage"><option value="">All stages</option></select>
+    <select id="filter-agent" aria-label="Agent"><option value="">All agents</option></select>
+    <select id="filter-source" aria-label="Lead source"><option value="">All sources</option></select>
+    <select id="filter-payment" aria-label="Payment status">
+      <option value="">All payment statuses</option>
+      <option value="paid">Paid</option>
+      <option value="link">Stripe link sent</option>
+      <option value="phone">Phone call requested</option>
+      <option value="none">Payment not requested</option>
+    </select>
+    <select id="filter-activity" aria-label="Last activity">
+      <option value="">Any activity date</option>
+      <option value="today">Updated today</option>
+      <option value="7">Updated in 7 days</option>
+      <option value="30">Updated in 30 days</option>
+      <option value="stale">No activity for 7 days</option>
+    </select>
+    <button class="btn btn-ghost" id="clear-filters">Clear filters</button>
+    <span class="spacer"></span>
+    <button class="btn btn-primary" id="export-excel">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+      Download Excel
+    </button>
+  </section>
 
   <div class="board-wrap" style="position:relative">
     <div class="loading" id="loading">Loading pipeline…</div>
@@ -402,19 +438,52 @@
   }
   function isStale(iso){ return (Date.now() - new Date(iso).getTime())/864e5 >= 7; }
 
+  function paymentStatus(l){
+    if (l.payment && l.payment.status === "paid") return "paid";
+    if (l.payment) return "link";
+    if (l.payment_preference === "phone") return "phone";
+    return "none";
+  }
+
+  function activityMatches(l, value){
+    if (!value) return true;
+    var updated = new Date(l.updated_at), age = Date.now() - updated.getTime();
+    if (value === "today") return updated.toDateString() === new Date().toDateString();
+    if (value === "stale") return age >= 7 * 864e5;
+    return age <= Number(value) * 864e5;
+  }
+
   function matches(l){
-    if (!searchTerm) return true;
     var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.quote_ref||"")).toLowerCase();
-    return hay.indexOf(searchTerm) !== -1;
+    return (!searchTerm || hay.indexOf(searchTerm) !== -1) &&
+      (!$('filter-stage').value || l.stage === $('filter-stage').value) &&
+      (!$('filter-agent').value || (l.agent || "") === $('filter-agent').value) &&
+      (!$('filter-source').value || (l.source || "") === $('filter-source').value) &&
+      (!$('filter-payment').value || paymentStatus(l) === $('filter-payment').value) &&
+      activityMatches(l, $('filter-activity').value);
+  }
+
+  function replaceOptions(id, label, values){
+    var select = $(id), current = select.value;
+    select.innerHTML = '<option value="">' + esc(label) + '</option>' + values.map(function(value){ return '<option value="' + esc(value) + '">' + esc(value) + '</option>'; }).join("");
+    if (values.indexOf(current) !== -1) select.value = current;
+  }
+
+  function populateFilters(){
+    replaceOptions("filter-agent", "All agents", Array.from(new Set(leads.map(function(l){return l.agent || "";}).filter(Boolean))).sort());
+    replaceOptions("filter-source", "All sources", Array.from(new Set(leads.map(function(l){return l.source || "";}).filter(Boolean))).sort());
   }
 
   function renderBoard(){
     var board = $("board");
     board.innerHTML = "";
     var visible = leads.filter(matches);
-    $("total-count").textContent = leads.length + " lead" + (leads.length===1?"":"s");
+    $("total-count").textContent = visible.length === leads.length
+      ? leads.length + " lead" + (leads.length===1?"":"s")
+      : visible.length + " of " + leads.length + " leads";
 
     STAGES.forEach(function(st){
+      if ($("filter-stage").value && $("filter-stage").value !== st.id) return;
       var col = document.createElement("div");
       col.className = "col";
       col.dataset.stage = st.id;
@@ -479,6 +548,7 @@
   function load(){
     return api("GET").then(function(d){
       leads = d.leads || [];
+      populateFilters();
       $("loading").style.display = "none";
       $("board").style.display = "";
       renderBoard();
@@ -869,6 +939,38 @@
   $("search").addEventListener("input", function(){
     searchTerm = this.value.trim().toLowerCase();
     renderBoard();
+  });
+  ["filter-stage","filter-agent","filter-source","filter-payment","filter-activity"].forEach(function(id){
+    $(id).addEventListener("change", renderBoard);
+  });
+  $("clear-filters").addEventListener("click", function(){
+    $("search").value = ""; searchTerm = "";
+    ["filter-stage","filter-agent","filter-source","filter-payment","filter-activity"].forEach(function(id){ $(id).value = ""; });
+    renderBoard();
+  });
+  $("export-excel").addEventListener("click", function(){
+    var visible = leads.filter(matches);
+    if (!visible.length){ toast("No leads match the current filters"); return; }
+    var button = this, original = button.innerHTML; button.disabled = true; button.textContent = "Preparing Excel...";
+    var filters = ["filter-stage","filter-agent","filter-source","filter-payment","filter-activity"].map(function(id){
+      var select = $(id); return select.value ? select.selectedOptions[0].textContent : "";
+    }).filter(Boolean);
+    if (searchTerm) filters.unshift('Search: "' + searchTerm + '"');
+    fetch("/api/export-pipeline", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-portal-key":portalKey()},
+      body:JSON.stringify({ leads:visible, filters:filters })
+    }).then(function(response){
+      if (!response.ok) return response.json().catch(function(){return {};}).then(function(data){throw new Error(data.error || "Could not create the Excel file");});
+      return response.blob();
+    }).then(function(blob){
+      var link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download="powersmart-pipeline-"+new Date().toISOString().slice(0,10)+".xlsx"; link.click();
+      setTimeout(function(){URL.revokeObjectURL(link.href);},1000); toast("Excel file downloaded");
+    }).catch(function(error){toast(error.message);}).finally(function(){button.disabled=false;button.innerHTML=original;});
+  });
+
+  STAGES.forEach(function(stage){
+    var option=document.createElement("option"); option.value=stage.id; option.textContent=stage.label; $("filter-stage").appendChild(option);
   });
 
   /* ---------- boot ---------- */

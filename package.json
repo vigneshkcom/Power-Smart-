@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "PowerSmart QLD smoke alarm landing page, staff tools portal and quote-email API, deployed on Vercel.",
   "dependencies": {
+    "exceljs": "^4.4.0",
     "resend": "^6.17.1"
   }
 }
