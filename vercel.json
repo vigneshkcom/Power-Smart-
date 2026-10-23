@@ -3,8 +3,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/quote", "destination": "/api/view-quote" },
-    { "source": "/pay", "destination": "/api/payment-link" },
+    { "source": "/quote", "destination": "/api/customer-link?kind=quote" },
+    { "source": "/pay", "destination": "/api/customer-link?kind=payment" },
     {
       "source": "/",
       "has": [
