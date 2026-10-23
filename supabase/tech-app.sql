@@ -6,7 +6,7 @@ create unique index if not exists electricians_code_key on public.electricians (
 
 alter table public.jobs
   add column if not exists alarms_installed    int,    -- from the invoice alarm line
-  add column if not exists alarm_type          text,   -- battery | hardwired
+  add column if not exists alarm_type          text,   -- battery | hardwired (null when mixed)
   add column if not exists tech_notes          text,
   add column if not exists invoice_items       jsonb,  -- [{ code, label, qty, unit_cents, amount_cents }]
   add column if not exists invoice_total_cents int,

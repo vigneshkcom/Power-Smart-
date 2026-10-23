@@ -72,6 +72,19 @@
   .st-on_site{border-left-color:#8B68D6}.chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
   .st-completed{border-left-color:#E39A55}.chip.st-completed{background:#FBEBDC;color:#9A5A1C}
   .empty{text-align:center;padding:40px 10px;color:var(--muted)}
+  .next{display:block;width:100%;text-align:left;background:var(--teal-soft);border-radius:14px;padding:12px 14px;margin-top:-20px;font-size:.88rem;color:var(--teal-deep)}
+  .next b{display:block;color:var(--ink);font-size:.98rem}
+
+  /* calendar */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .cal-head button{width:40px;height:40px;border-radius:11px;background:var(--teal-soft);color:var(--teal-deep);font-size:1.1rem;font-weight:800}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-dow span{text-align:center;font-size:.66rem;font-weight:800;text-transform:uppercase;color:var(--muted);padding:4px 0}
+  .cal-grid button{aspect-ratio:1;border-radius:11px;font-weight:700;font-size:.9rem;background:var(--paper);color:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1}
+  .cal-grid button.out{background:none;color:#B7C4C7}
+  .cal-grid button.today{box-shadow:inset 0 0 0 2px var(--teal)}
+  .cal-grid button.sel{background:var(--ink);color:#fff}
+  .cal-grid button i{min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--teal);color:var(--ink);font-style:normal;font-size:.6rem;line-height:16px}
 
   /* job */
   .cust .name{font-size:1.15rem;font-weight:800}
@@ -133,8 +146,16 @@
       <div class="lbl" id="d-lbl"></div>
       <button id="d-next" aria-label="Next day">›</button>
     </div>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn btn-ghost" id="cal-btn" aria-expanded="false">📅 Calendar</button>
+      <button class="btn btn-ghost" id="d-today">Today</button>
+    </div>
+    <div class="card cal" id="cal" hidden>
+      <div class="cal-head"><button id="cal-prev" aria-label="Previous month">‹</button><b id="cal-title"></b><button id="cal-next" aria-label="Next month">›</button></div>
+      <div class="cal-grid cal-dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
     <div id="jobs"><div class="loading">Loading…</div></div>
-    <button class="btn btn-ghost" id="d-today" style="margin-top:6px">Back to today</button>
   </section>
 
   <!-- job -->
@@ -230,8 +251,9 @@
     show("v-list");
     $("hello").textContent = "Hi " + ((me && me.name) || "").split(" ")[0];
     $("d-lbl").innerHTML = dayLabel(day);
-    $("d-today").style.display = +day === +startOfDay(new Date()) ? "none" : "";
+    $("d-today").disabled = +day === +startOfDay(new Date());
     $("jobs").innerHTML = '<div class="loading">Loading…</div>';
+    if (!$("cal").hidden) renderCal();
     call("jobs", { from: day.toISOString(), to: addDays(day, 1).toISOString() }).then(function(d){
       if (d.tech) me.name = d.tech.name;
       var jobs = d.jobs || [];
@@ -242,10 +264,64 @@
           '<div class="name">' + esc(j.customer_name) + '</div>' +
           '<div class="addr">' + esc([j.address, j.suburb, j.postcode].filter(Boolean).join(", ") || "No address") + '</div>' +
           '<div class="meta">' + esc(TYPES[j.work_type] || "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div></button>';
-      }).join("") : '<div class="empty">No jobs booked for this day.</div>';
+      }).join("") : '<div class="empty">No jobs booked for this day.</div><div id="next-job"></div>';
+      if (!jobs.length) showNextJob();
     }).catch(function(e){ $("jobs").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
-  $("jobs").addEventListener("click", function(e){ var b = e.target.closest("[data-job]"); if (b) openJob(b.dataset.job); });
+  $("jobs").addEventListener("click", function(e){
+    var n = e.target.closest("[data-goto]"); if (n){ day = startOfDay(new Date(n.dataset.goto)); loadList(); return; }
+    var b = e.target.closest("[data-job]"); if (b) openJob(b.dataset.job);
+  });
+  // Empty day: point to the next booked job (next 90 days).
+  function showNextJob(){
+    var shown = +day;
+    call("jobs", { from: addDays(day, 1).toISOString(), to: addDays(day, 91).toISOString() }).then(function(d){
+      var j = (d.jobs || [])[0];
+      if (!j || shown !== +day || !$("next-job")) return;
+      var s = new Date(j.scheduled_start);
+      $("next-job").innerHTML = '<button class="next" data-goto="' + esc(j.scheduled_start) + '">Next job →<b>' +
+        esc(s.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + " · " + timeLabel(s) + " · " + j.customer_name) + '</b></button>';
+    }).catch(function(){});
+  }
+
+  /* ---------- calendar ---------- */
+  var calMonth = null;
+  function isoDay(d){ return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function renderCal(){
+    if (!calMonth) calMonth = new Date(day.getFullYear(), day.getMonth(), 1);
+    var first = new Date(calMonth), gridStart = addDays(first, -((first.getDay() + 6) % 7)), today = isoDay(new Date()), sel = isoDay(day);
+    $("cal-title").textContent = first.toLocaleDateString("en-AU", { month:"long", year:"numeric" });
+    var cells = [];
+    for (var i = 0; i < 42; i++){
+      var d = addDays(gridStart, i), k = isoDay(d);
+      cells.push('<button data-day="' + k + '" class="' + [d.getMonth() !== first.getMonth() ? "out" : "", k === today ? "today" : "", k === sel ? "sel" : ""].join(" ") + '">' + d.getDate() + '</button>');
+    }
+    $("cal-grid").innerHTML = cells.join("");
+    var month = +first;
+    call("jobs", { from: gridStart.toISOString(), to: addDays(gridStart, 42).toISOString() }).then(function(d){
+      if (month !== +calMonth) return;
+      var counts = {};
+      (d.jobs || []).forEach(function(j){ var k = isoDay(new Date(j.scheduled_start)); counts[k] = (counts[k] || 0) + 1; });
+      Object.keys(counts).forEach(function(k){
+        var b = $("cal-grid").querySelector('[data-day="' + k + '"]');
+        if (b) b.insertAdjacentHTML("beforeend", '<i aria-label="' + counts[k] + ' jobs">' + counts[k] + '</i>');
+      });
+    }).catch(function(e){ toast(e.message); });
+  }
+  function toggleCal(open){
+    $("cal").hidden = !open; $("cal-btn").setAttribute("aria-expanded", String(open));
+    $("cal-btn").textContent = open ? "Hide calendar" : "📅 Calendar";
+    if (open){ calMonth = null; renderCal(); }
+  }
+  $("cal-btn").addEventListener("click", function(){ toggleCal($("cal").hidden); });
+  $("cal-prev").addEventListener("click", function(){ calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); });
+  $("cal-next").addEventListener("click", function(){ calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); });
+  $("cal-grid").addEventListener("click", function(e){
+    var b = e.target.closest("[data-day]"); if (!b) return;
+    var p = b.dataset.day.split("-");
+    day = new Date(+p[0], +p[1] - 1, +p[2]);
+    toggleCal(false); loadList();
+  });
   $("d-prev").addEventListener("click", function(){ day = addDays(day, -1); loadList(); });
   $("d-next").addEventListener("click", function(){ day = addDays(day, 1); loadList(); });
   $("d-today").addEventListener("click", function(){ day = startOfDay(new Date()); loadList(); });
@@ -261,8 +337,8 @@
   $("j-back").addEventListener("click", function(){ flushSave().then(loadList); });
 
   function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
-  // alarms installed + battery/hardwired chosen (no type needed if no alarms went in)
-  function alarmsDone(){ return cur.items.length > 0 && (itemQty("alarm") === 0 || !!cur.alarm_types[cur.job.alarm_type]); }
+  function isAlarm(code){ return cur.alarm_codes.indexOf(code) >= 0; }
+  function alarmsDone(){ return cur.items.length > 0; }
   function stepper(code, q, locked){
     return locked ? '<b>× ' + q + '</b>' : '<div class="step" data-code="' + esc(code) + '"><button data-d="-1" aria-label="Less">−</button><span>' + q + '</span><button data-d="1" aria-label="More">+</button></div>';
   }
@@ -287,7 +363,10 @@
 
     if (done){
       html += '<div class="card"><div class="ok-banner">✓ Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
-        '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div></div>';
+        '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>' +
+        (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
+        (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
+        '<button class="btn btn-ghost" id="reopen">✏️ Edit job</button>';
       $("j-body").innerHTML = html; return;
     }
 
@@ -296,21 +375,22 @@
     else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">📍 Arrived on site</button>';
 
     // 1. alarms installed
-    var paid = j.pay_status === "paid", nAlarms = itemQty("alarm");
-    html += '<div class="card"><h2><span class="n' + (alarmsDone() ? " ok" : "") + '">' + (alarmsDone() ? "✓" : "1") + '</span>Smoke alarms installed</h2>' +
-      '<div class="item"><div class="lab">Number of alarms installed<small>' + (cur.quote && cur.quote.alarm_qty ? "Quote " + esc(cur.quote.ref) + ": " + cur.quote.alarm_qty : "Photoelectric, supplied &amp; installed") + '</small></div>' + stepper("alarm", nAlarms, paid) + '</div>' +
-      '<p style="font-size:.9rem;font-weight:600;margin:12px 0 8px">Alarm type</p>' +
-      '<div class="seg" id="alarm-type">' + Object.keys(cur.alarm_types).map(function(k){
-        return '<button data-type="' + k + '" class="' + (j.alarm_type === k ? "on" : "") + '"' + (paid ? " disabled" : "") + '>' + { battery:"🔋 Battery", hardwired:"⚡ Hardwired" }[k] + '</button>';
-      }).join("") + '</div>' +
+    var paid = j.pay_status === "paid";
+    var nAlarms = cur.alarm_codes.reduce(function(n, c){ return n + itemQty(c); }, 0);
+    var booked = cur.quote && cur.quote.alarm_qty ? "Quote " + esc(cur.quote.ref) + ": " + cur.quote.alarm_qty + " alarms" : j.alarms ? "Booked: " + j.alarms + " alarms" : "";
+    html += '<div class="card"><h2><span class="n' + (nAlarms ? " ok" : "") + '">' + (nAlarms ? "✓" : "1") + '</span>Smoke alarms installed<span class="side">' + booked + '</span></h2>' +
+      '<div class="item"><div class="lab">🔋 Battery alarms<small>10-year lithium</small></div>' + stepper("alarm_battery", itemQty("alarm_battery"), paid) + '</div>' +
+      '<div class="item"><div class="lab">⚡ Hardwired alarms<small>240V</small></div>' + stepper("alarm_hardwired", itemQty("alarm_hardwired"), paid) + '</div>' +
+      '<div class="tot"><div><span>Total installed</span><b id="n-alarms">' + nAlarms + '</b></div></div>' +
       '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes (optional)</label>' +
       '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
 
     // 2. invoice
-    var alarmLine = cur.items.find(function(i){ return i.code === "alarm"; });
     html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
-      (alarmLine ? '<div class="item"><div class="lab">' + esc(alarmLine.label) + '<small>' + money(alarmLine.unit_cents) + ' × ' + alarmLine.qty + '</small></div><b>' + money(alarmLine.amount_cents) + '</b></div>' : '') +
-      cur.catalogue.filter(function(p){ return p.code !== "alarm"; }).map(function(p){
+      cur.items.filter(function(i){ return isAlarm(i.code); }).map(function(it){
+        return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b></div>';
+      }).join("") +
+      cur.catalogue.filter(function(p){ return !isAlarm(p.code); }).map(function(p){
         return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, itemQty(p.code), paid) + '</div>';
       }).join("") +
       cur.items.map(function(it, i){
@@ -328,7 +408,7 @@
     // 3. approval + payment
     var approved = !!j.approved_at, due = cur.totals.due;
     html += '<div class="card"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Customer approval &amp; payment</h2>';
-    if (!alarmsDone()) html += '<div class="warn-banner">' + (cur.items.length ? 'Choose battery or hardwired first.' : 'Add the alarms installed first.') + '</div>';
+    if (!alarmsDone()) html += '<div class="warn-banner">' + 'Add the alarms installed first.' + '</div>';
     if (!approved){
       html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
         '<button class="btn btn-primary" id="approve"' + (alarmsDone() ? "" : " disabled") + '>Customer approves ' + money(cur.totals.total) + '</button>';
@@ -359,11 +439,6 @@
     var st = t.closest("[data-status]");
     if (st){ st.disabled = true; call("status", { id: cur.job.id, status: st.dataset.status }).then(function(d){ cur.job.status = d.job.status; renderJob(); toast(STATUS[d.job.status]); }).catch(function(err){ st.disabled = false; toast(err.message); }); return; }
 
-    var typeBtn = t.closest("[data-type]");
-    if (typeBtn){
-      cur.job.alarm_type = typeBtn.dataset.type; cur.job.approved_at = null;
-      keepScroll(renderJob); queueSave({ alarm_type: true }); return;
-    }
     var stepBtn = t.closest(".step button");
     if (stepBtn){
       var code = stepBtn.parentNode.dataset.code, q = Math.max(0, Math.min(50, itemQty(code) + Number(stepBtn.dataset.d)));
@@ -393,6 +468,13 @@
       return;
     }
     if (t.id === "paycheck"){ checkPayment(); return; }
+    if (t.id === "reopen"){
+      if (!confirm("Reopen this job to make changes? You'll need to complete it again." + (cur.job.pay_status === "paid" ? " The paid invoice stays locked." : ""))) return;
+      t.disabled = true;
+      call("reopen", { id: cur.job.id }).then(function(d){ cur = d; renderJob(); toast("Job reopened — make your changes, then complete it again"); })
+        .catch(function(err){ t.disabled = false; toast(err.message); });
+      return;
+    }
     if (t.id === "complete" || t.id === "complete-later"){
       var later = t.id === "complete-later";
       if (later && !confirm("Complete the job with " + money(cur.totals.due) + " still to pay? The office will follow up with the customer.")) return;
@@ -446,7 +528,6 @@
     clearTimeout(saveTimer);
     if (!pending || !cur) return saving;
     var body = { id: cur.job.id };
-    if (pending.alarm_type) body.alarm_type = cur.job.alarm_type;
     if (pending.notes !== undefined) body.notes = cur.job.tech_notes || "";
     if (pending.items) body.items = wireItems();
     pending = null;

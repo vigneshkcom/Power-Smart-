@@ -138,10 +138,11 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   /tools/schedule → *Electricians*; codes are unique. Each electrician only sees
   their own jobs. Use hard-to-guess codes — anyone with a code can open that
   electrician's jobs.
-- **My jobs**: day by day, with *Navigate* and *Call*. *On my way* / *Arrived on site*
-  update the dispatch board and the lead.
-- **Alarms installed**: number of smoke alarms installed (starts from the quote) and
-  whether they are **battery** or **hardwired**. The count is the invoice alarm line.
+- **My jobs**: today's schedule, ‹ › to change day, and a **Calendar** button (month
+  view with job counts per day). An empty day shows the next booked job.
+  *Navigate*, *Call*, *On my way* / *Arrived on site* update the board and the lead.
+- **Alarms installed**: separate counts for **battery** and **hardwired** alarms (a job
+  can be a mix); each is its own invoice line. The quoted count is shown as a guide.
 - **Invoice**: the electrician can also add remote controllers, an inspection or an
   "other" item. Prices come
   from `api/_quote.js` on the server. Advance payments other than the booking fee
@@ -154,6 +155,8 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
 - **Complete**: job → Completed, lead → Won, and a note with the alarms installed,
   invoice and payment is added to the lead. The office sees the electrician's
   report on the job card in /tools/schedule.
+- **Edit job**: a completed job can be reopened from the app to correct it and be
+  completed again (logged on the lead). A card-paid invoice stays locked.
 
 Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
 

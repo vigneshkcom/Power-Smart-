@@ -104,34 +104,39 @@ test("an electrician only sees and edits their own jobs", async () => {
   const list = await t.call({ action: 'jobs', from: '2026-10-23T14:00:00.000Z', to: '2026-10-24T14:00:00.000Z' });
   assert.deepEqual(list.data.jobs.map((j) => j.job_no), [1001]);
   assert.equal((await t.call({ action: 'job', id: 'j2' })).code, 404);
-  assert.equal((await t.call({ action: 'save', id: 'j2', alarm_type: 'battery' })).code, 404);
+  assert.equal((await t.call({ action: 'save', id: 'j2', items: [] })).code, 404);
 });
 
-test('job invoice starts from the quote and prices come from the server price list', async () => {
+test('invoice starts with the quoted controllers; battery and hardwired alarms are separate lines', async () => {
   const t = setup();
   const d = (await t.call({ action: 'job', id: 'j1' })).data;
-  assert.equal(JSON.stringify(d.items.map((i) => [i.code, i.qty, i.amount_cents])), JSON.stringify([['alarm', 5, 39500], ['controller', 1, 3500]]));
-  assert.equal(d.totals.due, 43000, 'booking fee is a separate charge and not deducted');
-  assert.equal(Object.keys(d.alarm_types).join(), 'battery,hardwired');
+  assert.equal(JSON.stringify(d.items.map((i) => [i.code, i.qty])), JSON.stringify([['controller', 1]]), 'alarm counts are entered on site');
+  assert.equal(d.quote.alarm_qty, 5);
+  assert.equal(d.alarm_codes.join(), 'alarm_battery,alarm_hardwired');
 
-  const saved = (await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 2, price: '1.00' }, { code: 'other', label: '240V hardwired alarm', price: '95', qty: 1 }] })).data;
-  assert.equal(saved.totals.total, 2 * 7900 + 9500, 'client price for catalogue items is ignored');
-  assert.equal(t.job('j1').invoice_total_cents, 25300);
+  const saved = (await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2, price: '1.00' }, { code: 'alarm_hardwired', qty: 3 }, { code: 'other', label: 'Extra callout', price: '95', qty: 1 }] })).data;
+  assert.equal(saved.totals.total, 5 * 7900 + 9500, 'client price for catalogue items is ignored');
+  assert.equal(t.job('j1').alarms_installed, 5);
+  assert.equal(t.job('j1').alarm_type, null, 'mixed job');
+  assert.equal(t.job('j1').invoice_items[1].label, 'Photoelectric smoke alarm (240V hardwired) – supplied & installed');
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 2 }] });
+  assert.equal(t.job('j1').alarm_type, 'hardwired');
   assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ code: 'free_money', qty: 1 }] })).code, 400);
 });
 
-test('payment needs the alarm type and customer approval, then opens Stripe for the amount due', async () => {
+test('an older single "alarm" line is read as battery or hardwired', async () => {
+  const t = setup();
+  Object.assign(t.job('j1'), { alarm_type: 'hardwired', invoice_items: [{ code: 'alarm', label: 'old', qty: 4, unit_cents: 7900, amount_cents: 31600 }] });
+  const d = (await t.call({ action: 'job', id: 'j1' })).data;
+  assert.equal(JSON.stringify(d.items.map((i) => [i.code, i.qty])), JSON.stringify([['alarm_hardwired', 4]]));
+});
+
+test('payment needs customer approval, then opens Stripe for the amount due', async () => {
   const t = setup();
   t.db.tables.payment_requests.push({ lead_id: 'lead1', status: 'paid', payment_type: 'inspection', description: 'Inspection', amount_cents: 12000, amount_paid_cents: 12000 });
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 5 }] });
-  assert.equal((await t.call({ action: 'pay', id: 'j1' })).code, 409, 'alarm type first');
-  assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 5 }], approve: true })).code, 400, 'cannot approve without a type');
-  assert.equal((await t.call({ action: 'save', id: 'j1', alarm_type: 'smoke' })).code, 400);
-  await t.call({ action: 'save', id: 'j1', alarm_type: 'battery' });
-  assert.equal(t.job('j1').invoice_items[0].label, 'Photoelectric smoke alarm (10-year battery) – supplied & installed');
-  assert.equal(t.job('j1').alarms_installed, 5);
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }] });
   assert.equal((await t.call({ action: 'pay', id: 'j1' })).code, 409, 'approval first');
-  const approved = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 5 }], approve: true });
+  const approved = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }], approve: true });
   assert(approved.data.job.approved_at);
   assert.equal(approved.data.totals.due, 39500 - 12000, 'prepaid inspection fee is deducted');
 
@@ -140,6 +145,7 @@ test('payment needs the alarm type and customer approval, then opens Stripe for 
   assert.match(pay.data.url, /^https:\/\/checkout\.stripe\.com\//);
   const form = t.Stripe.calls.find((c) => c.p === '/checkout/sessions').form;
   assert.equal(form['line_items[0][price_data][unit_amount]'], '27500');
+  assert.match(form['line_items[0][price_data][product_data][description]'], /3 × battery smoke alarm, 2 × hardwired smoke alarm/);
   assert.equal(form['metadata[job_id]'], 'j1');
   assert.equal(t.job('j1').pay_status, 'pending');
 
@@ -147,13 +153,13 @@ test('payment needs the alarm type and customer approval, then opens Stripe for 
   assert.equal((await t.call({ action: 'pay', id: 'j1' })).data.url, pay.data.url);
   assert.equal(t.Stripe.sessions.size, 1);
   // changing the invoice resets approval
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 6 }] });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 6 }] });
   assert.equal(t.job('j1').approved_at, null);
 });
 
 test('a paid checkout marks the job paid once, and completing moves the lead to Won', async () => {
   const t = setup();
-  await t.call({ action: 'save', id: 'j1', alarm_type: 'hardwired', items: [{ code: 'alarm', qty: 3 }], approve: true });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
   await t.call({ action: 'pay', id: 'j1' });
   assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'card' })).code, 409, 'cannot complete as paid before Stripe confirms');
 
@@ -169,21 +175,49 @@ test('a paid checkout marks the job paid once, and completing moves the lead to 
   assert.equal(t.job('j1').status, 'completed');
   assert.equal(t.job('j1').pay_status, 'paid');
   assert.equal(t.db.tables.leads[0].stage, 'won');
-  assert.match(t.db.tables.lead_comments.at(-1).body, /J1001 completed by Jake Turner\. Invoice \$237\.00: 3 × 240V hardwired smoke alarm\. Paid on site by card/);
-  assert.equal((await t.call({ action: 'save', id: 'j1', alarm_type: 'battery' })).code, 409, 'completed jobs are locked');
+  assert.match(t.db.tables.lead_comments.at(-1).body, /J1001 completed by Jake Turner\. Invoice \$237\.00: 3 × hardwired smoke alarm\. Paid on site by card/);
+  assert.equal((await t.call({ action: 'save', id: 'j1', items: [] })).code, 409, 'completed jobs are locked');
 });
 
 test('the customer can pay later; the lead note records alarms installed and notes', async () => {
   const t = setup();
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm', qty: 1 }] });
-  assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'later' })).code, 400, 'type required');
-  await t.call({ action: 'save', id: 'j1', alarm_type: 'battery', notes: 'Customer to pay by bank transfer', items: [{ code: 'alarm', qty: 1 }], approve: true });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }] });
+  assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'later' })).code, 409, 'customer approval required');
+  await t.call({ action: 'save', id: 'j1', notes: 'Customer to pay by bank transfer', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
   assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'later' })).code, 200);
   assert.equal(t.job('j1').pay_status, 'later');
-  assert.match(t.db.tables.lead_comments.at(-1).body, /1 × 10-year battery smoke alarm\. Payment to collect: \$79\.00.*Notes: Customer to pay by bank transfer/);
+  assert.match(t.db.tables.lead_comments.at(-1).body, /1 × battery smoke alarm\. Payment to collect: \$79\.00.*Notes: Customer to pay by bank transfer/);
 });
 
-test('an inspection-only job needs no alarm type', async () => {
+test('a completed job can be reopened, changed and completed again', async () => {
+  const t = setup();
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2 }], approve: true });
+  await t.call({ action: 'complete', id: 'j1', payment: 'later' });
+  assert.equal(t.job('j1').status, 'completed');
+  const r = await t.call({ action: 'reopen', id: 'j1' });
+  assert.equal(r.code, 200);
+  assert.equal(t.job('j1').status, 'on_site');
+  assert.equal(t.job('j1').completed_at, null);
+  assert.equal(t.job('j1').pay_status, 'unpaid', 'can now take a card payment');
+  assert.match(t.db.tables.lead_comments.at(-1).body, /J1001 reopened for changes by Jake Turner/);
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2 }, { code: 'alarm_hardwired', qty: 1 }], approve: true });
+  assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'later' })).code, 200);
+  assert.equal(t.job('j1').invoice_total_cents, 23700);
+  assert.equal((await t.call({ action: 'reopen', id: 'j2' })).code, 404, "can't reopen someone else's job");
+});
+
+test('a reopened card-paid job keeps its invoice locked', async () => {
+  const t = setup();
+  Object.assign(t.job('j1'), { status: 'completed', pay_status: 'paid', paid_cents: 7900, approved_at: '2026-10-23T01:00:00Z',
+    invoice_items: [{ code: 'alarm_battery', label: 'x', qty: 1, unit_cents: 7900, amount_cents: 7900 }] });
+  await t.call({ action: 'reopen', id: 'j1' });
+  assert.equal(t.job('j1').pay_status, 'paid');
+  assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }] })).code, 409);
+  assert.equal((await t.call({ action: 'save', id: 'j1', notes: 'Fixed typo' })).code, 200);
+  assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'card' })).code, 200);
+});
+
+test('an inspection-only job has no alarms', async () => {
   const t = setup();
   Object.assign(t.job('j1'), { work_type: 'inspection', lead_id: null, email: null });
   const d = (await t.call({ action: 'job', id: 'j1' })).data;

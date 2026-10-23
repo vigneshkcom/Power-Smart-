@@ -884,6 +884,16 @@
     $("jm-postcode").value = l.address_postcode || l.postcode || "";
     fillFromQuote(l);
   }
+  // "3 battery + 2 hardwired smoke alarms" from the invoice lines (older saves: one "alarm" line + alarm_type).
+  function installed(items, j){
+    var n = { battery:0, hardwired:0 };
+    items.forEach(function(i){
+      if (i.code === "alarm_battery" || (i.code === "alarm" && j.alarm_type !== "hardwired")) n.battery += i.qty;
+      if (i.code === "alarm_hardwired" || (i.code === "alarm" && j.alarm_type === "hardwired")) n.hardwired += i.qty;
+    });
+    var parts = [n.battery ? n.battery + " battery" : "", n.hardwired ? n.hardwired + " hardwired" : ""].filter(Boolean);
+    return parts.length ? parts.join(" + ") + " smoke alarm" + (n.battery + n.hardwired === 1 ? "" : "s") : "";
+  }
   // What the electrician recorded in the phone app (/tech).
   function renderReport(j){
     var box = $("jm-report"), items = j.invoice_items || [];
@@ -891,7 +901,7 @@
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
     var PAY = { paid:"Paid by card", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
     box.innerHTML = '<b>Electrician report</b>' +
-      (j.alarms_installed != null || j.alarm_type ? '<br>Installed: <b>' + (j.alarms_installed || 0) + ' ' + esc({ battery:"battery", hardwired:"hardwired" }[j.alarm_type] || "") + ' smoke alarm' + (j.alarms_installed === 1 ? "" : "s") + '</b>' : '') +
+      (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
       (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) : "") + '</span>' +
