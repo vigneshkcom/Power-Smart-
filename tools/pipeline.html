@@ -183,6 +183,18 @@
 <body>
 
   <!-- passcode gate -->
+  <div class="overlay show" id="agent-overlay" style="z-index:100" role="dialog" aria-modal="true" aria-labelledby="agent-title">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head"><h3 id="agent-title">Who is calling?</h3></div>
+      <div class="modal-body">
+        <p style="font-size:.86rem;color:var(--body);margin-bottom:1rem">Choose your name for this pipeline session. Your notes, messages, quotes and lead saves will use this agent.</p>
+        <div style="display:flex;gap:.8rem">
+          <button class="btn btn-primary" id="choose-mani" style="flex:1;justify-content:center;min-height:52px">Mani</button>
+          <button class="btn btn-primary" id="choose-vignesh" style="flex:1;justify-content:center;min-height:52px">Vignesh</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="gate" id="gate">
     <div class="box">
       <img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co">
@@ -203,6 +215,7 @@
       <input type="search" id="search" placeholder="Search name, email, phone, postcode or quote">
     </div>
     <div class="tb-actions">
+      <button class="btn btn-ghost" id="calling-agent">Choose caller</button>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/sms">SMS Inbox</a>
@@ -261,7 +274,7 @@
           <div class="field"><label>Postcode</label><input id="lm-postcode"></div>
           <div class="field"><label>Source</label><input id="lm-source" placeholder="Website / Facebook / Google…"></div>
           <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
-          <div class="field"><label>Agent</label><input id="lm-agent"></div>
+          <div class="field"><label>Agent</label><input id="lm-agent" readonly></div>
           <div class="section-label">Installation address</div>
           <div class="field full"><label>Street address</label><input id="lm-address-line1" placeholder="Unit and street number"></div>
           <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
@@ -426,6 +439,7 @@
   ];
   var KEY_LS = "powersmart_portal_key";
   var AGENT_LS = "powersmart_agent_name";
+  var selectedAgent = "";
 
   var $ = function(id){ return document.getElementById(id); };
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
@@ -619,7 +633,7 @@
     $("lm-address-state").value = l.address_state || "";
     $("lm-address-postcode").value = l.address_postcode || l.postcode || "";
     $("lm-source").value = l.source || "";
-    $("lm-agent").value = l.agent || "";
+    $("lm-agent").value = currentAgent();
     stageSel.value = l.stage;
     if (l.quote_ref){
       $("lm-quote-row").style.display = "";
@@ -688,7 +702,7 @@
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
     $("lm-source").value = "Phone";
-    try{ $("lm-agent").value = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
+    $("lm-agent").value = currentAgent();
     stageSel.value = "new_lead";
     $("lm-quote-row").style.display = "none";
     $("lm-payment-row").style.display = "none";
@@ -747,12 +761,7 @@
   $("cmt-send").addEventListener("click", function(){
     var body = $("cmt-body").value.trim();
     if (!body || !currentId) return;
-    var author = "";
-    try{ author = localStorage.getItem(AGENT_LS) || ""; }catch(e){}
-    if (!author){
-      author = prompt("Your name (saved for next time):") || "";
-      if (author){ try{ localStorage.setItem(AGENT_LS, author); }catch(e){} }
-    }
+    var author = currentAgent();
     var btn = this; btn.disabled = true;
     api("POST", { action:"comment", lead_id:currentId, author:author, kind:"note", body:body }).then(function(){
       $("cmt-body").value = "";
@@ -768,7 +777,32 @@
   var AGENT_TO_SENDER = { "Mani": "mani", "Vignesh": "vignesh" };
   var emailLeadId = null;
 
-  function currentAgent(){ try { return localStorage.getItem(AGENT_LS) || ""; } catch(e){ return ""; } }
+  function currentAgent(){ return selectedAgent; }
+  function showAgentPicker(){
+    document.querySelectorAll("body > :not(#agent-overlay):not(script)").forEach(function(el){ el.inert = true; });
+    $("agent-overlay").classList.add("show");
+    $(selectedAgent === "Vignesh" ? "choose-vignesh" : "choose-mani").focus();
+  }
+  function chooseAgent(name){
+    selectedAgent = name;
+    try { localStorage.setItem(AGENT_LS, name); } catch(e){}
+    $("calling-agent").textContent = "Calling as: " + name + " · Change";
+    $("lm-agent").value = name;
+    $("em-sendas").value = AGENT_TO_SENDER[name];
+    $("q-sendas").value = AGENT_TO_SENDER[name];
+    $("agent-overlay").classList.remove("show");
+    document.querySelectorAll("body > :not(#agent-overlay):not(script)").forEach(function(el){ el.inert = false; });
+    $("calling-agent").focus();
+  }
+  $("calling-agent").addEventListener("click", showAgentPicker);
+  $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
+  $("choose-vignesh").addEventListener("click", function(){ chooseAgent("Vignesh"); });
+  $("agent-overlay").addEventListener("keydown", function(e){
+    if (e.key === "Tab") {
+      e.preventDefault();
+      (document.activeElement === $("choose-mani") ? $("choose-vignesh") : $("choose-mani")).focus();
+    }
+  });
 
   function openEmail(id){
     var l = leads.find(function(x){ return x.id === id; });
@@ -939,7 +973,7 @@
     if (!lead || !lead.email) { toast("Add an email address before sending a booking fee"); return; }
     if (!confirm("Send a $35.00 Stripe booking fee request to " + lead.email + "?")) return;
     var button = this, original = button.textContent; button.disabled = true; button.textContent = "Sending…";
-    fetch("/api/send-booking-fee", { method:"POST", headers:{"Content-Type":"application/json","x-portal-key":portalKey()}, body:JSON.stringify({lead_id:currentId}) })
+    fetch("/api/send-booking-fee", { method:"POST", headers:{"Content-Type":"application/json","x-portal-key":portalKey()}, body:JSON.stringify({lead_id:currentId,agent:currentAgent()}) })
       .then(function(response){ return response.json().then(function(data){ if (!response.ok) throw new Error(data.error || "Could not send booking fee"); return data; }); })
       .then(function(){ toast("$35.00 Stripe booking fee request sent"); return load(); })
       .then(function(){ openLead(currentId); })
@@ -1094,6 +1128,7 @@
   });
 
   /* ---------- boot ---------- */
+  showAgentPicker();
   if (!portalKey()){
     $("loading").style.display = "none";
     showGate(false);
