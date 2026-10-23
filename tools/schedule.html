@@ -970,7 +970,7 @@
   });
   $("jm-delete").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
-    if (!confirm("Delete job J" + j.job_no + " for " + j.customer_name + "? This can't be undone.")) return;
+    if (!confirm("Delete job J" + j.job_no + " for " + j.customer_name + " from the schedule?\n\nThe customer stays in the Sales Pipeline — only this job is removed.")) return;
     jobsApi({ action:"job_delete", id: j.id }).then(function(){ closeJob(); toast("Job J" + j.job_no + " deleted"); return reload(); })
       .catch(function(err){ toast(err.message); });
   });

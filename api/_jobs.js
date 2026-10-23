@@ -192,10 +192,14 @@ module.exports = async (req, res) => {
       return res.status(200).json({ quote });
     }
 
+    // Removes the job from the schedule only — the linked pipeline lead is kept (just noted).
     if (b.action === "job_delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
+      const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=job_no,lead_id&limit=1`);
+      const prev = prevRows && prevRows[0];
       await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
+      if (prev && prev.lead_id) await leadNote(prev.lead_id, actor, `🗑 Job J${prev.job_no} removed from the schedule.`);
       return res.status(200).json({ ok: true });
     }
 

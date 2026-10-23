@@ -133,6 +133,16 @@ test('the pipeline function serves job requests (keeps Vercel at 12 functions)',
   assert(routes.length <= 12, `Vercel Hobby allows 12 functions, found ${routes.length}`);
 });
 
+test('deleting a job keeps the pipeline lead and notes the removal', async () => {
+  const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', electrician_id: 't1', status: 'scheduled' }), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_delete', id: 'j1', actor: 'Mani' } }, r);
+  assert.equal(r.code, 200);
+  const deletes = f.calls.filter((c) => c.method === 'DELETE');
+  assert.deepEqual(deletes.map((c) => c.q), ['jobs?id=eq.j1'], 'only the job row is deleted');
+  assert(!f.calls.some((c) => c.q.startsWith('leads') && c.method !== 'PATCH'), 'lead is never removed');
+  assert.match(f.calls.find((c) => c.q === 'lead_comments').body.body, /Job J1001 removed from the schedule/);
+});
+
 test('lead_quote reads alarm and controller counts from the latest sent quote', async () => {
   const text = [
     'Based on the details discussed, your property requires approximately 5 interconnected photoelectric smoke alarms to meet Queensland legislation.',
