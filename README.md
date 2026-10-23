@@ -36,14 +36,14 @@ api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accept
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
 api/_jobs.js          Job schedule + electricians CRUD, served via /api/pipeline?resource=jobs
-api/_tech.js          Electrician app API (PIN sign-in), served via /api/pipeline?resource=tech
+api/_tech.js          Electrician app API (code sign-in), served via /api/pipeline?resource=tech
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
 supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
-supabase/tech-app.sql Run once (after jobs.sql) — app PINs, alarms installed/type, invoice + payment columns
+supabase/tech-app.sql Run once (after jobs.sql) — unique electrician codes, alarms installed/type, invoice + payment columns
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
@@ -134,9 +134,10 @@ Setup: run `supabase/jobs.sql` once in the Supabase SQL Editor (after `schema.sq
 
 Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
 
-- **Sign in**: name + 4–6 digit app PIN. The office sets PINs in
-  /tools/schedule → *Electricians* (stored hashed). Each electrician only sees
-  their own jobs.
+- **Sign in**: the electrician types their code (e.g. 1011) from
+  /tools/schedule → *Electricians*; codes are unique. Each electrician only sees
+  their own jobs. Use hard-to-guess codes — anyone with a code can open that
+  electrician's jobs.
 - **My jobs**: day by day, with *Navigate* and *Call*. *On my way* / *Arrived on site*
   update the dispatch board and the lead.
 - **Alarms installed**: number of smoke alarms installed (starts from the quote) and
@@ -154,7 +155,7 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   invoice and payment is added to the lead. The office sees the electrician's
   report on the job card in /tools/schedule.
 
-Setup: run `supabase/tech-app.sql` once, then set each electrician's app PIN.
+Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
 
 ## Senders, composer & email log
 

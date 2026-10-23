@@ -1,8 +1,8 @@
--- Electrician phone app (/tech): app PINs, alarms installed, invoice and card payment.
+-- Electrician phone app (/tech): alarms installed, invoice and card payment.
 -- Run once in Supabase → SQL Editor (after jobs.sql).
 
-alter table public.electricians
-  add column if not exists pin_hash text;              -- sha256, set from /tools/schedule → Electricians
+-- Electricians sign in to the app with their code (e.g. 1011), so codes must be unique.
+create unique index if not exists electricians_code_key on public.electricians (code) where code is not null;
 
 alter table public.jobs
   add column if not exists alarms_installed    int,    -- from the invoice alarm line

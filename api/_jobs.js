@@ -8,7 +8,6 @@
 // POST { action: "job_create" | "job_update" | "job_delete" | "lead_quote" | "tech_create" | "tech_update", ... }
 // The electrician phone app (/tech) has its own API in api/_tech.js and reuses the helpers exported below.
 
-const crypto = require("crypto");
 const { sb, configured } = require("./_supabase");
 
 // Passcode staff enter to open the portal (keep in sync with api/pipeline.js).
@@ -109,9 +108,12 @@ async function latestQuote(leadId, email) {
   } catch (_) { return null; }   // no quote log yet — the dispatcher can type the count
 }
 
-// Electrician app PINs are stored hashed (salted with the electrician's id).
-function pinHash(id, pin) { return crypto.createHash("sha256").update(`powersmart-tech:${id}:${pin}`).digest("hex"); }
-function validPin(pin) { return /^\d{4,6}$/.test(String(pin || "")); }
+// An electrician's code is also their sign-in for the phone app, so codes must be unique.
+async function codeTaken(code, exceptId) {
+  if (!code) return false;
+  const rows = await sb(`electricians?code=eq.${encodeURIComponent(code)}&select=id`);
+  return (rows || []).some((r) => r.id !== exceptId);
+}
 
 function scheduleText(job, tech) {
   if (job.electrician_id && job.scheduled_start) return `assigned to ${tech || "an electrician"} for ${fmtWhen(job.scheduled_start)}`;
@@ -136,8 +138,7 @@ module.exports = async (req, res) => {
         sb(`jobs?select=*&electrician_id=not.is.null&scheduled_start=gte.${encodeURIComponent(from)}&scheduled_start=lt.${encodeURIComponent(to)}&order=scheduled_start.asc&limit=2000`),
         sb("jobs?select=*&or=(electrician_id.is.null,scheduled_start.is.null)&status=not.in.(completed,cancelled)&order=created_at.desc&limit=300"),
       ]);
-      const techs = (electricians || []).map(({ pin_hash, ...t }) => ({ ...t, has_pin: Boolean(pin_hash) }));
-      return res.status(200).json({ electricians: techs, jobs: jobs || [], waiting: waiting || [] });
+      return res.status(200).json({ electricians: electricians || [], jobs: jobs || [], waiting: waiting || [] });
     }
 
     if (req.method !== "POST") {
@@ -220,24 +221,21 @@ module.exports = async (req, res) => {
       if (b.email !== undefined) f.email = clean(b.email, 254).toLowerCase() || null;
       if (b.active !== undefined) f.active = Boolean(b.active);
       if (b.sort_order !== undefined) f.sort_order = intIn(b.sort_order, 0, 9999, 0);
-      const pin = clean(b.pin, 12);
-      if (pin && !validPin(pin)) return res.status(400).json({ error: "App PIN must be 4–6 digits" });
+      if (f.code && await codeTaken(f.code, b.action === "tech_update" ? clean(b.id, 40) : null)) {
+        return res.status(400).json({ error: `Code ${f.code} is already used by another electrician` });
+      }
 
       if (b.action === "tech_create") {
         if (!f.name) return res.status(400).json({ error: "Electrician name is required" });
         const rows = await sb("electricians", { method: "POST", body: f });
-        const tech = rows && rows[0];
-        if (tech && pin) await sb(`electricians?id=eq.${encodeURIComponent(tech.id)}`, { method: "PATCH", body: { pin_hash: pinHash(tech.id, pin) }, prefer: "return=minimal" });
-        return res.status(200).json({ ok: true, electrician: tech && { ...tech, pin_hash: undefined, has_pin: Boolean(pin) } });
+        return res.status(200).json({ ok: true, electrician: rows && rows[0] });
       }
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
       if ("name" in f && !f.name) return res.status(400).json({ error: "Name can't be empty" });
-      if (pin) f.pin_hash = pinHash(id, pin);
       if (!Object.keys(f).length) return res.status(400).json({ error: "Nothing to update" });
       const rows = await sb(`electricians?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
-      const tech = rows && rows[0];
-      return res.status(200).json({ ok: true, electrician: tech && { ...tech, pin_hash: undefined, has_pin: Boolean(tech.pin_hash) } });
+      return res.status(200).json({ ok: true, electrician: rows && rows[0] });
     }
 
     return res.status(400).json({ error: "Unknown action" });
@@ -247,4 +245,4 @@ module.exports = async (req, res) => {
 };
 
 // Shared with api/_tech.js (electrician app).
-Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote, pinHash, validPin });
+Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });

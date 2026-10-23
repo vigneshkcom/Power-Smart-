@@ -1,18 +1,17 @@
 // Electrician phone app API for /tech, served through /api/pipeline?resource=tech
 // (underscore prefix => not its own Vercel function; the plan allows 12).
 //
-// Auth: electricians sign in with their name + app PIN (set by the office in
-// /tools/schedule → Electricians). Every request carries x-tech-id + x-tech-pin
-// and only ever sees that electrician's own jobs.
+// Auth: electricians sign in with their electrician code (e.g. 1011, set by the
+// office in /tools/schedule → Electricians). Every request carries x-tech-code and
+// only ever sees that electrician's own jobs.
 //
-// POST { action: "login_list" | "me" | "jobs" | "job" | "status" | "save" | "pay" | "pay_check" | "complete", ... }
+// POST { action: "me" | "jobs" | "job" | "status" | "save" | "pay" | "pay_check" | "complete", ... }
 // On site the electrician records the number of alarms installed + battery or hardwired,
 // adjusts the invoice, gets the customer's okay, takes a card payment and completes the job.
 //
 // Money is always computed here from the price list in api/_quote.js — the app
 // only sends item codes and quantities (plus a price for "other" items).
 
-const crypto = require("crypto");
 const { sb, configured } = require("./_supabase");
 const Stripe = require("./_stripe");
 const { checkoutUrl } = require("./_payments");
@@ -101,14 +100,12 @@ function defaultItems(job, quote) {
 }
 
 async function authTech(req) {
-  const id = clean(req.headers["x-tech-id"], 40), pin = clean(req.headers["x-tech-pin"], 12);
-  if (!id || !J.validPin(pin)) return null;
-  const rows = await sb(`electricians?id=eq.${encodeURIComponent(id)}&active=eq.true&select=id,name,pin_hash&limit=1`);
-  const t = rows && rows[0];
-  if (!t || !t.pin_hash) return null;
-  const a = Buffer.from(t.pin_hash, "hex"), b = Buffer.from(J.pinHash(t.id, pin), "hex");
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  return { id: t.id, name: t.name };
+  const code = clean(req.headers["x-tech-code"], 20);
+  if (!code) return null;
+  const rows = await sb(`electricians?code=eq.${encodeURIComponent(code)}&active=eq.true&select=id,code,name,phone,email&limit=2`);
+  if (!rows || rows.length !== 1) return null;           // unknown, inactive or (shouldn't happen) shared code
+  const t = rows[0];
+  return { id: t.id, code: t.code, name: t.name, phone: t.phone, email: t.email };
 }
 
 async function ownJob(tech, id) {
@@ -162,15 +159,10 @@ async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const b = req.body || {};
   try {
-    if (b.action === "login_list") {
-      const rows = await sb("electricians?active=eq.true&pin_hash=not.is.null&select=id,name&order=sort_order.asc,name.asc");
-      return res.status(200).json({ electricians: (rows || []).map((t) => ({ id: t.id, name: t.name })) });
-    }
-
     const tech = await authTech(req);
     if (!tech) {
-      await new Promise((r) => setTimeout(r, 400));   // slow down PIN guessing
-      return res.status(401).json({ error: "Wrong name or PIN" });
+      await new Promise((r) => setTimeout(r, 400));   // slow down code guessing
+      return res.status(401).json({ error: "Code not recognised — check with the office" });
     }
 
     if (b.action === "me") return res.status(200).json({ tech });

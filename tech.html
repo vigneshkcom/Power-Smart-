@@ -114,11 +114,10 @@
     <h1>Electrician sign in</h1>
     <p class="muted">Your jobs, invoices and payments.</p>
     <div class="card">
-      <div class="field"><label for="l-name">Your name</label><select id="l-name"><option value="">Loading…</option></select></div>
-      <div class="field"><label for="l-pin">App PIN</label><input id="l-pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" placeholder="4–6 digits"></div>
+      <div class="field"><label for="l-code">Your electrician code</label><input id="l-code" type="password" inputmode="numeric" autocomplete="current-password" maxlength="20" placeholder="e.g. 1011" style="font-size:1.4rem;letter-spacing:.2em;text-align:center"></div>
       <div class="err" id="l-err"></div>
       <button class="btn btn-primary" id="l-go">Sign in</button>
-      <p class="muted" style="margin-top:12px;text-align:center">No PIN yet? Ask the office to set one for you.</p>
+      <p class="muted" style="margin-top:12px;text-align:center">Don't know your code? Ask the office.</p>
     </div>
   </section>
 
@@ -184,11 +183,11 @@
 
   function call(action, body){
     var headers = { "Content-Type":"application/json" };
-    if (me){ headers["x-tech-id"] = me.id; headers["x-tech-pin"] = me.pin; }
+    if (me){ headers["x-tech-code"] = me.code; }
     return fetch(API, { method:"POST", headers: headers, body: JSON.stringify(Object.assign({ action: action }, body || {})) })
       .then(function(r){
         return r.json().catch(function(){ return {}; }).then(function(d){
-          if (r.status === 401 && action !== "login_list" && action !== "me"){ signOut(); throw new Error(d.error || "Please sign in again"); }
+          if (r.status === 401 && action !== "me"){ signOut(); throw new Error(d.error || "Please sign in again"); }
           if (!r.ok) throw new Error(d.error || ("Error " + r.status));
           return d;
         });
@@ -198,25 +197,19 @@
   /* ---------- sign in ---------- */
   function showLogin(){
     show("v-login");
-    call("login_list").then(function(d){
-      var list = d.electricians || [];
-      $("l-name").innerHTML = list.length ? '<option value="">Choose your name</option>' + list.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join("")
-        : '<option value="">No electricians have an app PIN yet</option>';
-      if (me && me.id) $("l-name").value = me.id;
-    }).catch(function(e){ $("l-err").textContent = e.message; });
+    setTimeout(function(){ $("l-code").focus(); }, 50);
   }
   function signIn(){
-    var id = $("l-name").value, pin = $("l-pin").value.trim();
-    if (!id){ $("l-err").textContent = "Choose your name."; return; }
-    if (!/^\d{4,6}$/.test(pin)){ $("l-err").textContent = "Enter your 4–6 digit PIN."; return; }
-    me = { id: id, pin: pin };
+    var code = $("l-code").value.trim();
+    if (!code){ $("l-err").textContent = "Enter your code."; return; }
+    me = { code: code };
     $("l-go").disabled = true; $("l-err").textContent = "";
     call("me").then(function(d){
-      me.name = d.tech.name;
+      me = { code: code, name: d.tech.name };
       try { localStorage.setItem(LS, JSON.stringify(me)); } catch(e){}
-      $("l-pin").value = "";
+      $("l-code").value = "";
       route();
-    }).catch(function(e){ me = null; $("l-err").textContent = e.message; show("v-login"); })
+    }).catch(function(e){ me = null; $("l-err").textContent = e.message; })
       .finally(function(){ $("l-go").disabled = false; });
   }
   function signOut(){
@@ -224,7 +217,7 @@
     showLogin();
   }
   $("l-go").addEventListener("click", signIn);
-  $("l-pin").addEventListener("keydown", function(e){ if (e.key === "Enter") signIn(); });
+  $("l-code").addEventListener("keydown", function(e){ if (e.key === "Enter") signIn(); });
   $("signout").addEventListener("click", signOut);
 
   /* ---------- job list ---------- */
@@ -486,7 +479,7 @@
       } : null);
     } else loadList();
   }
-  if (me && me.id && me.pin) route(); else showLogin();
+  if (me && me.code) route(); else showLogin();
 })();
 </script>
 </body>

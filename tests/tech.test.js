@@ -1,4 +1,4 @@
-const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path'), crypto = require('node:crypto');
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 
 // Tiny in-memory PostgREST: eq/neq/gte/lt/is.null/not.is.null filters, PATCH/POST/DELETE.
 function fakeDb(tables) {
@@ -55,15 +55,14 @@ function vmLoad(file, mocks) {
   }, { filename: file });
   return module.exports;
 }
-const hash = (id, pin) => crypto.createHash('sha256').update(`powersmart-tech:${id}:${pin}`).digest('hex');
 const QUOTE_TEXT = '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00\n- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00';
 
 function setup() {
   const db = fakeDb({
     electricians: [
-      { id: 't1', name: 'Jake Turner', active: true, pin_hash: hash('t1', '1234') },
-      { id: 't2', name: 'Liam Brooks', active: true, pin_hash: hash('t2', '9999') },
-      { id: 't3', name: 'No Pin', active: true, pin_hash: null },
+      { id: 't1', code: '1011', name: 'Jake Turner', phone: '0411 111 111', active: true },
+      { id: 't2', code: '1012', name: 'Liam Brooks', active: true },
+      { id: 't3', code: '1013', name: 'Former Sparky', active: false },
     ],
     jobs: [
       { id: 'j1', job_no: 1001, electrician_id: 't1', lead_id: 'lead1', email: 'kath@x.com', status: 'scheduled', work_type: 'install', customer_name: 'Kath', scheduled_start: '2026-10-23T23:00:00.000Z', pay_status: 'unpaid' },
@@ -78,23 +77,26 @@ function setup() {
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
   const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href } };
   const tech = vmLoad('_tech.js', mocks);
-  async function call(body, who = { id: 't1', pin: '1234' }) {
+  async function call(body, techCode = '1011') {
     let code = 200, data;
     const res = { status(c) { code = c; return this; }, json(o) { data = o; return this; }, setHeader() {} };
-    await tech({ method: 'POST', headers: who ? { 'x-tech-id': who.id, 'x-tech-pin': who.pin } : {}, body }, res);
+    await tech({ method: 'POST', headers: techCode ? { 'x-tech-code': techCode } : {}, body }, res);
     return { code, data };
   }
   return { db, Stripe, tech, mocks, call, job: (id) => db.tables.jobs.find((j) => j.id === id) };
 }
 
-test('sign-in list shows only electricians with a PIN, and a wrong PIN is refused', async () => {
+test('electricians sign in with their code; unknown or inactive codes are refused', async () => {
   const t = setup();
-  const list = await t.call({ action: 'login_list' }, null);
-  assert.deepEqual(list.data.electricians.map((e) => e.name), ['Jake Turner', 'Liam Brooks']);
-  assert(t.db.calls.some((c) => c.q.includes('select=id,name')), 'no PIN hashes are sent to the phone');
-  assert.equal((await t.call({ action: 'me' }, { id: 't1', pin: '0000' })).code, 401);
-  assert.equal((await t.call({ action: 'me' }, { id: 't3', pin: '1234' })).code, 401);
-  assert.equal((await t.call({ action: 'me' })).data.tech.name, 'Jake Turner');
+  const me = await t.call({ action: 'me' });
+  assert.equal(me.code, 200);
+  assert.equal(me.data.tech.name, 'Jake Turner');
+  assert.equal(me.data.tech.phone, '0411 111 111');
+  assert.equal((await t.call({ action: 'me' }, '9999')).code, 401);
+  assert.equal((await t.call({ action: 'me' }, '1013')).code, 401, 'deactivated electrician');
+  assert.equal((await t.call({ action: 'me' }, null)).code, 401);
+  t.db.tables.electricians.push({ id: 't4', code: '1011', name: 'Duplicate', active: true });
+  assert.equal((await t.call({ action: 'me' })).code, 401, 'a shared code never logs in as the wrong person');
 });
 
 test("an electrician only sees and edits their own jobs", async () => {
@@ -205,16 +207,16 @@ test('Stripe webhook records job payments from the electrician app', async () =>
   assert.equal(t.job('j1').paid_cents, 7900);
 });
 
-test('office can set an app PIN; it is stored hashed and never returned', async () => {
+test('electrician codes must be unique', async () => {
   const t = setup();
   const jobs = t.mocks['./_jobs'];
-  let body;
-  const res = { status() { return this; }, json(o) { body = o; return this; }, setHeader() {} };
-  await jobs({ method: 'POST', headers: { 'x-portal-key': '2026' }, body: { action: 'tech_update', id: 't3', pin: '4321' } }, res);
-  assert.equal(t.db.tables.electricians[2].pin_hash, hash('t3', '4321'));
-  assert.equal(body.electrician.pin_hash, undefined);
-  assert.equal(body.electrician.has_pin, true);
-  await jobs({ method: 'POST', headers: { 'x-portal-key': '2026' }, body: { action: 'tech_update', id: 't3', pin: '12' } }, res);
-  assert.match(body.error, /4–6 digits/);
-  assert.equal((await t.call({ action: 'me' }, { id: 't3', pin: '4321' })).code, 200);
+  let body, code;
+  const res = { status(c) { code = c; return this; }, json(o) { body = o; return this; }, setHeader() {} };
+  await jobs({ method: 'POST', headers: { 'x-portal-key': '2026' }, body: { action: 'tech_create', name: 'New Sparky', code: '1011' } }, res);
+  assert.equal(code, 400);
+  assert.match(body.error, /1011 is already used/);
+  await jobs({ method: 'POST', headers: { 'x-portal-key': '2026' }, body: { action: 'tech_update', id: 't1', code: '1011', name: 'Jake T' } }, res);
+  assert.equal(code, 200, 'keeping your own code is fine');
+  await jobs({ method: 'POST', headers: { 'x-portal-key': '2026' }, body: { action: 'tech_update', id: 't2', code: '1011' } }, res);
+  assert.equal(code, 400);
 });
