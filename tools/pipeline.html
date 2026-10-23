@@ -318,6 +318,7 @@
       <div class="modal-head"><h3 id="sms-title">Customer SMS</h3><button class="x" id="sms-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="sms-thread" id="sms-thread"><div class="sms-empty">Loading conversation...</div></div>
+        <div class="field sms-compose"><label for="sms-template">SMS template</label><select id="sms-template"><option value="">Choose a template...</option><option value="missed">Tried calling</option><option value="enquiry">Enquiry follow-up</option><option value="quote">Quote follow-up</option></select></div>
         <div class="field sms-compose"><label for="sms-message">Message</label><textarea id="sms-message" maxlength="1600" placeholder="Write an SMS"></textarea></div>
         <div class="sms-meta"><span id="sms-count">0 characters</span><span id="sms-parts">1 SMS part</span><a id="sms-full-link" href="https://portal.powersmartco.com.au/sms" target="_blank" rel="noopener">Open full SMS Inbox</a></div>
       </div>
@@ -854,6 +855,15 @@
 
   /* ---------- SMS conversation ---------- */
   var smsLeadId = null, smsPhone = "";
+  var smsTemplates = {
+    missed: "We tried calling but couldn't get in touch. Please call us back on this number when you have a moment. Thanks, PowerSmart.",
+    enquiry: "It's PowerSmart following up on your smoke alarm enquiry. Please call us back on this number so we can help with the next steps. Thanks!",
+    quote: "It's PowerSmart checking in about your smoke alarm quote. Please call us back on this number to discuss it or arrange your booking. Thanks!"
+  };
+  function smsGreeting(lead){
+    var name = String(lead && lead.name || "").trim().split(/\s+/)[0];
+    return "Hi " + (name || "there") + ",\n\n";
+  }
   function smsApi(url, options){
     return fetch(url, options || {}).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok){var e=new Error(d.error || "SMS request failed");e.detail=d.detail||"";throw e;}return d; }); });
   }
@@ -881,7 +891,8 @@
     smsLeadId=id;smsPhone=lead.phone;
     $("sms-title").textContent="SMS " + lead.name;
     $("sms-full-link").href="https://portal.powersmartco.com.au/sms?phone="+encodeURIComponent(lead.phone);
-    $("sms-message").value="Hi " + (lead.name ? lead.name.split(" ")[0] : "there") + ",\n\n";
+    $("sms-template").value="";
+    $("sms-message").value=smsGreeting(lead);
     updateSmsCount();$("sms-overlay").classList.add("show");loadSmsThread().catch(function(e){$("sms-thread").innerHTML='<div class="sms-empty">'+esc(e.message+(e.detail ? " "+e.detail : ""))+'</div>';});
     setTimeout(function(){$("sms-message").focus();$("sms-message").setSelectionRange($("sms-message").value.length,$("sms-message").value.length);},40);
   }
@@ -889,6 +900,14 @@
   $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
   $("sms-close").addEventListener("click",closeSms);$("sms-cancel").addEventListener("click",closeSms);$("sms-overlay").addEventListener("click",function(e){if(e.target===this)closeSms();});
   $("sms-message").addEventListener("input",updateSmsCount);
+  $("sms-template").addEventListener("change",function(){
+    var template = smsTemplates[this.value];
+    if(!template)return;
+    var lead = leads.find(function(x){return x.id === smsLeadId;});
+    $("sms-message").value=smsGreeting(lead)+template;
+    updateSmsCount();
+    $("sms-message").focus();
+  });
   $("sms-send").addEventListener("click",function(){
     var message=$("sms-message").value.trim();if(!message){toast("Write an SMS message");return;}
     var button=this,original=button.textContent,leadId=smsLeadId,phone=smsPhone;button.disabled=true;button.textContent="Sending...";
@@ -897,7 +916,7 @@
         var author=currentAgent();
         return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:"SMS sent to "+phone+": "+message}).catch(function(){return null;});
       })
-      .then(function(){$("sms-message").value="";updateSmsCount();toast("SMS sent to "+phone);return loadSmsThread();})
+      .then(function(){$("sms-message").value="";$("sms-template").value="";updateSmsCount();toast("SMS sent to "+phone);return loadSmsThread();})
       .then(function(){return load();})
       .catch(function(e){toast("Could not send SMS: "+e.message+(e.detail ? " "+e.detail : ""));})
       .finally(function(){button.disabled=false;button.textContent=original;});
