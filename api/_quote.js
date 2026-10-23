@@ -249,5 +249,6 @@ ${SITE}`;
 
 module.exports = {
   SITE, STRIPE_LINK, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
+  PRICE_ALARM, PRICE_CTRL, FEE_BOOKING, FEE_INSPECT,
   fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };

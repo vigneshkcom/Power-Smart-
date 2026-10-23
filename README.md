@@ -25,6 +25,7 @@ accept.html           Quote acceptance page (/accept) → Stripe
 tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
 tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
 tools/schedule.html   Fieldworker job schedule (/tools/schedule) — assign jobs to electricians
+tech.html             Electrician phone app (/tech) — jobs, checklist, invoice, card payment
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
@@ -35,12 +36,14 @@ api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accept
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
 api/_jobs.js          Job schedule + electricians CRUD, served via /api/pipeline?resource=jobs
+api/_tech.js          Electrician app API (PIN sign-in), served via /api/pipeline?resource=tech
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
 supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
+supabase/tech-app.sql Run once (after jobs.sql) — app PINs, checklist, invoice + payment columns
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
@@ -126,6 +129,32 @@ service management). Same portal passcode and Mani/Vignesh picker as the pipelin
 - **Electricians**: add, edit and deactivate fieldworkers from the *Electricians* button.
 
 Setup: run `supabase/jobs.sql` once in the Supabase SQL Editor (after `schema.sql`).
+
+## Electrician app (/tech)
+
+Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
+
+- **Sign in**: name + 4–6 digit app PIN. The office sets PINs in
+  /tools/schedule → *Electricians* (stored hashed). Each electrician only sees
+  their own jobs.
+- **My jobs**: day by day, with *Navigate* and *Call*. *On my way* / *Arrived on site*
+  update the dispatch board and the lead.
+- **Checklist**: 12 QLD compliance questions (Yes / No / N/A, in `api/_tech.js`).
+  Any "No" needs a note.
+- **Invoice**: starts from the customer's quote; the electrician adds/removes
+  smoke alarms, remote controllers, an inspection or an "other" item. Prices come
+  from `api/_quote.js` on the server. Advance payments other than the booking fee
+  (e.g. a prepaid inspection) are deducted.
+- **Approval + payment**: the customer approves the invoice on the phone, then
+  *Take card payment* opens Stripe Checkout for the amount due and returns to the
+  app. The job is marked paid by the app's check or the Stripe webhook
+  (`metadata.job_id`). *Customer pays later* completes the job with the balance
+  flagged for the office.
+- **Complete**: job → Completed, lead → Won, and a note with the invoice, payment
+  and any "No" answers is added to the lead. The office sees the electrician's
+  report on the job card in /tools/schedule.
+
+Setup: run `supabase/tech-app.sql` once, then set each electrician's app PIN.
 
 ## Senders, composer & email log
 

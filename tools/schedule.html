@@ -146,13 +146,17 @@
   .jm-links:empty{display:none}
   .hint{font-size:.68rem;color:var(--teal-deep);font-weight:600;min-height:1em}
   .hint.warn{color:#9A6A0B}
+  .report{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.8rem;color:var(--body);line-height:1.55}
+  .report b{color:var(--ink)}
+  .report .pay{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);margin-left:.3rem}
+  .report .pay.paid{background:#E3F5EC;color:#1E6B49}.report .pay.later{background:#FFF4E0;color:#8A5A0B}
   .lead-chip{grid-column:1/-1;font-size:.78rem;background:var(--teal-soft);color:var(--teal-deep);border-radius:9px;padding:.5rem .7rem;font-weight:600}
   .modal-foot{padding:.85rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.55rem;align-items:center;flex:none;flex-wrap:wrap}
   .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
   .modal-foot .spacer{flex:1}
 
-  .tech-row{display:grid;grid-template-columns:70px 1.3fr 1fr 1.4fr auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)}
-  .tech-row input[type=text],.tech-row input[type=email],.tech-row input[type=tel]{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-size:.8rem;width:100%;outline:none}
+  .tech-row{display:grid;grid-template-columns:70px 1.3fr 1fr 1.4fr 96px auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)}
+  .tech-row input[type=text],.tech-row input[type=email],.tech-row input[type=tel],.tech-row input[type=password]{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-size:.8rem;width:100%;outline:none}
   .tech-row input:focus{border-color:var(--teal);background:#fff}
   .tech-row .act{display:flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--body)}
   .tech-head{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1.5px solid var(--line)}
@@ -293,6 +297,7 @@
       </div>
       <div class="modal-body">
         <div class="jm-links" id="jm-links"></div>
+        <div class="report" id="jm-report" style="display:none"></div>
         <div class="fgrid">
           <div class="section-label">Customer</div>
           <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
@@ -347,14 +352,16 @@
         <button class="x" id="tm-close" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
-        <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>Active</span><span></span></div>
+        <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>App PIN</span><span>Active</span><span></span></div>
         <div id="tech-list"></div>
+        <p class="hint" style="margin-top:.6rem">Electricians sign in to the phone app at <a href="/tech" target="_blank" rel="noopener">portal.powersmartco.com.au/tech</a> with their name + app PIN. Leave the PIN box empty to keep the current PIN.</p>
         <div class="section-label" style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--line)">Add electrician</div>
         <div class="tech-row" style="border-bottom:none">
           <input type="text" id="nt-code" placeholder="1011">
           <input type="text" id="nt-name" placeholder="Full name">
           <input type="tel" id="nt-phone" placeholder="04xx xxx xxx">
           <input type="email" id="nt-email" placeholder="name@email.com">
+          <input type="password" id="nt-pin" inputmode="numeric" maxlength="6" placeholder="4–6 digits" autocomplete="new-password">
           <span></span>
           <button class="btn btn-primary" id="nt-add">Add</button>
         </div>
@@ -854,6 +861,7 @@
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none";
     $("jm-links").innerHTML = "";
+    $("jm-report").style.display = "none";
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
       var order = { won:0, quote_accepted:1, quote_sent:2 };
@@ -876,6 +884,23 @@
     $("jm-suburb").value = l.address_suburb || "";
     $("jm-postcode").value = l.address_postcode || l.postcode || "";
     fillFromQuote(l);
+  }
+  // What the electrician recorded in the phone app (/tech).
+  function renderReport(j){
+    var box = $("jm-report"), items = j.invoice_items || [], c = j.checklist || {};
+    var answers = Object.keys(c).map(function(k){ return c[k]; });
+    if (!items.length && !answers.length && !j.tech_notes){ box.style.display = "none"; return; }
+    var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
+    var count = function(v){ return answers.filter(function(a){ return a === v; }).length; };
+    var PAY = { paid:"Paid by card", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
+    box.innerHTML = '<b>Electrician report</b>' +
+      (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
+        (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
+        '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) : "") + '</span>' +
+        (j.approved_at ? '<br>Customer approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" })) : '') : '') +
+      (answers.length ? '<br>Checklist: ' + count("yes") + ' yes · ' + (count("no") ? '<b style="color:#B44">' + count("no") + ' no</b>' : '0 no') + ' · ' + count("na") + ' N/A' : '') +
+      (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
+    box.style.display = "";
   }
   function fillFromQuote(l){
     var hint = $("jm-quote-hint");
@@ -916,6 +941,7 @@
     $("jm-lead-chip").style.display = j.lead_id ? "" : "none";
     $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
     $("jm-delete").style.display = "";
+    renderReport(j);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
     $("job-overlay").classList.add("show");
@@ -983,6 +1009,7 @@
         '<input type="text" data-f="name" value="' + esc(t.name || "") + '">' +
         '<input type="tel" data-f="phone" value="' + esc(t.phone || "") + '">' +
         '<input type="email" data-f="email" value="' + esc(t.email || "") + '">' +
+        '<input type="password" data-f="pin" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="' + (t.has_pin ? "•••• (set)" : "Set PIN") + '">' +
         '<label class="act"><input type="checkbox" data-f="active"' + (t.active ? " checked" : "") + '> Active</label>' +
         '<button class="btn btn-ghost" data-save-tech>Save</button></div>';
     }).join("") : '<p style="font-size:.82rem;color:var(--muted);padding:.8rem 0">No electricians yet — add your first one below.</p>';
@@ -1000,7 +1027,7 @@
     var row = btn.closest(".tech-row"), get = function(f){ return row.querySelector('[data-f="' + f + '"]'); };
     btn.disabled = true;
     jobsApi({ action:"tech_update", id: row.dataset.techId, code: get("code").value, name: get("name").value,
-      phone: get("phone").value, email: get("email").value, active: get("active").checked })
+      phone: get("phone").value, email: get("email").value, active: get("active").checked, pin: get("pin").value.trim() })
       .then(function(){ toast("Electrician saved"); return reload(); })
       .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
@@ -1008,8 +1035,8 @@
     var name = $("nt-name").value.trim();
     if (!name){ toast("Enter the electrician's name"); $("nt-name").focus(); return; }
     var btn = this; btn.disabled = true;
-    jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, active: true })
-      .then(function(){ ["nt-name","nt-phone","nt-email"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
+    jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, pin: $("nt-pin").value.trim(), active: true })
+      .then(function(){ ["nt-name","nt-phone","nt-email","nt-pin"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
       .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
 

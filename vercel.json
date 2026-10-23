@@ -39,6 +39,14 @@
       "permanent": false
     },
     {
+      "source": "/tech",
+      "has": [
+        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+      ],
+      "destination": "https://portal.powersmartco.com.au/tech",
+      "permanent": false
+    },
+    {
       "source": "/sms",
       "has": [
         { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }

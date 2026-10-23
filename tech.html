@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Electrician App - PowerSmart</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1B1F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--teal-bright:#7FD6E2;
+    --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
+    --amber:#F5B841;--red:#C95555;--green:#2F9E6E;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#EDF3F4;min-height:100vh;-webkit-tap-highlight-color:transparent}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;border:none;background:none}
+  a{color:inherit}
+  .app{max-width:560px;margin:0 auto;padding:0 16px calc(96px + env(safe-area-inset-bottom))}
+  .view{display:none}.view.show{display:block}
+
+  /* header */
+  .bar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);margin:0 -16px 14px;padding:10px 16px;display:flex;align-items:center;gap:10px}
+  .bar img{height:26px}
+  .bar h1{font-size:.98rem;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .back{font-weight:800;font-size:1.3rem;line-height:1;padding:4px 8px 4px 0;color:var(--teal-deep)}
+  .link{font-size:.78rem;font-weight:700;color:var(--teal-deep);text-decoration:underline}
+
+  .btn{display:flex;align-items:center;justify-content:center;gap:.45rem;font-weight:700;font-size:.95rem;min-height:50px;padding:.7rem 1.1rem;border-radius:14px;width:100%;text-decoration:none;transition:transform .12s ease,background .15s ease}
+  .btn:active{transform:scale(.98)}
+  .btn-primary{background:var(--teal);color:var(--ink)}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-ghost{border:1.5px solid var(--line);background:#fff;color:var(--body)}
+  .btn-green{background:var(--green);color:#fff}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+  .card h2{font-size:.95rem;font-weight:800;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .card h2 .n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);font-size:.75rem}
+  .card h2 .n.ok{background:var(--green);color:#fff}
+  .card h2 .side{margin-left:auto;font-size:.72rem;font-weight:700;color:var(--muted)}
+  .muted{color:var(--muted);font-size:.8rem}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+  .field label{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .field input,.field select,.field textarea{padding:.8rem .9rem;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);outline:none;font-size:1rem;width:100%}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal);background:#fff}
+  .err{color:var(--red);font-size:.8rem;font-weight:600;min-height:1.2em;margin-bottom:8px}
+
+  /* login */
+  .login{padding-top:12vh;text-align:center}
+  .login img{height:44px;margin:0 auto 18px;display:block}
+  .login h1{font-size:1.4rem;font-weight:800;margin-bottom:4px}
+  .login .card{text-align:left;margin-top:22px}
+
+  /* job list */
+  .daynav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .daynav button{width:44px;height:44px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:1.1rem;font-weight:800;color:var(--teal-deep)}
+  .daynav .lbl{flex:1;text-align:center;font-weight:800}
+  .daynav .lbl small{display:block;font-size:.72rem;color:var(--muted);font-weight:600}
+  .jcard{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-left:6px solid var(--teal);border-radius:16px;padding:14px;margin-bottom:10px}
+  .jcard .top{display:flex;justify-content:space-between;align-items:center;font-size:.8rem;font-weight:700;color:var(--body)}
+  .jcard .name{font-size:1.02rem;font-weight:800;margin:4px 0 2px}
+  .jcard .addr{font-size:.85rem;color:var(--body)}
+  .jcard .meta{font-size:.75rem;color:var(--muted);margin-top:6px}
+  .chip{display:inline-block;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep)}
+  .st-en_route{border-left-color:#4F86E8}.chip.st-en_route{background:#E4EDFC;color:#2B5DB8}
+  .st-on_site{border-left-color:#8B68D6}.chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
+  .st-completed{border-left-color:#E39A55}.chip.st-completed{background:#FBEBDC;color:#9A5A1C}
+  .empty{text-align:center;padding:40px 10px;color:var(--muted)}
+
+  /* job */
+  .cust .name{font-size:1.15rem;font-weight:800}
+  .cust .addr{color:var(--body);margin:2px 0 12px}
+  .notes{background:#FFF8E6;border:1px solid #F3DFA8;border-radius:12px;padding:10px 12px;font-size:.84rem;white-space:pre-wrap;margin-top:12px}
+  .q{padding:12px 0;border-top:1px solid var(--line)}
+  .q:first-of-type{border-top:none;padding-top:0}
+  .q p{font-size:.9rem;font-weight:600;margin-bottom:8px}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;min-height:44px;border-radius:11px;border:1.5px solid var(--line);background:#fff;font-weight:700;font-size:.88rem;color:var(--body)}
+  .seg button.on[data-v=yes]{background:var(--green);border-color:var(--green);color:#fff}
+  .seg button.on[data-v=no]{background:var(--red);border-color:var(--red);color:#fff}
+  .seg button.on[data-v=na]{background:var(--muted);border-color:var(--muted);color:#fff}
+
+  .item{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+  .item:first-of-type{border-top:none;padding-top:0}
+  .item .lab{flex:1;min-width:0;font-size:.88rem;font-weight:600}
+  .item .lab small{display:block;color:var(--muted);font-weight:500;font-size:.75rem}
+  .step{display:flex;align-items:center;gap:6px}
+  .step button{width:40px;height:40px;border-radius:11px;background:var(--teal-soft);color:var(--teal-deep);font-size:1.25rem;font-weight:800}
+  .step span{min-width:26px;text-align:center;font-weight:800;font-size:1.05rem}
+  .item .del{color:var(--red);font-weight:700;font-size:.78rem;padding:4px}
+  .other{display:grid;grid-template-columns:1fr 92px;gap:8px;margin-top:6px}
+  .other input{padding:.7rem .8rem;border:1.5px solid var(--line);border-radius:11px;background:var(--paper);font-size:.95rem;outline:none;width:100%}
+  .tot{margin-top:12px;border-top:1.5px solid var(--line);padding-top:10px;font-size:.9rem}
+  .tot div{display:flex;justify-content:space-between;padding:3px 0}
+  .tot .due{font-size:1.15rem;font-weight:800}
+  .ok-banner{display:flex;align-items:center;gap:8px;background:#E3F5EC;color:#1E6B49;border-radius:12px;padding:10px 12px;font-weight:700;font-size:.88rem;margin-bottom:10px}
+  .warn-banner{background:#FFF4E0;color:#8A5A0B;border-radius:12px;padding:10px 12px;font-weight:600;font-size:.84rem;margin-bottom:10px}
+  .stack>*+*{margin-top:10px}
+  .done-view{text-align:center;padding-top:10vh}
+  .done-view .tick{width:84px;height:84px;border-radius:50%;background:var(--green);color:#fff;font-size:2.6rem;display:grid;place-items:center;margin:0 auto 16px}
+
+  .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:14px;font-size:.88rem;font-weight:600;transition:transform .25s ease;z-index:50;max-width:90vw;text-align:center}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .loading{text-align:center;color:var(--muted);padding:40px 0}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- sign in -->
+  <section class="view login" id="v-login">
+    <img src="assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co">
+    <h1>Electrician sign in</h1>
+    <p class="muted">Your jobs, checklist and payments.</p>
+    <div class="card">
+      <div class="field"><label for="l-name">Your name</label><select id="l-name"><option value="">Loading…</option></select></div>
+      <div class="field"><label for="l-pin">App PIN</label><input id="l-pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" placeholder="4–6 digits"></div>
+      <div class="err" id="l-err"></div>
+      <button class="btn btn-primary" id="l-go">Sign in</button>
+      <p class="muted" style="margin-top:12px;text-align:center">No PIN yet? Ask the office to set one for you.</p>
+    </div>
+  </section>
+
+  <!-- job list -->
+  <section class="view" id="v-list">
+    <div class="bar">
+      <img src="assets/logo/power-smart-logo-transparent.png" alt="">
+      <h1 id="hello">My jobs</h1>
+      <button class="link" id="signout">Sign out</button>
+    </div>
+    <div class="daynav">
+      <button id="d-prev" aria-label="Previous day">‹</button>
+      <div class="lbl" id="d-lbl"></div>
+      <button id="d-next" aria-label="Next day">›</button>
+    </div>
+    <div id="jobs"><div class="loading">Loading…</div></div>
+    <button class="btn btn-ghost" id="d-today" style="margin-top:6px">Back to today</button>
+  </section>
+
+  <!-- job -->
+  <section class="view" id="v-job">
+    <div class="bar">
+      <button class="back" id="j-back" aria-label="Back to jobs">‹</button>
+      <h1 id="j-title">Job</h1>
+      <span class="chip" id="j-chip"></span>
+    </div>
+    <div id="j-body"><div class="loading">Loading…</div></div>
+  </section>
+
+  <!-- completed -->
+  <section class="view done-view" id="v-done">
+    <div class="tick">✓</div>
+    <h1 style="font-size:1.4rem;font-weight:800">Job completed</h1>
+    <p class="muted" id="done-msg" style="margin:8px 0 24px"></p>
+    <button class="btn btn-primary" id="done-back">Back to my jobs</button>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  var API = "/api/pipeline?resource=tech";
+  var LS = "powersmart_tech";
+  var $ = function(id){ return document.getElementById(id); };
+  var STATUS = { scheduled:"Scheduled", en_route:"On the way", on_site:"On site", completed:"Completed", cancelled:"Cancelled" };
+  var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
+
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]; }); }
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
+  function money(c){ return "$" + (c / 100).toFixed(2); }
+  function startOfDay(d){ var x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function timeLabel(d){ var h = d.getHours(); return (h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h < 12 ? "am" : "pm"); }
+  function toast(msg){ var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200); }
+  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); window.scrollTo(0, 0); }
+
+  var me = null;
+  try { me = JSON.parse(localStorage.getItem(LS) || "null"); } catch(e){}
+  var day = startOfDay(new Date());
+  var cur = null;       // open job detail from the API
+  var saveTimer = null;
+
+  function call(action, body){
+    var headers = { "Content-Type":"application/json" };
+    if (me){ headers["x-tech-id"] = me.id; headers["x-tech-pin"] = me.pin; }
+    return fetch(API, { method:"POST", headers: headers, body: JSON.stringify(Object.assign({ action: action }, body || {})) })
+      .then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(d){
+          if (r.status === 401 && action !== "login_list" && action !== "me"){ signOut(); throw new Error(d.error || "Please sign in again"); }
+          if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+          return d;
+        });
+      });
+  }
+
+  /* ---------- sign in ---------- */
+  function showLogin(){
+    show("v-login");
+    call("login_list").then(function(d){
+      var list = d.electricians || [];
+      $("l-name").innerHTML = list.length ? '<option value="">Choose your name</option>' + list.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>'; }).join("")
+        : '<option value="">No electricians have an app PIN yet</option>';
+      if (me && me.id) $("l-name").value = me.id;
+    }).catch(function(e){ $("l-err").textContent = e.message; });
+  }
+  function signIn(){
+    var id = $("l-name").value, pin = $("l-pin").value.trim();
+    if (!id){ $("l-err").textContent = "Choose your name."; return; }
+    if (!/^\d{4,6}$/.test(pin)){ $("l-err").textContent = "Enter your 4–6 digit PIN."; return; }
+    me = { id: id, pin: pin };
+    $("l-go").disabled = true; $("l-err").textContent = "";
+    call("me").then(function(d){
+      me.name = d.tech.name;
+      try { localStorage.setItem(LS, JSON.stringify(me)); } catch(e){}
+      $("l-pin").value = "";
+      route();
+    }).catch(function(e){ me = null; $("l-err").textContent = e.message; show("v-login"); })
+      .finally(function(){ $("l-go").disabled = false; });
+  }
+  function signOut(){
+    me = null; try { localStorage.removeItem(LS); } catch(e){}
+    showLogin();
+  }
+  $("l-go").addEventListener("click", signIn);
+  $("l-pin").addEventListener("keydown", function(e){ if (e.key === "Enter") signIn(); });
+  $("signout").addEventListener("click", signOut);
+
+  /* ---------- job list ---------- */
+  function dayLabel(d){
+    var t = startOfDay(new Date()), diff = Math.round((d - t) / 864e5);
+    var name = diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff === -1 ? "Yesterday" : d.toLocaleDateString("en-AU", { weekday:"long" });
+    return name + "<small>" + d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + "</small>";
+  }
+  function loadList(){
+    show("v-list");
+    $("hello").textContent = "Hi " + ((me && me.name) || "").split(" ")[0];
+    $("d-lbl").innerHTML = dayLabel(day);
+    $("d-today").style.display = +day === +startOfDay(new Date()) ? "none" : "";
+    $("jobs").innerHTML = '<div class="loading">Loading…</div>';
+    call("jobs", { from: day.toISOString(), to: addDays(day, 1).toISOString() }).then(function(d){
+      if (d.tech) me.name = d.tech.name;
+      var jobs = d.jobs || [];
+      $("jobs").innerHTML = jobs.length ? jobs.map(function(j){
+        var s = new Date(j.scheduled_start), e = new Date(+s + (j.duration_min || 60) * 6e4);
+        return '<button class="jcard st-' + esc(j.status) + '" data-job="' + esc(j.id) + '">' +
+          '<div class="top"><span>' + timeLabel(s) + ' – ' + timeLabel(e) + ' · J' + esc(j.job_no) + '</span><span class="chip st-' + esc(j.status) + '">' + esc(STATUS[j.status] || j.status) + '</span></div>' +
+          '<div class="name">' + esc(j.customer_name) + '</div>' +
+          '<div class="addr">' + esc([j.address, j.suburb, j.postcode].filter(Boolean).join(", ") || "No address") + '</div>' +
+          '<div class="meta">' + esc(TYPES[j.work_type] || "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div></button>';
+      }).join("") : '<div class="empty">No jobs booked for this day.</div>';
+    }).catch(function(e){ $("jobs").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+  $("jobs").addEventListener("click", function(e){ var b = e.target.closest("[data-job]"); if (b) openJob(b.dataset.job); });
+  $("d-prev").addEventListener("click", function(){ day = addDays(day, -1); loadList(); });
+  $("d-next").addEventListener("click", function(){ day = addDays(day, 1); loadList(); });
+  $("d-today").addEventListener("click", function(){ day = startOfDay(new Date()); loadList(); });
+
+  /* ---------- job ---------- */
+  function openJob(id, after){
+    show("v-job");
+    $("j-body").innerHTML = '<div class="loading">Loading…</div>';
+    $("j-title").textContent = "Job"; $("j-chip").textContent = "";
+    call("job", { id: id }).then(function(d){ cur = d; renderJob(); if (after) after(); })
+      .catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+  $("j-back").addEventListener("click", function(){ flushSave().then(loadList); });
+
+  function answered(){ var c = cur.job.checklist || {}; return cur.checklist.filter(function(q){ return c[q.id]; }).length; }
+  function hasNo(){ var c = cur.job.checklist || {}; return cur.checklist.some(function(q){ return c[q.id] === "no"; }); }
+  function checklistDone(){ return answered() === cur.checklist.length && (!hasNo() || (cur.job.tech_notes || "").trim()); }
+  function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
+
+  function renderJob(){
+    var j = cur.job, done = j.status === "completed";
+    $("j-title").textContent = "J" + j.job_no + " · " + j.customer_name;
+    $("j-chip").className = "chip st-" + j.status; $("j-chip").textContent = STATUS[j.status] || j.status;
+    var addr = [j.address, j.suburb, j.postcode].filter(Boolean).join(", ");
+    var s = new Date(j.scheduled_start);
+    var html = '';
+
+    // customer
+    html += '<div class="card cust"><div class="name">' + esc(j.customer_name) + '</div>' +
+      '<div class="addr">' + esc(addr || "No address on the job") + '</div>' +
+      '<div class="muted" style="margin:-6px 0 12px">' + (j.scheduled_start ? s.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + " · " + timeLabel(s) : "") +
+        " · " + esc(TYPES[j.work_type] || "") + (cur.quote ? " · Quote " + esc(cur.quote.ref) : "") + '</div>' +
+      '<div class="row">' +
+        (addr ? '<a class="btn btn-dark" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr + ", QLD, Australia") + '">Navigate</a>' : '') +
+        (j.phone ? '<a class="btn btn-ghost" href="tel:' + esc(j.phone.replace(/[^\d+]/g, "")) + '">Call</a>' : '') +
+      '</div>' + (j.notes ? '<div class="notes"><b>Office notes</b>\n' + esc(j.notes) + '</div>' : '') + '</div>';
+
+    if (done){
+      html += '<div class="card"><div class="ok-banner">✓ Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
+        '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div></div>';
+      $("j-body").innerHTML = html; return;
+    }
+
+    // status
+    if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">🚐 On my way</button>';
+    else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">📍 Arrived on site</button>';
+
+    // 1. checklist
+    var c = j.checklist || {}, n = answered();
+    html += '<div class="card"><h2><span class="n' + (checklistDone() ? " ok" : "") + '">' + (checklistDone() ? "✓" : "1") + '</span>Compliance checklist<span class="side">' + n + '/' + cur.checklist.length + '</span></h2>' +
+      cur.checklist.map(function(q){
+        return '<div class="q"><p>' + esc(q.q) + '</p><div class="seg" data-q="' + esc(q.id) + '">' +
+          ["yes","no","na"].map(function(v){ return '<button data-v="' + v + '" class="' + (c[q.id] === v ? "on" : "") + '">' + { yes:"Yes", no:"No", na:"N/A" }[v] + '</button>'; }).join("") +
+          '</div></div>';
+      }).join("") +
+      '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes' + (hasNo() ? ' — required: explain the “No” answers' : ' (optional)') + '</label>' +
+      '<textarea id="j-notes" rows="3" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
+
+    // 2. invoice
+    var paid = j.pay_status === "paid";
+    html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
+      cur.catalogue.map(function(p){
+        var q = itemQty(p.code);
+        return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' +
+          (paid ? '<b>× ' + q + '</b>' : '<div class="step" data-code="' + esc(p.code) + '"><button data-d="-1" aria-label="Less">−</button><span>' + q + '</span><button data-d="1" aria-label="More">+</button></div>') + '</div>';
+      }).join("") +
+      cur.items.map(function(it, i){
+        if (it.code !== "other") return "";
+        return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b>' +
+          (paid ? '' : '<button class="del" data-del="' + i + '">Remove</button>') + '</div>';
+      }).join("") +
+      (paid ? '' : '<details style="margin-top:8px"><summary class="link" style="cursor:pointer">+ Add another item</summary>' +
+        '<div class="other"><input id="o-label" placeholder="e.g. 240V hardwired alarm"><input id="o-price" inputmode="decimal" placeholder="$ each"></div>' +
+        '<button class="btn btn-ghost" id="o-add" style="margin-top:8px;min-height:44px">Add item</button></details>') +
+      '<div class="tot"><div><span>Total</span><span>' + money(cur.totals.total) + '</span></div>' +
+      cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>−' + money(cr.cents) + '</span></div>'; }).join("") +
+      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div></div>';
+
+    // 3. approval + payment
+    var approved = !!j.approved_at, due = cur.totals.due;
+    html += '<div class="card"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Customer approval &amp; payment</h2>';
+    if (!checklistDone()) html += '<div class="warn-banner">Finish the checklist' + (hasNo() && answered() === cur.checklist.length ? ' (add a note for the “No” answers)' : '') + ' first.</div>';
+    if (!approved){
+      html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
+        '<button class="btn btn-primary" id="approve"' + (checklistDone() && cur.items.length ? "" : " disabled") + '>Customer approves ' + money(cur.totals.total) + '</button>';
+    } else {
+      html += '<div class="ok-banner">✓ Customer approved at ' + timeLabel(new Date(j.approved_at)) + '</div>';
+      if (paid) html += '<div class="ok-banner">💳 Paid ' + money(j.paid_cents || due) + ' by card</div>';
+      else if (due > 0){
+        html += '<div class="stack"><button class="btn btn-dark" id="pay">💳 Take card payment ' + money(due) + '</button>' +
+          (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
+          '<p class="muted">Opens the secure Stripe page — hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
+      } else html += '<div class="ok-banner">Nothing to pay on site</div>';
+    }
+    html += '</div>';
+
+    // 4. complete
+    var canComplete = checklistDone() && approved;
+    html += '<div class="stack" style="margin-top:6px">' +
+      '<button class="btn btn-green" id="complete"' + (canComplete && (paid || due <= 0) ? "" : " disabled") + '>✓ Complete job</button>' +
+      (canComplete && !paid && due > 0 ? '<button class="btn btn-ghost" id="complete-later">Complete — customer pays later</button>' : '') +
+      '</div>';
+
+    $("j-body").innerHTML = html;
+  }
+
+  // Delegated job-screen interactions
+  $("j-body").addEventListener("click", function(e){
+    var t = e.target;
+    var st = t.closest("[data-status]");
+    if (st){ st.disabled = true; call("status", { id: cur.job.id, status: st.dataset.status }).then(function(d){ cur.job.status = d.job.status; renderJob(); toast(STATUS[d.job.status]); }).catch(function(err){ st.disabled = false; toast(err.message); }); return; }
+
+    var seg = t.closest(".seg button");
+    if (seg){
+      var qid = seg.parentNode.dataset.q;
+      cur.job.checklist = Object.assign({}, cur.job.checklist, {}); cur.job.checklist[qid] = seg.dataset.v;
+      keepScroll(renderJob); queueSave({ checklist: cur.job.checklist }); return;
+    }
+    var stepBtn = t.closest(".step button");
+    if (stepBtn){
+      var code = stepBtn.parentNode.dataset.code, q = Math.max(0, Math.min(50, itemQty(code) + Number(stepBtn.dataset.d)));
+      setItems(cur.items.filter(function(i){ return i.code !== code; }).concat(q ? [{ code: code, qty: q, label: "", unit_cents: 0, amount_cents: 0 }] : []));
+      return;
+    }
+    var del = t.closest("[data-del]");
+    if (del){ var copy = cur.items.slice(); copy.splice(Number(del.dataset.del), 1); setItems(copy); return; }
+    if (t.id === "o-add"){
+      var label = $("o-label").value.trim(), price = $("o-price").value.trim().replace(/^\$/, "");
+      if (!label || !/^\d+(\.\d{1,2})?$/.test(price)){ toast("Enter what the item is and its price"); return; }
+      setItems(cur.items.concat([{ code:"other", label: label, price: price, qty: 1 }])); return;
+    }
+    if (t.id === "approve"){
+      t.disabled = true;
+      flushSave().then(function(){ return call("save", { id: cur.job.id, items: wireItems(), approve: true }); })
+        .then(function(d){ cur = d; renderJob(); toast("Customer approved the invoice"); })
+        .catch(function(err){ t.disabled = false; toast(err.message); });
+      return;
+    }
+    if (t.id === "pay"){
+      t.disabled = true; t.textContent = "Opening secure payment…";
+      flushSave().then(function(){ return call("pay", { id: cur.job.id }); }).then(function(d){
+        if (d.paid){ openJob(cur.job.id); return; }
+        window.location.href = d.url;
+      }).catch(function(err){ toast(err.message); renderJob(); });
+      return;
+    }
+    if (t.id === "paycheck"){ checkPayment(); return; }
+    if (t.id === "complete" || t.id === "complete-later"){
+      var later = t.id === "complete-later";
+      if (later && !confirm("Complete the job with " + money(cur.totals.due) + " still to pay? The office will follow up with the customer.")) return;
+      t.disabled = true;
+      flushSave().then(function(){ return call("complete", { id: cur.job.id, payment: later ? "later" : "card" }); }).then(function(d){
+        $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " — " +
+          ({ paid:"paid by card.", later: money(cur.totals.due) + " to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "");
+        show("v-done");
+      }).catch(function(err){ t.disabled = false; toast(err.message); });
+    }
+  });
+  $("j-body").addEventListener("input", function(e){
+    if (e.target.id === "j-notes"){
+      cur.job.tech_notes = e.target.value;
+      queueSave({ notes: e.target.value }, true);
+    }
+  });
+  $("j-body").addEventListener("change", function(e){ if (e.target.id === "j-notes") keepScroll(renderJob); });
+
+  function keepScroll(fn){ var y = window.scrollY; fn(); window.scrollTo(0, y); }
+  function wireItems(){
+    return cur.items.map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
+  }
+  // Items changed on the phone: re-price on the server (approval resets if the invoice changed).
+  function setItems(items){
+    // price locally for an instant update; the server re-prices on save
+    var rank = function(i){ var n = cur.catalogue.map(function(c){ return c.code; }).indexOf(i.code); return n < 0 ? 99 : n; };
+    items = items.slice().sort(function(a, b){ return rank(a) - rank(b); });
+    cur.items = items.map(function(i){
+      var p = cur.catalogue.find(function(c){ return c.code === i.code; });
+      var unit = p ? p.cents : Math.round(Number(i.price || i.unit_cents / 100) * 100);
+      return Object.assign({}, i, { label: p ? p.label : i.label, unit_cents: unit, amount_cents: unit * i.qty });
+    });
+    var total = cur.items.reduce(function(s, i){ return s + i.amount_cents; }, 0);
+    var credit = Math.min(total, cur.credits.reduce(function(s, c){ return s + c.cents; }, 0));
+    cur.totals = { total: total, credit: credit, due: total - credit };
+    cur.job.approved_at = null;
+    keepScroll(renderJob);
+    pending = Object.assign(pending || {}, { items: true });
+    clearTimeout(saveTimer);
+    flushSave();
+  }
+
+  var pending = null, saving = Promise.resolve();
+  function queueSave(patch, quiet){
+    pending = Object.assign(pending || {}, patch);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, quiet ? 900 : 400);
+  }
+  function flushSave(){
+    clearTimeout(saveTimer);
+    if (!pending || !cur) return saving;
+    var body = { id: cur.job.id };
+    if (pending.checklist) body.checklist = cur.job.checklist;
+    if (pending.notes !== undefined) body.notes = cur.job.tech_notes || "";
+    if (pending.items) body.items = wireItems();
+    pending = null;
+    saving = saving.then(function(){ return call("save", body); }).then(function(d){
+      var notes = cur.job.tech_notes, focused = document.activeElement && document.activeElement.id === "j-notes";
+      cur = d;
+      if (focused) cur.job.tech_notes = notes;      // don't clobber what they're still typing
+      else keepScroll(renderJob);
+    }).catch(function(err){ toast("Not saved: " + err.message); });
+    return saving;
+  }
+
+  function checkPayment(){
+    return call("pay_check", { id: cur.job.id }).then(function(d){
+      if (d.paid){ toast("Payment received ✓"); openJob(cur.job.id); }
+      else toast("Payment not received yet");
+    }).catch(function(err){ toast(err.message); });
+  }
+
+  $("done-back").addEventListener("click", function(){ day = startOfDay(new Date()); loadList(); });
+
+  /* ---------- boot ---------- */
+  function route(){
+    var p = new URLSearchParams(location.search), job = p.get("job"), paidBack = p.get("paid");
+    if (job){
+      history.replaceState(null, "", location.pathname);
+      openJob(job, paidBack ? function(){
+        if (cur.job.pay_status === "paid") toast("Payment received ✓");
+        else checkPayment();
+      } : null);
+    } else loadList();
+  }
+  if (me && me.id && me.pin) route(); else showLogin();
+})();
+</script>
+</body>
+</html>

@@ -6,7 +6,9 @@
 //
 // GET  ?resource=jobs&from=<ISO>&to=<ISO> → { electricians, jobs (scheduled in range), waiting (unassigned) }
 // POST { action: "job_create" | "job_update" | "job_delete" | "lead_quote" | "tech_create" | "tech_update", ... }
+// The electrician phone app (/tech) has its own API in api/_tech.js and reuses the helpers exported below.
 
+const crypto = require("crypto");
 const { sb, configured } = require("./_supabase");
 
 // Passcode staff enter to open the portal (keep in sync with api/pipeline.js).
@@ -78,13 +80,38 @@ async function techName(id) {
 }
 
 // Best-effort note on the linked pipeline lead — never fails the request.
-async function leadNote(leadId, author, body) {
+async function leadNote(leadId, author, body, kind = "status") {
   if (!leadId) return;
   try {
-    await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: author || "System", kind: "status", body }, prefer: "return=minimal" });
+    await sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: author || "System", kind, body }, prefer: "return=minimal" });
     await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" });
   } catch (e) { console.error("jobs → lead note failed:", e.message); }
 }
+
+// Latest successfully sent quote for a lead (falls back to the customer's email).
+// Quantities are read from the saved quote text, same as api/quote-tracker.js.
+async function latestQuote(leadId, email) {
+  const cols = "quote_ref,quote_total,body_text,created_at";
+  try {
+    let rows = leadId ? await sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=created_at.desc&limit=1`) : [];
+    if (!(rows && rows[0]) && email) rows = await sb(`sent_emails?kind=eq.quote&status=eq.sent&to_email=eq.${encodeURIComponent(email)}&select=${cols}&order=created_at.desc&limit=1`);
+    const q = rows && rows[0];
+    if (!q) return null;
+    const text = q.body_text || "";
+    return {
+      ref: q.quote_ref || "",
+      total: Number(q.quote_total || 0),
+      service: /compliance inspection/i.test(text) ? "inspection" : "install",
+      alarm_qty: quantityFromText(text, /smoke alarms[^\n]*\((\d+)\s*x\s*\$/i),
+      controller_qty: quantityFromText(text, /remote controller[^\n]*\((\d+)\s*x\s*\$/i),
+      sent_at: q.created_at,
+    };
+  } catch (_) { return null; }   // no quote log yet — the dispatcher can type the count
+}
+
+// Electrician app PINs are stored hashed (salted with the electrician's id).
+function pinHash(id, pin) { return crypto.createHash("sha256").update(`powersmart-tech:${id}:${pin}`).digest("hex"); }
+function validPin(pin) { return /^\d{4,6}$/.test(String(pin || "")); }
 
 function scheduleText(job, tech) {
   if (job.electrician_id && job.scheduled_start) return `assigned to ${tech || "an electrician"} for ${fmtWhen(job.scheduled_start)}`;
@@ -109,7 +136,8 @@ module.exports = async (req, res) => {
         sb(`jobs?select=*&electrician_id=not.is.null&scheduled_start=gte.${encodeURIComponent(from)}&scheduled_start=lt.${encodeURIComponent(to)}&order=scheduled_start.asc&limit=2000`),
         sb("jobs?select=*&or=(electrician_id.is.null,scheduled_start.is.null)&status=not.in.(completed,cancelled)&order=created_at.desc&limit=300"),
       ]);
-      return res.status(200).json({ electricians: electricians || [], jobs: jobs || [], waiting: waiting || [] });
+      const techs = (electricians || []).map(({ pin_hash, ...t }) => ({ ...t, has_pin: Boolean(pin_hash) }));
+      return res.status(200).json({ electricians: techs, jobs: jobs || [], waiting: waiting || [] });
     }
 
     if (req.method !== "POST") {
@@ -166,30 +194,11 @@ module.exports = async (req, res) => {
     }
 
     // Latest sent quote for a lead → alarm/controller counts for the job card.
-    // Quantities are read from the saved quote text, same as api/quote-tracker.js.
     if (b.action === "lead_quote") {
       const leadId = clean(b.lead_id, 40);
       const email = clean(b.email, 254).toLowerCase();
       if (!leadId && !email) return res.status(400).json({ error: "lead_id or email is required" });
-      const cols = "quote_ref,quote_total,body_text,created_at";
-      let quote = null;
-      try {
-        let rows = leadId ? await sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=created_at.desc&limit=1`) : [];
-        if (!(rows && rows[0]) && email) rows = await sb(`sent_emails?kind=eq.quote&status=eq.sent&to_email=eq.${encodeURIComponent(email)}&select=${cols}&order=created_at.desc&limit=1`);
-        const q = rows && rows[0];
-        if (q) {
-          const text = q.body_text || "";
-          quote = {
-            ref: q.quote_ref || "",
-            total: Number(q.quote_total || 0),
-            service: /compliance inspection/i.test(text) ? "inspection" : "install",
-            alarm_qty: quantityFromText(text, /smoke alarms[^\n]*\((\d+)\s*x\s*\$/i),
-            controller_qty: quantityFromText(text, /remote controller[^\n]*\((\d+)\s*x\s*\$/i),
-            sent_at: q.created_at,
-          };
-        }
-      } catch (_) { /* no quote log yet — the dispatcher can type the count */ }
-      return res.status(200).json({ quote });
+      return res.status(200).json({ quote: await latestQuote(leadId, email) });
     }
 
     // Removes the job from the schedule only — the linked pipeline lead is kept (just noted).
@@ -211,18 +220,24 @@ module.exports = async (req, res) => {
       if (b.email !== undefined) f.email = clean(b.email, 254).toLowerCase() || null;
       if (b.active !== undefined) f.active = Boolean(b.active);
       if (b.sort_order !== undefined) f.sort_order = intIn(b.sort_order, 0, 9999, 0);
+      const pin = clean(b.pin, 12);
+      if (pin && !validPin(pin)) return res.status(400).json({ error: "App PIN must be 4–6 digits" });
 
       if (b.action === "tech_create") {
         if (!f.name) return res.status(400).json({ error: "Electrician name is required" });
         const rows = await sb("electricians", { method: "POST", body: f });
-        return res.status(200).json({ ok: true, electrician: rows && rows[0] });
+        const tech = rows && rows[0];
+        if (tech && pin) await sb(`electricians?id=eq.${encodeURIComponent(tech.id)}`, { method: "PATCH", body: { pin_hash: pinHash(tech.id, pin) }, prefer: "return=minimal" });
+        return res.status(200).json({ ok: true, electrician: tech && { ...tech, pin_hash: undefined, has_pin: Boolean(pin) } });
       }
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
       if ("name" in f && !f.name) return res.status(400).json({ error: "Name can't be empty" });
+      if (pin) f.pin_hash = pinHash(id, pin);
       if (!Object.keys(f).length) return res.status(400).json({ error: "Nothing to update" });
       const rows = await sb(`electricians?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
-      return res.status(200).json({ ok: true, electrician: rows && rows[0] });
+      const tech = rows && rows[0];
+      return res.status(200).json({ ok: true, electrician: tech && { ...tech, pin_hash: undefined, has_pin: Boolean(tech.pin_hash) } });
     }
 
     return res.status(400).json({ error: "Unknown action" });
@@ -230,3 +245,6 @@ module.exports = async (req, res) => {
     return res.status(err.status || 500).json({ error: err.message || "Jobs error" });
   }
 };
+
+// Shared with api/_tech.js (electrician app).
+Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote, pinHash, validPin });
