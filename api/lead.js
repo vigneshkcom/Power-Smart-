@@ -6,6 +6,7 @@
 
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const SB = require("./_supabase");
+const { welcomeLead } = require('./_welcome-sms');
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -59,15 +60,18 @@ module.exports = async (req, res) => {
   const text = `New website lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via the landing page.`;
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
+  let savedLead = null;
   if (SB.configured()) {
     try {
-      await SB.sb("leads", {
+      const inserted = await SB.sb("leads", {
         method: "POST",
         body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source: "Website", stage: "new_lead" },
-        prefer: "return=minimal",
       });
+      savedLead = inserted && inserted[0];
     } catch (e) { console.error("lead → pipeline insert failed:", e.message); }
   }
+
+  const welcomeSms = savedLead ? await welcomeLead(savedLead) : { status: 'skipped' };
 
   try {
     const { Resend } = require("resend");
@@ -81,7 +85,7 @@ module.exports = async (req, res) => {
       text,
     });
     if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, welcome_sms: welcomeSms });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error submitting lead" });
   }

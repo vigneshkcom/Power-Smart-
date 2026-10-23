@@ -8,6 +8,7 @@
 // POST → { action:"create"|"move"|"update"|"comment"|"comments"|"delete", ... }
 
 const { sb, configured } = require("./_supabase");
+const { welcomeLead } = require('./_welcome-sms');
 
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
@@ -70,7 +71,9 @@ module.exports = async (req, res) => {
           stage,
         },
       });
-      return res.status(200).json({ ok: true, lead: rows && rows[0] });
+      const lead = rows && rows[0];
+      const welcomeSms = await welcomeLead(lead);
+      return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms });
     }
 
     if (action === "move") {

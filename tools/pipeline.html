@@ -777,8 +777,16 @@
     } else {
       p = api("POST", Object.assign({ action:"create", stage: stageSel.value }, fields));
     }
-    p.then(function(){ closeModal(); return load(); })
-     .then(function(){ toast(currentId ? "Saved" : "Lead added"); })
+    var wasExisting = Boolean(currentId), welcomeNotice = "";
+    p.then(function(d){
+      if(d && d.welcome_sms){
+        if(d.welcome_sms.warning || d.welcome_sms.error)welcomeNotice=" Welcome SMS issue: "+(d.welcome_sms.warning || d.welcome_sms.error);
+        else if(d.welcome_sms.status === "submitted")welcomeNotice=" Welcome SMS submitted.";
+        else if(d.welcome_sms.duplicate)welcomeNotice=" Welcome SMS was already submitted recently.";
+      }
+      closeModal();return load();
+    })
+     .then(function(){ toast((wasExisting ? "Saved" : "Lead added")+welcomeNotice); })
      .catch(function(err){ toast(err.message); })
      .finally(function(){ btn.disabled = false; });
   });
