@@ -24,6 +24,7 @@ index.html            Customer landing page — info + lead-capture form (no sel
 accept.html           Quote acceptance page (/accept) → Stripe
 tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
 tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
+tools/schedule.html   Fieldworker job schedule (/tools/schedule) — assign jobs to electricians
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
@@ -33,11 +34,13 @@ api/send-email.js     POST /api/send-email  — free-form branded email (compose
 api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accepted
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
+api/_jobs.js          Job schedule + electricians CRUD, served via /api/pipeline?resource=jobs
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
+supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
@@ -100,6 +103,29 @@ Follow-Up, Shopping Around, Quote Sent, Won/Installed, Not Reachable, Out of Are
 Setup: run `supabase/schema.sql` in the Supabase SQL Editor, then add the
 two Supabase env vars in Vercel and redeploy. The portal passcode needs no
 env var — it lives in the code.
+
+## Job schedule (/tools/schedule)
+
+Dispatch board for assigning smoke alarm jobs to electricians (phase 1 of field
+service management). Same portal passcode and Mani/Vignesh picker as the pipeline.
+
+- **Day view**: one row per electrician on an hourly timeline (07:00–24:00), job
+  blocks coloured by status (scheduled, en route, on site, completed, cancelled)
+  and a red line at the current time.
+- **3 Days / Week**: one column per day with readable job cards.
+- **Book**: click an empty slot (pre-fills electrician + time) or *New job*. Pick a
+  lead from the sales pipeline to fill in the customer and address automatically.
+  The pipeline's lead card has a **Schedule job** button that does the same.
+- **Reschedule**: drag a job to another electrician/time/day. Jobs without an
+  electrician sit in the **waiting list**; drag them onto a row to assign.
+- **Job card**: customer, address, alarms, notes, status, *Navigate* (Google Maps)
+  and *Call customer*. The yellow route button opens that electrician's stops
+  for the visible range in Google Maps.
+- **Pipeline sync**: creating, rescheduling or changing status logs a note on the
+  linked lead; marking a job **Completed** moves the lead to **Won/Installed**.
+- **Electricians**: add, edit and deactivate fieldworkers from the *Electricians* button.
+
+Setup: run `supabase/jobs.sql` once in the Supabase SQL Editor (after `schema.sql`).
 
 ## Senders, composer & email log
 

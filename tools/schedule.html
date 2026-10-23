@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Schedule - PowerSmart</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1B1F">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--teal-bright:#7FD6E2;
+    --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
+    --amber:#F5B841;--red:#D96B6B;--lane:#F1F8F6;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#EDF3F4;min-height:100vh}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;border:none;background:none}
+  img{display:block}
+
+  /* ---------- top bar ---------- */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:.65rem 1.1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+  .topbar .logo img{height:28px}
+  .topbar h1{font-size:1rem;font-weight:800;letter-spacing:-.01em}
+  .topbar h1 span{color:var(--teal-dark)}
+  .tb-actions{display:flex;gap:.5rem;margin-left:auto;align-items:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:.4rem;font-weight:700;font-size:.8rem;padding:.5rem 1rem;border-radius:999px;transition:transform .15s ease,background .15s ease;text-decoration:none;white-space:nowrap}
+  .btn-primary{background:var(--teal);color:var(--ink)}
+  .btn-primary:hover{background:var(--teal-bright);transform:translateY(-1px)}
+  .btn-ghost{border:1.5px solid var(--line);color:var(--body);background:#fff}
+  .btn-ghost:hover{border-color:var(--teal-dark);color:var(--teal-deep)}
+  .btn:disabled{opacity:.55;cursor:wait}
+
+  /* ---------- filters ---------- */
+  .filterbar{background:#F8FBFB;border-bottom:1px solid var(--line);padding:.6rem 1.1rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+  .filterbar label.fl{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--body)}
+  .filterbar input,.filterbar select{padding:.45rem .6rem;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:.78rem;outline:none}
+  .filterbar input:focus,.filterbar select:focus{border-color:var(--teal)}
+  .filterbar .to{font-size:.78rem;color:var(--body);padding:.45rem .6rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);min-width:104px}
+  .filterbar .chk{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--body);cursor:pointer}
+  .filterbar .chk input{accent-color:var(--teal);width:16px;height:16px}
+
+  .wrap{padding:1rem 1.1rem 2rem}
+  /* ---------- day nav ---------- */
+  .daynav{background:#fff;border:1px solid var(--line);border-radius:14px;padding:.65rem .8rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem}
+  .daynav .title{flex:1;text-align:center;font-weight:700;font-size:.92rem;letter-spacing:.02em;min-width:180px}
+  .seg{display:inline-flex;border:1.5px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{padding:.45rem .95rem;font-size:.78rem;font-weight:700;color:var(--body)}
+  .seg button+button{border-left:1.5px solid var(--line)}
+  .seg button.on{background:var(--teal);color:var(--ink)}
+
+  /* ---------- schedule board ---------- */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .card-head{display:flex;align-items:center;gap:.8rem;padding:.85rem 1rem;border-bottom:1px solid var(--line);border-left:4px solid var(--teal)}
+  .card-head h2{font-size:.86rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;flex:1}
+  .sched{display:flex;position:relative}
+  .sc-left{flex:none;width:214px;border-right:1px solid var(--line);background:#F7FAFB;z-index:2}
+  .sc-corner{display:flex;align-items:flex-end;padding:0 .9rem .45rem;font-size:.7rem;font-weight:800;letter-spacing:.06em;color:var(--body);border-bottom:1px solid var(--line)}
+  .lrow{border-bottom:1px solid var(--line);padding:.6rem .7rem .5rem .9rem;display:flex;flex-direction:column;gap:.45rem}
+  .lr-top{display:flex;align-items:center;gap:.5rem}
+  .lr-code{font-size:.66rem;font-weight:700;color:var(--teal-deep);background:var(--teal-soft);border-radius:999px;padding:.1rem .5rem;flex:none}
+  .lr-name{font-size:.86rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lr-route{flex:none;width:34px;height:30px;border:1.5px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;background:#fff}
+  .lr-route:hover{border-color:var(--amber)}
+  .lr-badges{display:flex;gap:.35rem;flex-wrap:wrap}
+  .lr-badges span{font-size:.64rem;font-weight:700;color:var(--body);border:1.5px solid var(--line);border-radius:999px;padding:.06rem .5rem;background:#fff}
+  .lr-inactive{font-size:.6rem;color:var(--muted);font-weight:700}
+
+  .sc-right{flex:1;min-width:0;overflow-x:auto;scrollbar-width:thin}
+  .sc-canvas{position:relative}
+  .sc-head{position:relative;border-bottom:1px solid var(--line);background:#F7FAFB}
+  .sc-dayl{position:absolute;top:0;height:24px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:var(--teal-deep);border-left:2px solid rgba(11,27,31,.18);border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}
+  .sc-hour{position:absolute;bottom:0;height:30px;display:flex;align-items:center;padding-left:.35rem;font-size:.68rem;font-weight:600;color:var(--body);border-left:1px solid var(--line)}
+  .lane{position:relative;border-bottom:1px solid var(--line);background-color:var(--lane)}
+  .lane.over{background-color:#DDF0EC}
+  .lane.inactive{background-color:#F5F6F6}
+  .day-sep{position:absolute;top:0;bottom:0;width:2px;background:rgba(11,27,31,.18);pointer-events:none;z-index:1}
+  .now-line{position:absolute;top:0;bottom:0;width:2px;background:#E04646;pointer-events:none;z-index:5}
+  .now-line::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:#E04646}
+
+  .jb{position:absolute;border-radius:7px;color:#fff;padding:.32rem .42rem;overflow:hidden;cursor:grab;box-shadow:0 2px 6px -2px rgba(11,27,31,.35);
+    display:flex;flex-direction:column;gap:.05rem;z-index:3;border:1px solid rgba(0,0,0,.08);transition:box-shadow .15s ease,transform .15s ease}
+  .jb:hover{box-shadow:0 8px 18px -6px rgba(11,27,31,.45);transform:translateY(-1px);z-index:4}
+  .jb.dragging{opacity:.4}
+  .jb .j1{font-size:.7rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jb .j2{font-size:.56rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;opacity:.95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jb .j3{font-size:.62rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jb .j4{margin-top:auto;border-top:1px solid rgba(255,255,255,.45);padding-top:.18rem;font-size:.6rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jb.compact{padding:.25rem .3rem}
+  .jb.compact .j2,.jb.compact .j4{display:none}
+  .jb.cancelled{text-decoration:line-through}
+
+  .agenda{display:grid;overflow-x:auto;scrollbar-width:thin}
+  .ag-h{background:#F7FAFB;border-bottom:1px solid var(--line);border-left:1px solid var(--line);padding:.55rem .5rem;font-size:.72rem;font-weight:800;text-align:center;letter-spacing:.04em;color:var(--body)}
+  .ag-h.today{background:var(--teal-soft);color:var(--teal-deep)}
+  .ag-corner{text-align:left;border-left:none;padding-left:.9rem}
+  .agenda .lrow{background:#F7FAFB}
+  .acell{border-bottom:1px solid var(--line);border-left:1px solid var(--line);background:var(--lane);padding:.4rem;min-height:96px;display:flex;flex-direction:column;gap:.35rem;cursor:copy}
+  .acell.over{background:#DDF0EC}
+  .acell.inactive{background:#F5F6F6}
+  .achip{border-radius:7px;color:#fff;padding:.32rem .5rem;cursor:grab;box-shadow:0 2px 6px -2px rgba(11,27,31,.35);border:1px solid rgba(0,0,0,.08)}
+  .achip:hover{box-shadow:0 8px 18px -6px rgba(11,27,31,.45)}
+  .achip.dragging{opacity:.4}
+  .achip.cancelled{text-decoration:line-through}
+  .achip .a1{font-size:.66rem;font-weight:800}
+  .achip .a2{font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .achip .a3{font-size:.62rem;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty-board{padding:2.2rem 1rem;text-align:center;color:var(--muted);font-size:.86rem}
+  .legend{display:flex;gap:.8rem;flex-wrap:wrap;padding:.6rem 1rem;border-top:1px solid var(--line);font-size:.7rem;color:var(--body)}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:.3rem;vertical-align:-1px}
+
+  /* ---------- waiting list ---------- */
+  .waiting{margin-top:1rem}
+  .wl-drop{padding:.9rem 1rem;min-height:84px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
+  .wl-drop.over{background:#FFF8E8}
+  .wcard{background:#fff;border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:.6rem .75rem;cursor:grab;box-shadow:0 2px 8px -4px rgba(11,27,31,.15)}
+  .wcard:hover{box-shadow:0 8px 18px -8px rgba(11,27,31,.3)}
+  .wcard .w1{display:flex;gap:.4rem;align-items:center;font-size:.78rem;font-weight:800}
+  .wcard .w1 span{margin-left:auto;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--teal-deep);background:var(--teal-soft);border-radius:999px;padding:.08rem .45rem}
+  .wcard .w2{font-size:.78rem;font-weight:600;margin-top:.15rem}
+  .wcard .w3{font-size:.7rem;color:var(--muted);margin-top:.1rem}
+  .wl-empty{grid-column:1/-1;font-size:.8rem;color:var(--muted);text-align:center;padding:.6rem}
+
+  /* ---------- modals ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(11,27,31,.55);display:none;align-items:center;justify-content:center;padding:1rem;z-index:50}
+  .overlay.show{display:flex}
+  .modal{background:#fff;border-radius:16px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(11,27,31,.5)}
+  .modal.wide{width:min(720px,100%)}
+  .modal-head{padding:1.05rem 1.4rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.7rem;flex:none}
+  .modal-head h3{font-size:1.05rem;font-weight:800;flex:1}
+  .modal-head .x{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .modal-head .x:hover{background:var(--paper);color:var(--ink)}
+  .status-pill{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#fff;border-radius:999px;padding:.2rem .6rem}
+  .modal-body{padding:1.05rem 1.4rem;overflow-y:auto}
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+  .field{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+  .field.full{grid-column:1/-1}
+  .field label{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .field input,.field select,.field textarea{padding:.55rem .75rem;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);outline:none;font-size:.86rem;width:100%}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal);background:#fff}
+  .section-label{grid-column:1/-1;margin-top:.25rem;padding-top:.7rem;border-top:1px solid var(--line);font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--teal-deep)}
+  .section-label:first-child{border-top:none;padding-top:0;margin-top:0}
+  .jm-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem;padding-bottom:.9rem;border-bottom:1px solid var(--line)}
+  .jm-links:empty{display:none}
+  .lead-chip{grid-column:1/-1;font-size:.78rem;background:var(--teal-soft);color:var(--teal-deep);border-radius:9px;padding:.5rem .7rem;font-weight:600}
+  .modal-foot{padding:.85rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.55rem;align-items:center;flex:none;flex-wrap:wrap}
+  .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
+  .modal-foot .spacer{flex:1}
+
+  .tech-row{display:grid;grid-template-columns:70px 1.3fr 1fr 1.4fr auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)}
+  .tech-row input[type=text],.tech-row input[type=email],.tech-row input[type=tel]{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-size:.8rem;width:100%;outline:none}
+  .tech-row input:focus{border-color:var(--teal);background:#fff}
+  .tech-row .act{display:flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--body)}
+  .tech-head{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1.5px solid var(--line)}
+
+  /* gate + agent */
+  .gate{position:fixed;inset:0;background:linear-gradient(160deg,#0B1B1F,#0E2227);display:none;align-items:center;justify-content:center;padding:1rem;z-index:100}
+  .gate.show{display:flex}
+  .gate .box{background:#fff;border-radius:18px;padding:2rem;width:min(380px,100%);text-align:center}
+  .gate img{height:34px;margin:0 auto 1rem}
+  .gate h2{font-size:1.1rem;margin-bottom:.35rem}
+  .gate p{font-size:.82rem;color:var(--muted);margin-bottom:1.1rem}
+  .gate input{width:100%;padding:.7rem .9rem;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);outline:none;text-align:center;font-size:1rem;letter-spacing:.1em}
+  .gate input:focus{border-color:var(--teal);background:#fff}
+  .gate .btn{width:100%;justify-content:center;margin-top:.8rem;padding:.7rem}
+  .gate .err{color:var(--red);font-size:.78rem;margin-top:.6rem;min-height:1.1em}
+
+  .toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:.65rem 1.2rem;border-radius:999px;font-size:.82rem;opacity:0;pointer-events:none;transition:all .25s ease;z-index:120;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .loading{padding:2.5rem;text-align:center;color:var(--muted);font-size:.86rem}
+
+  @media (max-width:640px){
+    .fgrid{grid-template-columns:1fr}.field.full,.section-label,.lead-chip{grid-column:1}
+    .sc-left{width:150px}.lr-badges{display:none}
+    .tech-row{grid-template-columns:1fr 1fr}
+  }
+  @media print{
+    body{background:#fff}
+    .topbar,.filterbar,.daynav .btn,.daynav .seg,.card-head .btn,.waiting,.toast,.legend{display:none!important}
+    .wrap{padding:0}.card{border:none}.sc-right{overflow:visible}
+  }
+</style>
+</head>
+<body>
+
+  <!-- dispatcher picker -->
+  <div class="overlay show" id="agent-overlay" style="z-index:90" role="dialog" aria-modal="true" aria-labelledby="agent-title">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head"><h3 id="agent-title">Who is dispatching?</h3></div>
+      <div class="modal-body">
+        <p style="font-size:.86rem;color:var(--body);margin-bottom:1rem">Choose your name for this session. Jobs you create, move or close will be logged against this person on the customer's lead.</p>
+        <div style="display:flex;gap:.8rem">
+          <button class="btn btn-primary" id="choose-mani" style="flex:1;justify-content:center;min-height:52px">Mani</button>
+          <button class="btn btn-primary" id="choose-vignesh" style="flex:1;justify-content:center;min-height:52px">Vignesh</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- passcode gate -->
+  <div class="gate" id="gate">
+    <div class="box">
+      <img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co">
+      <h2>Job Schedule</h2>
+      <p>Enter the portal key to continue.</p>
+      <input type="password" id="gate-key" placeholder="Portal key" autocomplete="current-password">
+      <button class="btn btn-primary" id="gate-btn">Unlock</button>
+      <div class="err" id="gate-err"></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a class="logo" href="https://portal.powersmartco.com.au/" title="Staff hub"><img src="../assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
+    <h1>Job <span>Schedule</span></h1>
+    <div class="tb-actions">
+      <button class="btn btn-ghost" id="dispatcher">Choose dispatcher</button>
+      <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/pipeline">Sales Pipeline</a>
+      <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
+      <button class="btn btn-ghost" id="techs-btn">Electricians</button>
+      <button class="btn btn-ghost" id="refresh" title="Refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+      <button class="btn btn-primary" id="new-job">New job</button>
+    </div>
+  </header>
+
+  <section class="filterbar" aria-label="Schedule filters">
+    <label class="fl" for="f-from">From</label>
+    <input type="date" id="f-from">
+    <label class="fl">To</label>
+    <span class="to" id="f-to">—</span>
+    <select id="f-slot" aria-label="Timeslot size">
+      <option value="15">Timeslot 15 mins</option>
+      <option value="30">Timeslot 30 mins</option>
+      <option value="60" selected>Timeslot 60 mins (default)</option>
+    </select>
+    <select id="f-type" aria-label="Work type">
+      <option value="">All work types</option>
+      <option value="install">Install</option>
+      <option value="inspection">Inspection</option>
+      <option value="service">Service</option>
+    </select>
+    <select id="f-tech" aria-label="Electrician">
+      <option value="">All electricians</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="f-waiting" checked> Show waiting list</label>
+  </section>
+
+  <main class="wrap">
+    <div class="daynav">
+      <button class="btn btn-ghost" id="prev">‹ Previous</button>
+      <button class="btn btn-ghost" id="next">Next ›</button>
+      <button class="btn btn-ghost" id="today">Today</button>
+      <div class="title" id="nav-title">—</div>
+      <div class="seg" role="group" aria-label="View">
+        <button data-view="day" class="on">Day</button>
+        <button data-view="three">3 Days</button>
+        <button data-view="week">Week</button>
+      </div>
+    </div>
+
+    <section class="card" aria-label="Fieldworker schedule">
+      <div class="card-head">
+        <h2 id="board-title">Fieldworker schedule</h2>
+        <button class="btn btn-ghost" id="print">Print</button>
+      </div>
+      <div class="loading" id="loading">Loading schedule…</div>
+      <div id="board"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="card waiting" id="waiting-card" aria-label="Waiting list">
+      <div class="card-head" style="border-left-color:var(--amber)">
+        <h2 id="wl-title">Waiting list</h2>
+        <span style="font-size:.72rem;color:var(--muted)">Drag a job onto an electrician's row to assign it. Drop a job here to unassign it.</span>
+      </div>
+      <div class="wl-drop" id="wl-drop"></div>
+    </section>
+  </main>
+
+  <!-- job card modal -->
+  <div class="overlay" id="job-overlay">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="jm-title">
+      <div class="modal-head">
+        <h3 id="jm-title">New job</h3>
+        <span class="status-pill" id="jm-pill" style="display:none"></span>
+        <button class="x" id="jm-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="jm-links" id="jm-links"></div>
+        <div class="fgrid">
+          <div class="section-label">Customer</div>
+          <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
+            <select id="jm-lead"><option value="">— Not linked to a lead —</option></select>
+          </div>
+          <div class="lead-chip" id="jm-lead-chip" style="display:none"></div>
+          <div class="field full"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
+          <div class="field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
+          <div class="field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
+          <div class="field full"><label for="jm-address">Street address</label><input id="jm-address" placeholder="e.g. 27 Wilga Street"></div>
+          <div class="field"><label for="jm-suburb">Suburb</label><input id="jm-suburb"></div>
+          <div class="field"><label for="jm-postcode">Postcode</label><input id="jm-postcode" inputmode="numeric"></div>
+
+          <div class="section-label">Job</div>
+          <div class="field"><label for="jm-type">Work type</label>
+            <select id="jm-type"><option value="install">Install</option><option value="inspection">Inspection</option><option value="service">Service</option></select>
+          </div>
+          <div class="field"><label for="jm-alarms">Alarms to install</label><input id="jm-alarms" type="number" min="0" max="99"></div>
+          <div class="field"><label for="jm-tech">Electrician</label><select id="jm-tech"></select></div>
+          <div class="field"><label for="jm-status">Status</label>
+            <select id="jm-status">
+              <option value="scheduled">Scheduled</option><option value="en_route">En route</option><option value="on_site">On site</option>
+              <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="field"><label for="jm-date">Date</label><input id="jm-date" type="date"></div>
+          <div class="field"><label for="jm-time">Start time</label><input id="jm-time" type="time" step="900"></div>
+          <div class="field"><label for="jm-duration">Duration</label>
+            <select id="jm-duration">
+              <option value="30">30 mins</option><option value="60">1 hour</option><option value="90">1.5 hours</option>
+              <option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option>
+            </select>
+          </div>
+          <div class="field full"><label for="jm-notes">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="del" id="jm-delete">Delete job</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="jm-unassign">Move to waiting list</button>
+        <button class="btn btn-ghost" id="jm-cancel">Close</button>
+        <button class="btn btn-primary" id="jm-save">Save job</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- electricians modal -->
+  <div class="overlay" id="tech-overlay">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="tm-title">
+      <div class="modal-head">
+        <h3 id="tm-title">Electricians</h3>
+        <button class="x" id="tm-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>Active</span><span></span></div>
+        <div id="tech-list"></div>
+        <div class="section-label" style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--line)">Add electrician</div>
+        <div class="tech-row" style="border-bottom:none">
+          <input type="text" id="nt-code" placeholder="1011">
+          <input type="text" id="nt-name" placeholder="Full name">
+          <input type="tel" id="nt-phone" placeholder="04xx xxx xxx">
+          <input type="email" id="nt-email" placeholder="name@email.com">
+          <span></span>
+          <button class="btn btn-primary" id="nt-add">Add</button>
+        </div>
+      </div>
+      <div class="modal-foot"><span class="spacer"></span><button class="btn btn-ghost" id="tm-done">Done</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var KEY_LS = "powersmart_portal_key";
+  var AGENT_LS = "powersmart_agent_name";
+  var VIEW_LS = "powersmart_schedule_view";
+
+  // Board geometry per view: hours shown each day and pixels per hour.
+  var VIEWS = {
+    day:   { days:1, startH:7, endH:24, colW:66 },
+    three: { days:3, startH:7, endH:21, colW:42 },
+    week:  { days:7, startH:7, endH:20, colW:26 }
+  };
+  var STATUS = {
+    scheduled: { label:"Scheduled", bg:"#3E9DAA" },
+    en_route:  { label:"En route",  bg:"#4F86E8" },
+    on_site:   { label:"On site",   bg:"#8B68D6" },
+    completed: { label:"Completed", bg:"#E39A55" },
+    cancelled: { label:"Cancelled", bg:"#A3B0B3" }
+  };
+  var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
+  var BLOCK_H = 80, GAP = 6, ROW_MIN = 96;
+  var MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  var DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+  var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  function startOfDay(d){ var x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function isoDate(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+  function fromIsoDate(s){ var p = String(s).split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+
+  var savedView = "day";
+  try { savedView = localStorage.getItem(VIEW_LS) || "day"; } catch(e){}
+  var state = {
+    view: VIEWS[savedView] ? savedView : "day",
+    start: startOfDay(new Date()),
+    techs: [], jobs: [], waiting: [], leads: null,
+    slot: 60, typeFilter: "", techFilter: "", showWaiting: true,
+    drag: null, editing: null, agent: ""
+  };
+  function cfg(){ return VIEWS[state.view]; }
+  function rangeEnd(){ return addDays(state.start, cfg().days); }
+  function allJobs(){ return state.jobs.concat(state.waiting); }
+  function findJob(id){ return allJobs().find(function(j){ return j.id === id; }); }
+  function techById(id){ return state.techs.find(function(t){ return t.id === id; }); }
+
+  /* ---------- api ---------- */
+  function portalKey(){ try { return localStorage.getItem(KEY_LS) || ""; } catch(e){ return ""; } }
+  function call(url, method, body){
+    return fetch(url, {
+      method: method,
+      headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){
+        if (r.status === 401){ showGate(true); throw new Error("Invalid portal key"); }
+        if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+        return d;
+      });
+    });
+  }
+  function jobsApi(body){ return call("/api/pipeline?resource=jobs", "POST", Object.assign({ actor: state.agent || "Office" }, body)); }
+
+  function toast(msg){
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200);
+  }
+
+  /* ---------- gate ---------- */
+  function showGate(bad){
+    $("gate").classList.add("show");
+    $("gate-err").textContent = bad ? "That key wasn't accepted — try again." : "";
+    $("gate-key").focus();
+  }
+  function tryUnlock(){
+    var v = $("gate-key").value.trim();
+    if (!v) return;
+    try { localStorage.setItem(KEY_LS, v); } catch(e){}
+    $("gate-btn").disabled = true;
+    load().then(function(){ $("gate").classList.remove("show"); afterFirstLoad(); })
+      .catch(function(){}).finally(function(){ $("gate-btn").disabled = false; });
+  }
+  $("gate-btn").addEventListener("click", tryUnlock);
+  $("gate-key").addEventListener("keydown", function(e){ if (e.key === "Enter") tryUnlock(); });
+
+  /* ---------- dispatcher ---------- */
+  try { state.agent = localStorage.getItem(AGENT_LS) || ""; } catch(e){}
+  function chooseAgent(name){
+    state.agent = name;
+    try { localStorage.setItem(AGENT_LS, name); } catch(e){}
+    $("dispatcher").textContent = "Dispatching as: " + name + " · Change";
+    $("agent-overlay").classList.remove("show");
+  }
+  $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
+  $("choose-vignesh").addEventListener("click", function(){ chooseAgent("Vignesh"); });
+  $("dispatcher").addEventListener("click", function(){ $("agent-overlay").classList.add("show"); });
+  $(state.agent === "Vignesh" ? "choose-vignesh" : "choose-mani").focus();
+
+  /* ---------- load ---------- */
+  function load(){
+    var url = "/api/pipeline?resource=jobs&from=" + encodeURIComponent(state.start.toISOString()) + "&to=" + encodeURIComponent(rangeEnd().toISOString());
+    return call(url, "GET").then(function(d){
+      state.techs = d.electricians || [];
+      state.jobs = d.jobs || [];
+      state.waiting = d.waiting || [];
+      $("loading").style.display = "none";
+      render();
+    });
+  }
+  function loadLeads(){
+    if (state.leads) return Promise.resolve(state.leads);
+    return call("/api/pipeline", "GET").then(function(d){ state.leads = d.leads || []; return state.leads; })
+      .catch(function(){ state.leads = []; return state.leads; });
+  }
+  function reload(){ return load().catch(function(err){ toast(err.message); }); }
+
+  /* ---------- geometry ---------- */
+  function dayW(){ var c = cfg(); return (c.endH - c.startH) * c.colW; }
+  function totalW(){ return dayW() * cfg().days; }
+  function dayIndex(d){ return Math.round((startOfDay(d) - state.start) / 864e5); }
+  function xOf(date){
+    var c = cfg(), d = new Date(date), di = dayIndex(d);
+    if (di < 0) return 0;
+    if (di >= c.days) return totalW();
+    var h = d.getHours() + d.getMinutes() / 60;
+    h = Math.max(c.startH, Math.min(c.endH, h));
+    return di * dayW() + (h - c.startH) * c.colW;
+  }
+  function dateAtX(x){
+    var c = cfg();
+    x = Math.max(0, Math.min(totalW() - 1, x));
+    var di = Math.floor(x / dayW());
+    var mins = c.startH * 60 + (x - di * dayW()) / c.colW * 60;
+    mins = Math.floor(mins / state.slot) * state.slot;
+    mins = Math.max(c.startH * 60, Math.min(c.endH * 60 - state.slot, mins));
+    var d = addDays(state.start, di); d.setHours(0, mins, 0, 0);
+    return d;
+  }
+  function jobEnd(j){ return new Date(new Date(j.scheduled_start).getTime() + (j.duration_min || 60) * 6e4); }
+  function packLanes(jobs){
+    var ends = [], items = [];
+    jobs.slice().sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).forEach(function(j){
+      var s = new Date(j.scheduled_start).getTime(), e = jobEnd(j).getTime();
+      var lane = ends.findIndex(function(end){ return end <= s; });
+      if (lane < 0){ lane = ends.length; ends.push(e); } else ends[lane] = e;
+      items.push({ job:j, lane:lane });
+    });
+    return { items:items, lanes: Math.max(1, ends.length) };
+  }
+
+  /* ---------- formatting ---------- */
+  function titleDay(d){ return DOW[d.getDay()] + ", " + pad(d.getDate()) + "-" + MON[d.getMonth()] + "-" + d.getFullYear(); }
+  function shortDay(d){ return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+  function timeText(d){ return new Date(d).toLocaleTimeString("en-AU", { hour:"numeric", minute:"2-digit" }); }
+  function addressLine(j){ return [j.address, [j.suburb, j.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", "); }
+  function mapsQuery(j){ var a = addressLine(j); return a ? a + ", QLD, Australia" : ""; }
+  function typeOk(j){ return !state.typeFilter || j.work_type === state.typeFilter; }
+
+  /* ---------- render ---------- */
+  function render(){
+    var c = cfg(), end = addDays(rangeEnd(), -1);
+    $("f-from").value = isoDate(state.start);
+    $("f-to").textContent = isoDate(end).split("-").reverse().join("-");
+    var title = c.days === 1 ? titleDay(state.start) : shortDay(state.start) + " – " + shortDay(end) + " " + end.getFullYear();
+    $("nav-title").textContent = title;
+    $("board-title").textContent = "Fieldworker schedule · " + title;
+    document.querySelectorAll(".seg button").forEach(function(b){ b.classList.toggle("on", b.dataset.view === state.view); });
+
+    // electrician filter options
+    var sel = $("f-tech"), cur = state.techFilter;
+    sel.innerHTML = '<option value="">All electricians</option>' + state.techs.map(function(t){
+      return '<option value="' + esc(t.id) + '">' + esc(t.name) + '</option>';
+    }).join("");
+    sel.value = cur;
+
+    renderBoard();
+    renderWaiting();
+    $("legend").innerHTML = Object.keys(STATUS).map(function(k){
+      return '<span><i style="background:' + STATUS[k].bg + '"></i>' + STATUS[k].label + '</span>';
+    }).join("") + '<span style="margin-left:auto">Click an empty slot to book · drag jobs to reschedule</span>';
+  }
+
+  function visibleTechs(){
+    return state.techs.filter(function(t){
+      if (state.techFilter && t.id !== state.techFilter) return false;
+      if (t.active) return true;
+      return state.jobs.some(function(j){ return j.electrician_id === t.id; }); // inactive but still has jobs in range
+    });
+  }
+
+  // Left-hand electrician cell: code, name, route button, job/hour badges.
+  function techCell(t, mine, attrs){
+    var live = mine.filter(function(j){ return j.status !== "cancelled"; });
+    var hrs = live.reduce(function(s, j){ return s + (j.duration_min || 60); }, 0) / 60;
+    return '<div class="lrow" ' + (attrs || '') + '>' +
+      '<div class="lr-top">' + (t.code ? '<span class="lr-code">' + esc(t.code) + '</span>' : '') +
+      '<span class="lr-name" title="' + esc(t.name) + '">' + esc(t.name) + '</span>' +
+      '<button class="lr-route" data-route="' + esc(t.id) + '" title="Driving route for these jobs (Google Maps)">' +
+      '<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12z" fill="#F5B841" stroke="#9A6A0B" stroke-width="1.2"/><path d="M9 15v-3.2a1.3 1.3 0 0 1 1.3-1.3H15m-2-2 2 2-2 2" fill="none" stroke="#3D2E06" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button></div>' +
+      '<div class="lr-badges"><span>Jobs ' + live.length + '</span><span>Hrs ' + (Math.round(hrs * 10) / 10) + '</span>' +
+      (t.active ? '' : '<span class="lr-inactive">Inactive</span>') + '</div></div>';
+  }
+
+  function emptyBoard(){
+    $("board").innerHTML = '<div class="empty-board">No electricians yet. <button class="btn btn-primary" id="empty-add" style="margin-left:.5rem">Add your electricians</button></div>';
+    $("empty-add").addEventListener("click", openTechs);
+  }
+
+  // 3-day / week: one column per day, readable job cards stacked in time order.
+  function renderAgenda(){
+    var c = cfg(), techs = visibleTechs();
+    if (!state.techs.length) return emptyBoard();
+    var today = startOfDay(new Date()).getTime();
+    var html = '<div class="agenda" style="grid-template-columns:214px repeat(' + c.days + ', minmax(' + (c.days > 3 ? 150 : 230) + 'px, 1fr))">' +
+      '<div class="ag-h ag-corner">ELECTRICIAN</div>';
+    for (var d = 0; d < c.days; d++){
+      var day = addDays(state.start, d);
+      html += '<div class="ag-h' + (day.getTime() === today ? ' today' : '') + '">' + esc(shortDay(day)) + '</div>';
+    }
+    techs.forEach(function(t){
+      var mine = state.jobs.filter(function(j){ return j.electrician_id === t.id && typeOk(j); })
+        .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); });
+      html += techCell(t, mine, 'style="border-right:1px solid var(--line)"');
+      for (var d2 = 0; d2 < c.days; d2++){
+        var dayJobs = mine.filter(function(j){ return dayIndex(new Date(j.scheduled_start)) === d2; });
+        html += '<div class="acell' + (t.active ? '' : ' inactive') + '" data-tech="' + esc(t.id) + '" data-day="' + d2 + '">' + dayJobs.map(function(j){
+          var st = STATUS[j.status] || STATUS.scheduled;
+          return '<div class="achip' + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" style="background:' + st.bg + '" title="' + esc(st.label + " · " + (addressLine(j) || "No address")) + '">' +
+            '<div class="a1">' + esc(timeText(j.scheduled_start)) + ' · J' + esc(j.job_no) + '</div>' +
+            '<div class="a2">' + esc(j.customer_name) + '</div>' +
+            '<div class="a3">' + esc(j.suburb || j.address || st.label) + '</div></div>';
+        }).join("") + '</div>';
+      }
+    });
+    if (!techs.length) html += '<div class="empty-board" style="grid-column:1/-1">No electricians match this filter.</div>';
+    $("board").innerHTML = html + '</div>';
+  }
+
+  function renderBoard(){
+    if (state.view !== "day") return renderAgenda();
+    var c = cfg(), techs = visibleTechs();
+    if (!state.techs.length){
+      return emptyBoard();
+    }
+    var headH = c.days > 1 ? 54 : 30;
+    var W = totalW();
+    var left = '<div class="sc-left"><div class="sc-corner" style="height:' + headH + 'px">TIME</div>';
+    var head = '<div class="sc-head" style="height:' + headH + 'px">';
+    for (var d = 0; d < c.days; d++){
+      var day = addDays(state.start, d);
+      if (c.days > 1) head += '<div class="sc-dayl" style="left:' + (d * dayW()) + 'px;width:' + dayW() + 'px">' + esc(shortDay(day)) + '</div>';
+      for (var h = c.startH; h < c.endH; h++){
+        var lbl = c.colW < 34 ? (h % 2 ? "" : String(h)) : pad(h) + ":00";
+        head += '<div class="sc-hour" style="left:' + (d * dayW() + (h - c.startH) * c.colW) + 'px;width:' + c.colW + 'px">' + lbl + '</div>';
+      }
+    }
+    head += '</div>';
+
+    var lanes = '';
+    techs.forEach(function(t){
+      var mine = state.jobs.filter(function(j){ return j.electrician_id === t.id && typeOk(j); });
+      var pack = packLanes(mine);
+      var H = Math.max(ROW_MIN, pack.lanes * (BLOCK_H + GAP) + GAP);
+      left += techCell(t, mine, 'style="height:' + H + 'px"');
+
+      var blocks = pack.items.map(function(it){
+        var j = it.job, st = STATUS[j.status] || STATUS.scheduled;
+        var x1 = xOf(j.scheduled_start), x2 = xOf(jobEnd(j));
+        var w = Math.max(c.colW < 34 ? 18 : 26, x2 - x1 - 3);
+        var compact = w < 44;              // week view: number + name only
+        var showType = w >= 100;           // longer jobs also show the work type
+        var tip = "J" + j.job_no + " · " + j.customer_name + "\n" + timeText(j.scheduled_start) + " – " + timeText(jobEnd(j)) + " · " + st.label + "\n" + (addressLine(j) || "No address");
+        return '<div class="jb' + (compact ? ' compact' : '') + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" title="' + esc(tip) + '" ' +
+          'style="left:' + (x1 + 1) + 'px;top:' + (GAP + it.lane * (BLOCK_H + GAP)) + 'px;width:' + w + 'px;height:' + BLOCK_H + 'px;background:' + st.bg + '">' +
+          '<div class="j1">J' + esc(j.job_no) + (showType ? ' · ' + esc(TYPES[j.work_type] || "") : '') + '</div>' +
+          '<div class="j2">' + esc(st.label) + (showType ? ' · ' + esc(timeText(j.scheduled_start)) : '') + '</div>' +
+          '<div class="j3">' + esc(j.customer_name) + '</div>' +
+          '<div class="j4">' + esc(j.address || j.suburb || "No address") + '</div></div>';
+      }).join("");
+      lanes += '<div class="lane' + (t.active ? '' : ' inactive') + '" data-tech="' + esc(t.id) + '" style="height:' + H + 'px;' +
+        'background-image:linear-gradient(to right, rgba(11,27,31,.07) 1px, transparent 1px);background-size:' + c.colW + 'px 100%">' + blocks + '</div>';
+    });
+    left += '</div>';
+
+    var seps = '';
+    for (var s = 1; s < c.days; s++) seps += '<div class="day-sep" style="left:' + (s * dayW()) + 'px"></div>';
+    var now = new Date(), nowLine = '';
+    if (now >= state.start && now < rangeEnd()){
+      var nh = now.getHours() + now.getMinutes() / 60;
+      if (nh >= c.startH && nh <= c.endH) nowLine = '<div class="now-line" style="left:' + xOf(now) + 'px"></div>';
+    }
+    var noRows = techs.length ? '' : '<div class="empty-board">No electricians match this filter.</div>';
+
+    $("board").innerHTML = '<div class="sched">' + left +
+      '<div class="sc-right" id="sc-right"><div class="sc-canvas" style="width:' + W + 'px">' + head +
+      '<div style="position:relative">' + lanes + seps + nowLine + '</div>' + noRows + '</div></div></div>';
+
+    // keep the current time in view on today's day view
+    if (c.days === 1 && nowLine){
+      var sr = $("sc-right"); sr.scrollLeft = Math.max(0, xOf(now) - sr.clientWidth / 2);
+    }
+  }
+
+  function renderWaiting(){
+    $("waiting-card").style.display = state.showWaiting ? "" : "none";
+    var list = state.waiting.filter(typeOk);
+    $("wl-title").textContent = "Waiting list · " + list.length + (list.length === 1 ? " job" : " jobs");
+    $("wl-drop").innerHTML = list.length ? list.map(function(j){
+      return '<div class="wcard" draggable="true" data-job="' + esc(j.id) + '">' +
+        '<div class="w1">J' + esc(j.job_no) + '<span>' + esc(TYPES[j.work_type] || "") + '</span></div>' +
+        '<div class="w2">' + esc(j.customer_name) + (j.alarms ? ' · ' + esc(j.alarms) + ' alarms' : '') + '</div>' +
+        '<div class="w3">' + esc(addressLine(j) || "No address yet") + '</div></div>';
+    }).join("") : '<div class="wl-empty">No jobs waiting. New jobs without an electrician land here.</div>';
+  }
+
+  /* ---------- interactions (delegated) ---------- */
+  var board = $("board"), wl = $("wl-drop");
+
+  board.addEventListener("click", function(e){
+    var route = e.target.closest("[data-route]");
+    if (route){ openRoute(route.dataset.route); return; }
+    var jb = e.target.closest(".jb, .achip");
+    if (jb){ openJob(findJob(jb.dataset.job)); return; }
+    var cell = e.target.closest(".acell");
+    if (cell){
+      var day = addDays(state.start, +cell.dataset.day); day.setHours(8, 0, 0, 0);
+      openNewJob({ techId: cell.dataset.tech, start: day });
+      return;
+    }
+    var lane = e.target.closest(".lane");
+    if (lane){
+      var r = lane.getBoundingClientRect();
+      openNewJob({ techId: lane.dataset.tech, start: dateAtX(e.clientX - r.left) });
+    }
+  });
+  wl.addEventListener("click", function(e){
+    var card = e.target.closest(".wcard");
+    if (card) openJob(findJob(card.dataset.job));
+  });
+
+  document.addEventListener("dragstart", function(e){
+    var el = e.target.closest && e.target.closest(".jb, .achip, .wcard");
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    state.drag = { id: el.dataset.job, offset: el.classList.contains("jb") ? e.clientX - r.left : 0 };
+    e.dataTransfer.setData("text/plain", el.dataset.job);
+    e.dataTransfer.effectAllowed = "move";
+    el.classList.add("dragging");
+  });
+  document.addEventListener("dragend", function(e){
+    if (e.target.classList) e.target.classList.remove("dragging");
+    document.querySelectorAll(".over").forEach(function(x){ x.classList.remove("over"); });
+  });
+  board.addEventListener("dragover", function(e){
+    var lane = e.target.closest(".lane, .acell"); if (!lane || !state.drag) return;
+    e.preventDefault();
+    document.querySelectorAll(".lane.over, .acell.over").forEach(function(x){ if (x !== lane) x.classList.remove("over"); });
+    lane.classList.add("over");
+  });
+  board.addEventListener("drop", function(e){
+    var lane = e.target.closest(".lane, .acell"); if (!lane || !state.drag) return;
+    e.preventDefault(); lane.classList.remove("over");
+    var job = findJob(state.drag.id); if (!job) return;
+    var start;
+    if (lane.classList.contains("acell")){
+      // day column: keep the job's time of day (08:00 for unscheduled jobs)
+      var src = job.scheduled_start ? new Date(job.scheduled_start) : null;
+      start = addDays(state.start, +lane.dataset.day);
+      start.setHours(src ? src.getHours() : 8, src ? src.getMinutes() : 0, 0, 0);
+    } else {
+      var r = lane.getBoundingClientRect();
+      start = dateAtX(e.clientX - r.left - state.drag.offset);
+    }
+    var techId = lane.dataset.tech;
+    state.drag = null;
+    if (job.electrician_id === techId && job.scheduled_start && new Date(job.scheduled_start).getTime() === start.getTime()) return;
+    moveJob(job, { electrician_id: techId, scheduled_start: start.toISOString() },
+      "J" + job.job_no + " → " + (techById(techId) || {}).name + ", " + shortDay(start) + " " + timeText(start));
+  });
+  wl.addEventListener("dragover", function(e){ if (!state.drag) return; e.preventDefault(); wl.classList.add("over"); });
+  wl.addEventListener("dragleave", function(e){ if (!wl.contains(e.relatedTarget)) wl.classList.remove("over"); });
+  wl.addEventListener("drop", function(e){
+    if (!state.drag) return; e.preventDefault(); wl.classList.remove("over");
+    var job = findJob(state.drag.id); state.drag = null;
+    if (!job || (!job.electrician_id && !job.scheduled_start)) return;
+    moveJob(job, { electrician_id: null, scheduled_start: null }, "J" + job.job_no + " moved to waiting list");
+  });
+
+  function moveJob(job, fields, msg){
+    // optimistic: apply locally, then persist and refresh
+    Object.assign(job, fields);
+    state.jobs = state.jobs.filter(function(j){ return j.id !== job.id; });
+    state.waiting = state.waiting.filter(function(j){ return j.id !== job.id; });
+    if (job.electrician_id && job.scheduled_start) state.jobs.push(job); else state.waiting.unshift(job);
+    render();
+    jobsApi(Object.assign({ action:"job_update", id: job.id }, fields))
+      .then(function(){ toast(msg); return reload(); })
+      .catch(function(err){ toast("Couldn't move job: " + err.message); reload(); });
+  }
+
+  function openRoute(techId){
+    var stops = state.jobs.filter(function(j){ return j.electrician_id === techId && j.status !== "cancelled" && mapsQuery(j); })
+      .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); });
+    if (!stops.length){ toast("No jobs with addresses for this electrician in this range."); return; }
+    var url = "https://www.google.com/maps/dir/" + stops.slice(0, 10).map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
+    window.open(url, "_blank", "noopener");
+  }
+
+  /* ---------- job modal ---------- */
+  function techOptions(selected){
+    var opts = '<option value="">— Waiting list (unassigned) —</option>';
+    state.techs.forEach(function(t){
+      if (!t.active && t.id !== selected) return;
+      opts += '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + (t.active ? "" : " (inactive)") + '</option>';
+    });
+    $("jm-tech").innerHTML = opts;
+    $("jm-tech").value = selected || "";
+  }
+  function setPill(status){
+    var st = STATUS[status];
+    if (!st){ $("jm-pill").style.display = "none"; return; }
+    $("jm-pill").style.display = ""; $("jm-pill").textContent = st.label; $("jm-pill").style.background = st.bg;
+  }
+  function renderLinks(j){
+    var links = [];
+    var q = mapsQuery(j);
+    if (q) links.push('<a class="btn btn-ghost" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(q) + '">Navigate</a>');
+    if (j.phone) links.push('<a class="btn btn-ghost" href="tel:' + esc(j.phone.replace(/\s+/g, "")) + '">Call customer</a>');
+    if (j.lead_id) links.push('<a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/pipeline">Open sales pipeline</a>');
+    $("jm-links").innerHTML = links.join("");
+  }
+  function fillForm(j){
+    $("jm-name").value = j.customer_name || "";
+    $("jm-phone").value = j.phone || "";
+    $("jm-email").value = j.email || "";
+    $("jm-address").value = j.address || "";
+    $("jm-suburb").value = j.suburb || "";
+    $("jm-postcode").value = j.postcode || "";
+    $("jm-type").value = j.work_type || "install";
+    $("jm-alarms").value = j.alarms == null ? "" : j.alarms;
+    $("jm-status").value = j.status || "scheduled";
+    $("jm-duration").value = String(j.duration_min || state.slot || 60);
+    if (!$("jm-duration").value) $("jm-duration").value = "60";
+    $("jm-notes").value = j.notes || "";
+    if (j.scheduled_start){
+      var d = new Date(j.scheduled_start);
+      $("jm-date").value = isoDate(d); $("jm-time").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    } else { $("jm-date").value = ""; $("jm-time").value = ""; }
+  }
+
+  function openNewJob(opts){
+    opts = opts || {};
+    state.editing = null;
+    $("jm-title").textContent = "New job";
+    setPill(null);
+    fillForm({ status:"scheduled", duration_min: state.slot, scheduled_start: opts.start ? opts.start.toISOString() : null });
+    if (!opts.start){ $("jm-date").value = ""; $("jm-time").value = ""; }
+    techOptions(opts.techId || "");
+    $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
+    $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
+    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none";
+    $("jm-links").innerHTML = "";
+    $("job-overlay").classList.add("show");
+    loadLeads().then(function(leads){
+      var order = { won:0, quote_accepted:1, quote_sent:2 };
+      var sorted = leads.slice().sort(function(a,b){ return (order[a.stage] ?? 9) - (order[b.stage] ?? 9); });
+      $("jm-lead").innerHTML = '<option value="">— Not linked to a lead —</option>' + sorted.map(function(l){
+        var where = l.address_suburb || l.address_postcode || l.postcode || "";
+        return '<option value="' + esc(l.id) + '">' + esc(l.name + (where ? " · " + where : "") + " · " + (l.stage || "").replace(/_/g, " ")) + '</option>';
+      }).join("");
+      if (opts.leadId){ $("jm-lead").value = opts.leadId; applyLead(opts.leadId); }
+    });
+    $("jm-name").focus();
+  }
+  function applyLead(id){
+    var l = (state.leads || []).find(function(x){ return x.id === id; });
+    if (!l) return;
+    $("jm-name").value = l.name || "";
+    $("jm-phone").value = l.phone || "";
+    $("jm-email").value = l.email || "";
+    $("jm-address").value = l.address_line1 || "";
+    $("jm-suburb").value = l.address_suburb || "";
+    $("jm-postcode").value = l.address_postcode || l.postcode || "";
+  }
+  $("jm-lead").addEventListener("change", function(){ if (this.value) applyLead(this.value); });
+
+  function openJob(j){
+    if (!j) return;
+    state.editing = j;
+    $("jm-title").textContent = "Job J" + j.job_no + " · " + j.customer_name;
+    setPill(j.status);
+    fillForm(j);
+    techOptions(j.electrician_id || "");
+    $("jm-lead-wrap").style.display = "none";
+    var lead = j.lead_id ? (state.leads || []).find(function(l){ return l.id === j.lead_id; }) : null;
+    $("jm-lead-chip").style.display = j.lead_id ? "" : "none";
+    $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
+    $("jm-delete").style.display = "";
+    $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
+    renderLinks(j);
+    $("job-overlay").classList.add("show");
+  }
+  function closeJob(){ $("job-overlay").classList.remove("show"); state.editing = null; }
+  $("jm-close").addEventListener("click", closeJob);
+  $("jm-cancel").addEventListener("click", closeJob);
+  $("job-overlay").addEventListener("click", function(e){ if (e.target === this) closeJob(); });
+  $("jm-status").addEventListener("change", function(){ setPill(state.editing ? this.value : null); });
+
+  $("jm-save").addEventListener("click", function(){
+    var name = $("jm-name").value.trim();
+    if (!name){ toast("Customer name is required"); $("jm-name").focus(); return; }
+    var techId = $("jm-tech").value || null;
+    var date = $("jm-date").value, time = $("jm-time").value;
+    if (techId && !date){ toast("Pick a date and start time to assign this job"); $("jm-date").focus(); return; }
+    var start = date ? new Date(date + "T" + (time || "08:00")) : null;
+    var payload = {
+      customer_name: name,
+      phone: $("jm-phone").value.trim(),
+      email: $("jm-email").value.trim(),
+      address: $("jm-address").value.trim(),
+      suburb: $("jm-suburb").value.trim(),
+      postcode: $("jm-postcode").value.trim(),
+      work_type: $("jm-type").value,
+      alarms: $("jm-alarms").value,
+      electrician_id: techId,
+      scheduled_start: start ? start.toISOString() : null,
+      duration_min: +$("jm-duration").value,
+      status: $("jm-status").value,
+      notes: $("jm-notes").value.trim()
+    };
+    var editing = state.editing;
+    if (!editing) payload.lead_id = $("jm-lead").value || null;
+    var btn = this; btn.disabled = true;
+    var p = editing ? jobsApi(Object.assign({ action:"job_update", id: editing.id }, payload))
+                    : jobsApi(Object.assign({ action:"job_create" }, payload));
+    p.then(function(d){
+      closeJob();
+      var job = d.job || {};
+      var tech = techById(job.electrician_id);
+      toast((editing ? "Saved" : "Created") + " J" + (job.job_no || "") + (tech && job.scheduled_start ? " · " + tech.name + " " + timeText(job.scheduled_start) : " · waiting list"));
+      if (start && (start < state.start || start >= rangeEnd()) && techId){ state.start = startOfDay(start); }
+      return reload();
+    }).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+
+  $("jm-unassign").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    closeJob();
+    moveJob(j, { electrician_id: null, scheduled_start: null }, "J" + j.job_no + " moved to waiting list");
+  });
+  $("jm-delete").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    if (!confirm("Delete job J" + j.job_no + " for " + j.customer_name + "? This can't be undone.")) return;
+    jobsApi({ action:"job_delete", id: j.id }).then(function(){ closeJob(); toast("Job J" + j.job_no + " deleted"); return reload(); })
+      .catch(function(err){ toast(err.message); });
+  });
+
+  /* ---------- electricians ---------- */
+  function renderTechs(){
+    $("tech-list").innerHTML = state.techs.length ? state.techs.map(function(t){
+      return '<div class="tech-row" data-tech-id="' + esc(t.id) + '">' +
+        '<input type="text" data-f="code" value="' + esc(t.code || "") + '">' +
+        '<input type="text" data-f="name" value="' + esc(t.name || "") + '">' +
+        '<input type="tel" data-f="phone" value="' + esc(t.phone || "") + '">' +
+        '<input type="email" data-f="email" value="' + esc(t.email || "") + '">' +
+        '<label class="act"><input type="checkbox" data-f="active"' + (t.active ? " checked" : "") + '> Active</label>' +
+        '<button class="btn btn-ghost" data-save-tech>Save</button></div>';
+    }).join("") : '<p style="font-size:.82rem;color:var(--muted);padding:.8rem 0">No electricians yet — add your first one below.</p>';
+    var codes = state.techs.map(function(t){ return parseInt(t.code, 10); }).filter(function(n){ return !isNaN(n); });
+    $("nt-code").value = String(codes.length ? Math.max.apply(null, codes) + 1 : 1011);
+  }
+  function openTechs(){ renderTechs(); $("tech-overlay").classList.add("show"); $("nt-name").focus(); }
+  function closeTechs(){ $("tech-overlay").classList.remove("show"); }
+  $("techs-btn").addEventListener("click", openTechs);
+  $("tm-close").addEventListener("click", closeTechs);
+  $("tm-done").addEventListener("click", closeTechs);
+  $("tech-overlay").addEventListener("click", function(e){ if (e.target === this) closeTechs(); });
+  $("tech-list").addEventListener("click", function(e){
+    var btn = e.target.closest("[data-save-tech]"); if (!btn) return;
+    var row = btn.closest(".tech-row"), get = function(f){ return row.querySelector('[data-f="' + f + '"]'); };
+    btn.disabled = true;
+    jobsApi({ action:"tech_update", id: row.dataset.techId, code: get("code").value, name: get("name").value,
+      phone: get("phone").value, email: get("email").value, active: get("active").checked })
+      .then(function(){ toast("Electrician saved"); return reload(); })
+      .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+  $("nt-add").addEventListener("click", function(){
+    var name = $("nt-name").value.trim();
+    if (!name){ toast("Enter the electrician's name"); $("nt-name").focus(); return; }
+    var btn = this; btn.disabled = true;
+    jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, active: true })
+      .then(function(){ ["nt-name","nt-phone","nt-email"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
+      .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+
+  /* ---------- nav + filters ---------- */
+  function go(days){ state.start = addDays(state.start, days); reload(); }
+  $("prev").addEventListener("click", function(){ go(-cfg().days); });
+  $("next").addEventListener("click", function(){ go(cfg().days); });
+  $("today").addEventListener("click", function(){ state.start = startOfDay(new Date()); reload(); });
+  document.querySelectorAll(".seg button").forEach(function(b){
+    b.addEventListener("click", function(){
+      state.view = b.dataset.view;
+      try { localStorage.setItem(VIEW_LS, state.view); } catch(e){}
+      reload();
+    });
+  });
+  $("f-from").addEventListener("change", function(){ if (this.value){ state.start = fromIsoDate(this.value); reload(); } });
+  $("f-slot").addEventListener("change", function(){ state.slot = +this.value; });
+  $("f-type").addEventListener("change", function(){ state.typeFilter = this.value; render(); });
+  $("f-tech").addEventListener("change", function(){ state.techFilter = this.value; render(); });
+  $("f-waiting").addEventListener("change", function(){ state.showWaiting = this.checked; renderWaiting(); });
+  $("print").addEventListener("click", function(){ window.print(); });
+  $("refresh").addEventListener("click", function(){ reload().then(function(){ toast("Refreshed"); }); });
+  $("new-job").addEventListener("click", function(){ openNewJob({}); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeJob(); closeTechs(); } });
+
+  // keep the board fresh for multiple dispatchers
+  setInterval(function(){
+    if (document.hidden || state.drag || document.querySelector(".overlay.show") || $("gate").classList.contains("show")) return;
+    load().catch(function(){});
+  }, 60000);
+
+  // ?lead=<id> opens a new job pre-filled from that pipeline lead
+  function afterFirstLoad(){
+    var leadId = new URLSearchParams(location.search).get("lead");
+    if (leadId){
+      history.replaceState(null, "", location.pathname);
+      openNewJob({ leadId: leadId });
+    }
+  }
+
+  /* ---------- boot ---------- */
+  if (!portalKey()){
+    $("loading").style.display = "none";
+    showGate(false);
+  } else {
+    load().then(afterFirstLoad).catch(function(err){ $("loading").textContent = "Couldn't load: " + err.message; });
+  }
+})();
+</script>
+</body>
+</html>

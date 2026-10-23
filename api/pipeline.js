@@ -6,6 +6,7 @@
 //
 // GET  → { leads:[ ...with comment counts ] }
 // POST → { action:"create"|"move"|"update"|"comment"|"comments"|"delete", ... }
+// ?resource=jobs → job schedule API (api/_jobs.js)
 
 const { sb, configured } = require("./_supabase");
 const { welcomeLead } = require('./_welcome-sms');
@@ -18,6 +19,8 @@ const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_se
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
 module.exports = async (req, res) => {
+  // Job schedule shares this function (Vercel Hobby allows 12 functions); see api/_jobs.js.
+  if (/[?&]resource=jobs(&|$)/.test(req.url || "")) return require("./_jobs")(req, res);
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) {
     return res.status(401).json({ error: "Invalid portal key" });
   }

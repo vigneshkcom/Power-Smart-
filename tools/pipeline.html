@@ -219,6 +219,7 @@
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools">Quote Tool</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/sms">SMS Inbox</a>
+      <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/schedule">Job Schedule</a>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -307,6 +308,7 @@
           <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
+          <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
         </div>
         <button class="lead-delete" id="lm-delete">Delete lead</button>
         <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
@@ -1052,6 +1054,7 @@
   }
   function closeSms(){$("sms-overlay").classList.remove("show");smsLeadId=null;smsPhone="";}
   $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
+  $("lm-job").addEventListener("click", function(){ if (currentId) window.location.href = "https://portal.powersmartco.com.au/tools/schedule?lead=" + encodeURIComponent(currentId); });
   $("sms-close").addEventListener("click",closeSms);$("sms-cancel").addEventListener("click",closeSms);$("sms-overlay").addEventListener("click",function(e){if(e.target===this)closeSms();});
   $("sms-message").addEventListener("input",updateSmsCount);
   $("sms-template").addEventListener("change",function(){
