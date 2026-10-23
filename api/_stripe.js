@@ -14,9 +14,9 @@ async function request(path, form) {
     throw error;
   }
   const res = await fetch(API + path, {
-    method: "POST",
+    method: form ? "POST" : "GET",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(form).toString(),
+    ...(form ? { body: new URLSearchParams(form).toString() } : {}),
   });
   const data = await res.json();
   if (!res.ok) {

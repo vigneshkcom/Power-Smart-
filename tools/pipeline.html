@@ -303,6 +303,7 @@
           <span class="action-label">Customer actions</span>
           <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
           <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
+          <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
         </div>
@@ -646,7 +647,7 @@
     if (l.payment) {
       $("lm-payment-row").style.display = "";
       $("lm-payment-amount").value = fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100);
-      $("lm-payment-status").value = l.payment.status === "paid" ? "Paid" : "Payment link sent";
+      $("lm-payment-status").value = l.payment.status === "paid" ? "Paid" : "Payment pending";
     } else if (l.payment_preference === "phone") {
       $("lm-payment-row").style.display = "";
       $("lm-payment-amount").value = "To be arranged";
@@ -998,6 +999,26 @@
       .then(function(){ openLead(currentId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
+  });
+  $("lm-checkout").addEventListener("click", function(){
+    if (!currentId) return;
+    var leadId = currentId, lead = leads.find(function(x){return x.id === leadId;});
+    if (lead && lead.payment && lead.payment.status === "paid") { toast("This customer's booking fee has already been paid"); return; }
+    var checkoutWindow = window.open("about:blank", "_blank");
+    if (!checkoutWindow) { toast("Allow pop-ups to open Stripe checkout, then try again"); return; }
+    checkoutWindow.opener = null;
+    var button = this; button.disabled = true;
+    fetch("/api/send-booking-fee", {method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify({action:"checkout",lead_id:leadId,agent:currentAgent()})})
+      .then(function(response){return response.json().then(function(data){if(!response.ok)throw new Error(data.error || "Could not open checkout");return data;});})
+      .then(function(data){
+        var url = new URL(data.checkout_url);
+        if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com") throw new Error("Invalid Stripe checkout link");
+        checkoutWindow.location.replace(url.href);
+        toast("Stripe checkout opened for the $35.00 booking fee");
+        return load().then(function(){if(currentId === leadId)openLead(leadId);});
+      })
+      .catch(function(error){if(!checkoutWindow.closed)checkoutWindow.close();toast(error.message);})
+      .finally(function(){button.disabled = false;});
   });
   $("q-close").addEventListener("click", closeQuote);
   $("q-cancel").addEventListener("click", closeQuote);
