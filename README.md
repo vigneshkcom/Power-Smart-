@@ -127,6 +127,11 @@ service management). Same portal passcode and Mani/Vignesh picker as the pipelin
 - **Pipeline sync**: creating, rescheduling or changing status logs a note on the
   linked lead; marking a job **Completed** moves the lead to **Won/Installed**.
 - **Electricians**: add, edit and deactivate fieldworkers from the *Electricians* button.
+- **Report**: completed jobs for This week / Last week / This month / Last month or any
+  dates, optionally one electrician. Per-electrician totals (jobs, battery and hardwired
+  alarms, controllers, inspections, invoiced, paid by card, to collect) — use it to pay
+  electricians — plus every job. *Download Excel* gives a two-sheet workbook. Jobs count
+  by completion date (weeks run Monday–Sunday).
 
 Setup: run `supabase/jobs.sql` once in the Supabase SQL Editor (after `schema.sql`).
 

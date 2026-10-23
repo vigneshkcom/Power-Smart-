@@ -128,6 +128,20 @@
   .overlay.show{display:flex}
   .modal{background:#fff;border-radius:16px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(11,27,31,.5)}
   .modal.wide{width:min(720px,100%)}
+  .modal.xwide{width:min(1100px,100%)}
+  .rp-bar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:.4rem}
+  .rp-bar label{display:flex;align-items:center;gap:.35rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--body)}
+  .rp-bar input,.rp-bar select{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:.8rem;text-transform:none;letter-spacing:0;font-weight:500}
+  .rp-presets{display:flex;gap:.35rem;flex-wrap:wrap;margin-right:.4rem}
+  .chipbtn{padding:.4rem .8rem;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-size:.76rem;font-weight:700;color:var(--body)}
+  .chipbtn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .rp-scroll{overflow-x:auto;margin-top:.5rem}
+  .rp-table{width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap}
+  .rp-table th{text-align:left;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:.4rem .5rem;border-bottom:1.5px solid var(--line)}
+  .rp-table td{padding:.45rem .5rem;border-bottom:1px solid var(--line)}
+  .rp-table .n{text-align:right;font-variant-numeric:tabular-nums}
+  .rp-table tfoot td{font-weight:800;border-top:1.5px solid var(--ink);border-bottom:none}
+  .rp-table .empty{color:var(--muted);text-align:center;padding:1rem}
   .modal-head{padding:1.05rem 1.4rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.7rem;flex:none}
   .modal-head h3{font-size:1.05rem;font-weight:800;flex:1}
   .modal-head .x{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--muted)}
@@ -226,6 +240,7 @@
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/pipeline">Sales Pipeline</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <button class="btn btn-ghost" id="techs-btn">Electricians</button>
+      <button class="btn btn-ghost" id="report-btn">Report</button>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -341,6 +356,36 @@
         <button class="btn btn-ghost" id="jm-cancel">Close</button>
         <button class="btn btn-primary" id="jm-save">Save job</button>
       </div>
+    </div>
+  </div>
+
+  <!-- completed jobs report -->
+  <div class="overlay" id="report-overlay">
+    <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="rp-title">
+      <div class="modal-head">
+        <h3 id="rp-title">Completed jobs report</h3>
+        <button class="x" id="rp-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="rp-bar">
+          <div class="rp-presets" role="group" aria-label="Period">
+            <button class="chipbtn" data-preset="this-week">This week</button>
+            <button class="chipbtn" data-preset="last-week">Last week</button>
+            <button class="chipbtn" data-preset="this-month">This month</button>
+            <button class="chipbtn" data-preset="last-month">Last month</button>
+          </div>
+          <label>From <input type="date" id="rp-from"></label>
+          <label>To <input type="date" id="rp-to"></label>
+          <label>Electrician <select id="rp-tech"></select></label>
+        </div>
+        <p class="hint" id="rp-label" style="margin:.2rem 0 .8rem"></p>
+        <div class="section-label" style="border-top:none;padding-top:0">By electrician — what to pay for</div>
+        <div class="rp-scroll"><table class="rp-table" id="rp-summary"></table></div>
+        <div class="section-label" style="margin-top:1rem">Jobs</div>
+        <div class="rp-scroll"><table class="rp-table" id="rp-jobs"></table></div>
+      </div>
+      <div class="modal-foot"><span class="hint">Counts come from what the electrician entered in the app.</span><span class="spacer"></span>
+        <button class="btn btn-primary" id="rp-download">⬇ Download Excel</button></div>
     </div>
   </div>
 
@@ -1044,6 +1089,89 @@
     jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, active: true })
       .then(function(){ ["nt-name","nt-phone","nt-email"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
       .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
+
+  /* ---------- completed jobs report ---------- */
+  var rp = { preset: "this-week" };
+  function weekStart(d){ var x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }   // Monday
+  function presetRange(p){
+    var now = new Date(), a, b;
+    if (p === "this-week"){ a = weekStart(now); b = addDays(a, 7); }
+    else if (p === "last-week"){ b = weekStart(now); a = addDays(b, -7); }
+    else if (p === "this-month"){ a = new Date(now.getFullYear(), now.getMonth(), 1); b = new Date(now.getFullYear(), now.getMonth() + 1, 1); }
+    else { b = new Date(now.getFullYear(), now.getMonth(), 1); a = new Date(now.getFullYear(), now.getMonth() - 1, 1); }
+    return [a, b];
+  }
+  function parseDate(v){ var p = v.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function rpRange(){   // [start, end) — "To" is inclusive in the UI
+    return [parseDate($("rp-from").value), addDays(parseDate($("rp-to").value), 1)];
+  }
+  function rpLabel(r){
+    var f = function(d){ return d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short", year:"numeric" }); };
+    return f(r[0]) + " – " + f(addDays(r[1], -1));
+  }
+  function setPreset(p){
+    rp.preset = p;
+    var r = presetRange(p);
+    $("rp-from").value = isoDate(r[0]); $("rp-to").value = isoDate(addDays(r[1], -1));
+    document.querySelectorAll("[data-preset]").forEach(function(b){ b.classList.toggle("on", b.dataset.preset === p); });
+    loadReport();
+  }
+  function rpMoney(n){ return "$" + Number(n || 0).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function loadReport(){
+    if (!$("rp-from").value || !$("rp-to").value) return;
+    var r = rpRange();
+    $("rp-label").textContent = "Completed " + rpLabel(r) + " · loading…";
+    jobsApi({ action:"report", from: r[0].toISOString(), to: r[1].toISOString(), electrician_id: $("rp-tech").value }).then(function(d){
+      $("rp-label").textContent = "Completed " + rpLabel(r) + " · " + d.totals.jobs + " job" + (d.totals.jobs === 1 ? "" : "s");
+      var untyped = d.totals.untyped > 0;
+      var head = '<thead><tr><th>Electrician</th><th class="n">Jobs</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
+        '<th class="n">Total alarms</th><th class="n">Controllers</th><th class="n">Inspections</th><th class="n">Invoiced</th><th class="n">Paid by card</th><th class="n">To collect</th></tr></thead>';
+      var line = function(s, name){
+        return '<td>' + esc(name || s.electrician) + (s.electrician_code ? ' <span class="hint">' + esc(s.electrician_code) + '</span>' : '') + '</td><td class="n">' + s.jobs + '</td><td class="n">' + s.battery + '</td><td class="n">' + s.hardwired + '</td>' +
+          (untyped ? '<td class="n">' + s.untyped + '</td>' : '') + '<td class="n"><b>' + s.alarms + '</b></td><td class="n">' + s.controllers + '</td><td class="n">' + s.inspections + '</td>' +
+          '<td class="n">' + rpMoney(s.invoice) + '</td><td class="n">' + rpMoney(s.paid) + '</td><td class="n">' + rpMoney(s.to_collect) + '</td>';
+      };
+      $("rp-summary").innerHTML = d.summary.length ? head + '<tbody>' + d.summary.map(function(s){ return '<tr>' + line(s) + '</tr>'; }).join("") + '</tbody>' +
+        (d.summary.length > 1 ? '<tfoot><tr>' + line(Object.assign({ electrician_code: "" }, d.totals), "Total") + '</tr></tfoot>' : '')
+        : '<tbody><tr><td class="empty">No completed jobs in this period.</td></tr></tbody>';
+      $("rp-jobs").innerHTML = d.rows.length ? '<thead><tr><th>Completed</th><th>Job</th><th>Electrician</th><th>Customer</th><th>Suburb / address</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
+        '<th class="n">Controllers</th><th>Other</th><th class="n">Invoice</th><th>Payment</th></tr></thead><tbody>' + d.rows.map(function(x){
+          return '<tr><td>' + esc(new Date(x.completed_at).toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" })) + '</td><td>J' + esc(x.job_no) + '</td><td>' + esc(x.electrician) + '</td><td>' + esc(x.customer) + '</td><td>' + esc(x.address) + '</td>' +
+            '<td class="n">' + x.battery + '</td><td class="n">' + x.hardwired + '</td>' + (untyped ? '<td class="n">' + x.untyped + '</td>' : '') + '<td class="n">' + x.controllers + '</td><td>' + esc(x.other) + '</td>' +
+            '<td class="n">' + (x.invoice == null ? "—" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + '</td></tr>';
+        }).join("") + '</tbody>' : '';
+    }).catch(function(err){ $("rp-label").textContent = err.message; });
+  }
+  function openReport(){
+    $("rp-tech").innerHTML = '<option value="">All electricians</option>' + state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
+    $("report-overlay").classList.add("show");
+    setPreset(rp.preset);
+  }
+  $("report-btn").addEventListener("click", openReport);
+  $("rp-close").addEventListener("click", function(){ $("report-overlay").classList.remove("show"); });
+  $("report-overlay").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("show"); });
+  document.querySelectorAll("[data-preset]").forEach(function(b){ b.addEventListener("click", function(){ setPreset(b.dataset.preset); }); });
+  ["rp-from","rp-to"].forEach(function(id){ $(id).addEventListener("change", function(){
+    rp.preset = ""; document.querySelectorAll("[data-preset]").forEach(function(b){ b.classList.remove("on"); }); loadReport();
+  }); });
+  $("rp-tech").addEventListener("change", loadReport);
+  $("rp-download").addEventListener("click", function(){
+    var btn = this, r = rpRange();
+    btn.disabled = true;
+    fetch("/api/pipeline?resource=jobs", {
+      method: "POST", headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: JSON.stringify({ action:"report", format:"xlsx", from: r[0].toISOString(), to: r[1].toISOString(), electrician_id: $("rp-tech").value,
+        label: rpLabel(r) + ($("rp-tech").value ? " · " + $("rp-tech").selectedOptions[0].textContent : "") })
+    }).then(function(res){
+      if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the Excel file"); });
+      return res.blob();
+    }).then(function(blob){
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "powersmart-jobs-" + $("rp-from").value + "-to-" + $("rp-to").value + ".xlsx"; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+      toast("Report downloaded");
+    }).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
 
   /* ---------- nav + filters ---------- */

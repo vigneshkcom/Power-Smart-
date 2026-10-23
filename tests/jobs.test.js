@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 function load(SB) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/_jobs.js'), 'utf8'), {
-    module, require: (k) => (k === './_supabase' ? SB : require(k)), console: { error() {} }, URL, process: { env: {} },
+    module, require: (k) => (k === './_supabase' ? SB : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
   }, { filename: '_jobs.js' });
   return module.exports;
 }
@@ -176,4 +176,60 @@ test('lead_quote recognises inspections and returns null when no quote exists', 
   await load(SB)({ method: 'POST', headers: KEY, body: { action: 'lead_quote', lead_id: 'lead3' } }, r);
   assert.equal(r.code, 200);
   assert.equal(r.body.quote, null);
+});
+
+test('report totals what each electrician installed and builds an Excel file', async () => {
+  const jobs = [
+    { id: 'a', job_no: 1001, status: 'completed', electrician_id: 't1', completed_at: '2026-10-20T01:00:00Z', customer_name: 'A', pay_status: 'paid', paid_cents: 47400, invoice_total_cents: 47400,
+      invoice_items: [{ code: 'alarm_battery', qty: 4, label: 'b' }, { code: 'alarm_hardwired', qty: 2, label: 'h' }] },
+    { id: 'b', job_no: 1002, status: 'completed', electrician_id: 't1', completed_at: '2026-10-21T01:00:00Z', customer_name: 'B', pay_status: 'later', amount_due_cents: 15300, invoice_total_cents: 15300,
+      invoice_items: [{ code: 'alarm', qty: 1, label: 'old' }, { code: 'controller', qty: 1 }, { code: 'other', qty: 1, label: 'Extra callout' }], alarm_type: 'hardwired' },
+    { id: 'c', job_no: 1003, status: 'completed', electrician_id: 't2', completed_at: null, scheduled_start: '2026-10-22T01:00:00Z', customer_name: '=cmd', alarms: 3 },
+  ];
+  const queries = [];
+  const SB = { configured: () => true, async sb(q) {
+    queries.push(q);
+    if (q.startsWith('jobs?')) return jobs;
+    if (q.startsWith('electricians?')) return [{ id: 't1', code: '1011', name: 'Jake Turner' }, { id: 't2', code: '1012', name: 'Liam Brooks' }];
+    return [];
+  } };
+  const h = load(SB);
+  let r = res();
+  await h({ method: 'POST', headers: KEY, body: { action: 'report', from: '2026-10-18T14:00:00.000Z', to: '2026-10-25T14:00:00.000Z' } }, r);
+  assert.equal(r.code, 200);
+  assert(queries[0].includes('status=eq.completed') && queries[0].includes('completed_at.gte.2026-10-18T14%3A00%3A00.000Z'), 'filtered by completion date');
+  const jake = r.body.summary.find((s) => s.electrician === 'Jake Turner');
+  assert.equal(JSON.stringify([jake.jobs, jake.battery, jake.hardwired, jake.alarms, jake.controllers, jake.invoice, jake.paid, jake.to_collect]),
+    JSON.stringify([2, 4, 3, 7, 1, 627, 474, 153]));
+  const liam = r.body.summary.find((s) => s.electrician === 'Liam Brooks');
+  assert.equal(liam.untyped, 3, 'office-completed job without an invoice still counts booked alarms');
+  assert.equal(r.body.totals.alarms, 10);
+  assert.equal(r.body.rows[1].other, '1 × Extra callout');
+
+  let sent = null, headers = {};
+  r = { code: 200, status(c) { this.code = c; return this; }, json(o) { this.body = o; return this; }, setHeader(k, v) { headers[k] = v; }, send(b) { sent = b; return this; } };
+  await h({ method: 'POST', headers: KEY, body: { action: 'report', from: '2026-10-18T14:00:00.000Z', to: '2026-10-25T14:00:00.000Z', format: 'xlsx', label: 'Mon 19 Oct – Sun 25 Oct' } }, r);
+  assert.equal(r.code, 200);
+  assert.match(headers['Content-Type'], /spreadsheetml/);
+  const ExcelJS = require('exceljs'), wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(sent);
+  assert.deepEqual(wb.worksheets.map((w) => w.name), ['Summary by electrician', 'Jobs']);
+  const sumSheet = wb.getWorksheet('Summary by electrician');
+  assert.equal(sumSheet.getCell('A5').value, 'Jake Turner');
+  assert.equal(sumSheet.getCell('G5').value, 7);
+  assert.equal(sumSheet.getCell('A7').value, 'Total');
+  assert.match(sumSheet.getCell('G7').value.formula, /SUBTOTAL\(109/);
+  assert.equal(wb.getWorksheet('Jobs').getCell('E7').value, "'=cmd", 'spreadsheet formulas are neutralised');
+});
+
+test('report needs a valid range', async () => {
+  const f = fixture(), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'report', from: '2026-10-25', to: '2026-10-18' } }, r);
+  assert.equal(r.code, 400);
+});
+
+test('marking a job completed in the office stamps the completion date', async () => {
+  const f = fixture({ id: 'j1', job_no: 1001, status: 'on_site' }), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed' } }, r);
+  assert(f.calls.find((c) => c.method === 'PATCH' && c.q.startsWith('jobs?')).body.completed_at);
 });

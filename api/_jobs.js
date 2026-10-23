@@ -5,7 +5,8 @@
 // Data: Supabase tables `electricians` + `jobs` (see supabase/jobs.sql).
 //
 // GET  ?resource=jobs&from=<ISO>&to=<ISO> → { electricians, jobs (scheduled in range), waiting (unassigned) }
-// POST { action: "job_create" | "job_update" | "job_delete" | "lead_quote" | "tech_create" | "tech_update", ... }
+// POST { action: "job_create" | "job_update" | "job_delete" | "lead_quote" | "tech_create" | "tech_update" | "report", ... }
+//      report: { from, to, electrician_id?, format?: "xlsx" } → completed jobs in the range (by completion date)
 // The electrician phone app (/tech) has its own API in api/_tech.js and reuses the helpers exported below.
 
 const { sb, configured } = require("./_supabase");
@@ -115,6 +116,117 @@ async function codeTaken(code, exceptId) {
   return (rows || []).some((r) => r.id !== exceptId);
 }
 
+/* ---------- completed-jobs report (who installed what — for paying electricians) ---------- */
+
+// What went in on a job, from the electrician's invoice lines. Older saves used one
+// "alarm" line + alarm_type; jobs completed in the office without an invoice only
+// have the booked alarm count (type not recorded).
+function installedCounts(job) {
+  const c = { battery: 0, hardwired: 0, untyped: 0, controllers: 0, inspections: 0, other: [] };
+  const items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
+  for (const i of items) {
+    const qty = Number(i.qty) || 0;
+    if (i.code === "alarm_battery" || (i.code === "alarm" && job.alarm_type !== "hardwired")) c.battery += qty;
+    else if (i.code === "alarm_hardwired" || i.code === "alarm") c.hardwired += qty;
+    else if (i.code === "controller") c.controllers += qty;
+    else if (i.code === "inspection") c.inspections += qty;
+    else c.other.push(`${qty} × ${i.label || "item"}`);
+  }
+  if (!items.length && job.alarms) c.untyped = job.alarms;
+  return c;
+}
+
+const PAY_LABEL = { paid: "Paid by card", later: "To collect", none: "Nothing to pay", pending: "Card payment started", unpaid: "Not paid" };
+
+async function reportData(from, to, techId) {
+  const f = encodeURIComponent(from), t = encodeURIComponent(to);
+  const range = `or=(and(completed_at.gte.${f},completed_at.lt.${t}),and(completed_at.is.null,scheduled_start.gte.${f},scheduled_start.lt.${t}))`;
+  const [jobs, techs] = await Promise.all([
+    sb(`jobs?status=eq.completed&${range}${techId ? `&electrician_id=eq.${encodeURIComponent(techId)}` : ""}&select=*&order=completed_at.asc.nullsfirst,scheduled_start.asc&limit=5000`),
+    sb("electricians?select=id,code,name&order=sort_order.asc,name.asc"),
+  ]);
+  const techById = Object.fromEntries((techs || []).map((x) => [x.id, x]));
+  const rows = (jobs || []).map((j) => {
+    const c = installedCounts(j), tech = techById[j.electrician_id] || {};
+    const invoice = j.invoice_total_cents != null ? j.invoice_total_cents / 100 : null;
+    return {
+      id: j.id, job_no: j.job_no, completed_at: j.completed_at || j.scheduled_start,
+      electrician_id: j.electrician_id || null, electrician: tech.name || "Unassigned", electrician_code: tech.code || "",
+      customer: j.customer_name || "", address: [j.address, j.suburb, j.postcode].filter(Boolean).join(", "), work_type: j.work_type,
+      battery: c.battery, hardwired: c.hardwired, untyped: c.untyped, alarms: c.battery + c.hardwired + c.untyped,
+      controllers: c.controllers, inspections: c.inspections, other: c.other.join(", "),
+      invoice, payment: PAY_LABEL[j.pay_status] || "",
+      paid: j.pay_status === "paid" ? (j.paid_cents || 0) / 100 : 0,
+      to_collect: j.pay_status === "later" ? (j.amount_due_cents || 0) / 100 : 0,
+      notes: j.tech_notes || "",
+    };
+  });
+  const by = {};
+  for (const r of rows) {
+    const k = r.electrician_id || "none";
+    const s = by[k] || (by[k] = { electrician: r.electrician, electrician_code: r.electrician_code, jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid: 0, to_collect: 0 });
+    s.jobs += 1;
+    for (const f2 of ["battery", "hardwired", "untyped", "alarms", "controllers", "inspections", "paid", "to_collect"]) s[f2] += r[f2];
+    s.invoice += r.invoice || 0;
+  }
+  const summary = Object.values(by).sort((a, b) => a.electrician.localeCompare(b.electrician));
+  const totals = summary.reduce((acc, s) => { for (const k of Object.keys(acc)) acc[k] += s[k]; return acc; },
+    { jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid: 0, to_collect: 0 });
+  return { from, to, rows, summary, totals };
+}
+
+function xText(v) { const s = String(v == null ? "" : v); return /^[=+\-@]/.test(s) ? `'${s}` : s; }   // no spreadsheet formulas from data
+
+async function reportWorkbook(data, label) {
+  const ExcelJS = require("exceljs");
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "PowerSmart"; wb.created = new Date();
+  const money = '"$"#,##0.00';
+  function title(sheet, text, cols) {
+    sheet.mergeCells(1, 1, 1, cols);
+    sheet.getCell("A1").value = text;
+    sheet.getCell("A1").font = { size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+    sheet.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B1B1F" } };
+    sheet.getRow(1).height = 28;
+    sheet.mergeCells(2, 1, 2, cols);
+    sheet.getCell("A2").value = label;
+    sheet.getCell("A2").font = { size: 10, italic: true, color: { argb: "FF41585D" } };
+  }
+
+  const sCols = [["Electrician", 24], ["Code", 9], ["Jobs", 8], ["Battery alarms", 15], ["Hardwired alarms", 17], ["Alarms (type not recorded)", 24],
+    ["Total alarms", 13], ["Remote controllers", 18], ["Inspections", 12], ["Invoiced", 13], ["Paid by card", 14], ["To collect", 13]];
+  const sum = wb.addWorksheet("Summary by electrician", { views: [{ state: "frozen", ySplit: 4 }] });
+  title(sum, "PowerSmart – completed jobs by electrician", sCols.length);
+  sum.columns = sCols.map(([, width]) => ({ width }));
+  const sRow = (s, name) => [xText(name || s.electrician), xText(s.electrician_code || ""), s.jobs, s.battery, s.hardwired, s.untyped, s.alarms, s.controllers, s.inspections, s.invoice, s.paid, s.to_collect];
+  const sRows = data.summary.length ? data.summary.map((s) => sRow(s)) : [sRow({ ...data.totals, electrician_code: "" }, "No completed jobs")];
+  sum.addTable({
+    name: "ElectricianSummary", ref: "A4", headerRow: true, totalsRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
+    columns: sCols.map(([name], i) => (i === 0 ? { name, totalsRowLabel: "Total", filterButton: false }
+      : i === 1 ? { name, totalsRowFunction: "none", filterButton: false }
+      : { name, totalsRowFunction: "sum", filterButton: false })),
+    rows: sRows,
+  });
+  [10, 11, 12].forEach((c) => { sum.getColumn(c).numFmt = money; });
+
+  const jCols = [["Completed", 18], ["Job", 9], ["Electrician", 22], ["Code", 9], ["Customer", 24], ["Address", 40], ["Work type", 11],
+    ["Battery alarms", 15], ["Hardwired alarms", 17], ["Alarms (type not recorded)", 24], ["Total alarms", 13], ["Remote controllers", 18],
+    ["Inspections", 12], ["Other items", 30], ["Invoice", 12], ["Payment", 16], ["Paid by card", 14], ["To collect", 13], ["Electrician notes", 40]];
+  const js = wb.addWorksheet("Jobs", { views: [{ state: "frozen", ySplit: 4 }] });
+  title(js, "PowerSmart – completed jobs", jCols.length);
+  js.columns = jCols.map(([, width]) => ({ width }));
+  js.addTable({
+    name: "CompletedJobs", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
+    columns: jCols.map(([name]) => ({ name, filterButton: true })),
+    rows: data.rows.length ? data.rows.map((r) => [new Date(r.completed_at), "J" + r.job_no, xText(r.electrician), xText(r.electrician_code), xText(r.customer), xText(r.address), xText(r.work_type),
+      r.battery, r.hardwired, r.untyped, r.alarms, r.controllers, r.inspections, xText(r.other), r.invoice, r.payment, r.paid, r.to_collect, xText(r.notes)])
+      : [[null, "", "No completed jobs in this period", "", "", "", "", 0, 0, 0, 0, 0, 0, "", null, "", 0, 0, ""]],
+  });
+  js.getColumn(1).numFmt = "ddd dd/mm/yyyy";
+  [15, 17, 18].forEach((c) => { js.getColumn(c).numFmt = money; });
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
 function scheduleText(job, tech) {
   if (job.electrician_id && job.scheduled_start) return `assigned to ${tech || "an electrician"} for ${fmtWhen(job.scheduled_start)}`;
   return "added to the waiting list";
@@ -173,6 +285,9 @@ module.exports = async (req, res) => {
       delete f.created_by;
       if ("customer_name" in f && !f.customer_name) return res.status(400).json({ error: "Customer name can't be empty" });
       if (!Object.keys(f).length) return res.status(400).json({ error: "Nothing to update" });
+      // completion date drives the weekly report
+      if (f.status === "completed" && prev.status !== "completed") f.completed_at = new Date().toISOString();
+      else if (f.status && f.status !== "completed" && prev.status === "completed") f.completed_at = null;
 
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
       const job = rows && rows[0];
@@ -192,6 +307,18 @@ module.exports = async (req, res) => {
         }
       }
       return res.status(200).json({ ok: true, job });
+    }
+
+    if (b.action === "report") {
+      const from = isoOrNull(b.from), to = isoOrNull(b.to);
+      if (!from || !to || from >= to) return res.status(400).json({ error: "Choose a valid date range" });
+      const data = await reportData(from, to, clean(b.electrician_id, 40));
+      if (b.format !== "xlsx") return res.status(200).json(data);
+      const label = clean(b.label, 120) || `${fmtWhen(from)} – ${fmtWhen(to)}`;
+      const file = await reportWorkbook(data, `Completed ${label} · exported ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Brisbane" })}`);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="powersmart-jobs-${from.slice(0, 10)}.xlsx"`);
+      return res.status(200).send(file);
     }
 
     // Latest sent quote for a lead → alarm/controller counts for the job card.
