@@ -523,6 +523,17 @@
     .footer-grid{grid-template-columns:1fr;gap:2rem}
   }
 </style>
+<!-- Meta Pixel: PowerSmart Smoke Alarms Website. No customer fields are passed. -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];
+t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('set', 'autoConfig', false, '1372248174748227');
+fbq('init', '1372248174748227');
+fbq('track', 'PageView');
+</script>
 </head>
 <body>
 
@@ -1165,7 +1176,12 @@
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(lead)
     }).then(function(r){
-      if (r.ok){ done(); }
+      if (r.ok){
+        if (typeof window.fbq === 'function'){
+          try { window.fbq('track', 'Lead'); } catch (_) {}
+        }
+        done();
+      }
       else { mailtoFallback(); done(); }
     }).catch(function(){
       mailtoFallback(); done();
