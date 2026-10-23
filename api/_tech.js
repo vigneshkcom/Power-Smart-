@@ -6,6 +6,8 @@
 // and only ever sees that electrician's own jobs.
 //
 // POST { action: "login_list" | "me" | "jobs" | "job" | "status" | "save" | "pay" | "pay_check" | "complete", ... }
+// On site the electrician records the number of alarms installed + battery or hardwired,
+// adjusts the invoice, gets the customer's okay, takes a card payment and completes the job.
 //
 // Money is always computed here from the price list in api/_quote.js — the app
 // only sends item codes and quantities (plus a price for "other" items).
@@ -19,22 +21,9 @@ const J = require("./_jobs");
 
 const PORTAL = "https://portal.powersmartco.com.au";
 
-// QLD smoke alarm compliance checklist answered on site (yes / no / na).
-const CHECKLIST = [
-  { id: "bedrooms", q: "Photoelectric smoke alarm installed in every bedroom" },
-  { id: "hallways", q: "Alarm in each hallway connecting bedrooms to the rest of the home (or between the bedroom area and the rest of the storey)" },
-  { id: "storeys", q: "At least one alarm on every storey" },
-  { id: "interconnected", q: "All alarms interconnected — testing one sets off every alarm" },
-  { id: "standard", q: "All alarms are photoelectric and comply with AS 3786:2014" },
-  { id: "no_ionisation", q: "No ionisation alarms left in the home" },
-  { id: "age", q: "Every alarm is less than 10 years old" },
-  { id: "power", q: "Alarms are hardwired or have a 10-year non-removable lithium battery" },
-  { id: "position", q: "Placed correctly — clear of corners, light fittings, air-con vents and ceiling fans" },
-  { id: "tested", q: "Every alarm tested and working" },
-  { id: "customer_shown", q: "Customer shown how to test and hush the alarms" },
-  { id: "clean_up", q: "Old alarms removed and site left clean" },
-];
-const ANSWERS = ["yes", "no", "na"];
+// What the electrician records on site: how many alarms went in (the invoice
+// alarm line) and which kind.
+const ALARM_TYPES = { battery: "10-year battery", hardwired: "240V hardwired" };
 
 const CATALOGUE = {
   alarm: { label: "Photoelectric interconnected smoke alarm – supplied & installed", short: "smoke alarm", cents: PRICE_ALARM * 100 },
@@ -57,7 +46,7 @@ function priceCents(v) {
 }
 
 // Items from the app → priced invoice lines (quantity 0 lines are dropped).
-function priceItems(raw) {
+function priceItems(raw, alarmType) {
   if (!Array.isArray(raw)) throw fail(400, "Invalid invoice items");
   if (raw.length > 20) throw fail(400, "Too many invoice items");
   const items = [];
@@ -71,23 +60,22 @@ function priceItems(raw) {
       items.push({ code: "other", label, qty, unit_cents: unit, amount_cents: unit * qty });
     } else if (Object.hasOwn(CATALOGUE, it.code)) {
       const c = CATALOGUE[it.code];
-      items.push({ code: it.code, label: c.label, qty, unit_cents: c.cents, amount_cents: c.cents * qty });
+      const label = it.code === "alarm" && ALARM_TYPES[alarmType] ? alarmLabel(alarmType) : c.label;
+      items.push({ code: it.code, label, qty, unit_cents: c.cents, amount_cents: c.cents * qty });
     } else throw fail(400, "Unknown invoice item");
   }
   return items;
 }
+const alarmLabel = (type) => `Photoelectric smoke alarm (${ALARM_TYPES[type]}) – supplied & installed`;
+const alarmQty = (items) => (items || []).filter((i) => i.code === "alarm").reduce((n, i) => n + i.qty, 0);
 const itemsKey = (items) => (items || []).map((i) => [i.code, i.label, i.qty, i.unit_cents].join("|")).join(";");
-function itemsSummary(items) {
-  return (items || []).map((i) => `${i.qty} × ${i.code === "other" ? i.label : CATALOGUE[i.code].short}`).join(", ");
+function itemsSummary(items, alarmType) {
+  return (items || []).map((i) => `${i.qty} × ${i.code === "other" ? i.label
+    : i.code === "alarm" && ALARM_TYPES[alarmType] ? `${ALARM_TYPES[alarmType]} smoke alarm` : CATALOGUE[i.code].short}`).join(", ");
 }
 
-function cleanChecklist(raw) {
-  const out = {};
-  for (const { id } of CHECKLIST) if (raw && ANSWERS.includes(raw[id])) out[id] = raw[id];
-  return out;
-}
-const checklistDone = (c) => CHECKLIST.every(({ id }) => c && ANSWERS.includes(c[id]));
-const checklistNos = (c) => CHECKLIST.filter(({ id }) => c && c[id] === "no");
+// Alarm type must be recorded whenever alarms were installed.
+const typeMissing = (job) => alarmQty(job.invoice_items) > 0 && !ALARM_TYPES[job.alarm_type];
 
 // Payments the customer already made in advance (inspection fee, balances…).
 // Booking fees are a separate charge on the quote, so they are not deducted.
@@ -161,10 +149,10 @@ async function refreshPayment(job) {
 
 async function jobDetail(job) {
   const [quote, credits] = await Promise.all([J.latestQuote(job.lead_id, job.email), prepaid(job.lead_id)]);
-  const items = job.invoice_items || priceItems(defaultItems(job, quote));
+  const items = job.invoice_items || priceItems(defaultItems(job, quote), job.alarm_type);
   return {
     job, quote, credits, items, totals: totals(items, credits),
-    checklist: CHECKLIST, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
+    alarm_types: ALARM_TYPES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
   };
 }
 
@@ -211,19 +199,25 @@ async function handler(req, res) {
 
     if (b.action === "save") {
       const f = {};
-      if (b.checklist !== undefined) f.checklist = cleanChecklist(b.checklist);
+      if (b.alarm_type !== undefined) {
+        if (b.alarm_type && !ALARM_TYPES[b.alarm_type]) throw fail(400, "Alarm type must be battery or hardwired");
+        f.alarm_type = b.alarm_type || null;
+      }
       if (b.notes !== undefined) f.tech_notes = clean(b.notes, 2000) || null;
-      if (b.items !== undefined) {
-        const items = priceItems(b.items);
+      const type = f.alarm_type !== undefined ? f.alarm_type : job.alarm_type;
+      if (b.items !== undefined || (f.alarm_type !== undefined && job.invoice_items)) {
+        const items = priceItems(b.items !== undefined ? b.items : job.invoice_items.map((i) => ({ ...i, price: (i.unit_cents / 100).toFixed(2) })), type);
         const changed = itemsKey(items) !== itemsKey(job.invoice_items);
         if (changed && job.pay_status === "paid") throw fail(409, "The invoice has been paid — it can't be changed.");
         f.invoice_items = items;
         f.invoice_total_cents = totals(items, []).total;
+        f.alarms_installed = alarmQty(items);
         if (changed) f.approved_at = null;
       }
       if (b.approve) {
         const items = f.invoice_items || job.invoice_items;
         if (!items || !items.length) throw fail(400, "Add at least one item before the customer approves.");
+        if (typeMissing({ invoice_items: items, alarm_type: type })) throw fail(400, "Choose battery or hardwired first.");
         f.approved_at = new Date().toISOString();
       }
       const updated = Object.keys(f).length ? await patchJob(job.id, f) : job;
@@ -235,7 +229,7 @@ async function handler(req, res) {
       let current = await refreshPayment(job);
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
 
-      if (!checklistDone(current.checklist)) throw fail(409, "Finish the checklist first.");
+      if (typeMissing(current)) throw fail(409, "Choose battery or hardwired first.");
       if (!current.invoice_items || !current.invoice_items.length || !current.approved_at) throw fail(409, "Get the customer to approve the invoice first.");
       const t = totals(current.invoice_items, await prepaid(current.lead_id));
       if (t.due <= 0) throw fail(409, "Nothing to pay — this invoice is already covered.");
@@ -245,7 +239,7 @@ async function handler(req, res) {
         if (s.status === "open" && s.amount_total === t.due && s.url) return res.status(200).json({ url: checkoutUrl(s.url), amount_cents: t.due });
         if (s.status === "open") await Stripe.request(`/checkout/sessions/${encodeURIComponent(s.id)}/expire`, {});   // invoice changed
       }
-      const summary = itemsSummary(current.invoice_items) + (t.credit ? ` (less ${money(t.credit)} paid in advance)` : "");
+      const summary = itemsSummary(current.invoice_items, current.alarm_type) + (t.credit ? ` (less ${money(t.credit)} paid in advance)` : "");
       const session = await Stripe.request("/checkout/sessions", {
         mode: "payment", "payment_method_types[0]": "card", ...(current.email ? { customer_email: current.email } : {}),
         success_url: `${PORTAL}/tech?job=${current.id}&paid={CHECKOUT_SESSION_ID}`,
@@ -262,9 +256,7 @@ async function handler(req, res) {
 
     if (b.action === "complete") {
       let current = await refreshPayment(job);
-      if (!checklistDone(current.checklist)) throw fail(400, "Answer every checklist question first.");
-      const nos = checklistNos(current.checklist);
-      if (nos.length && !current.tech_notes) throw fail(400, "Add a note explaining the \"No\" answers.");
+      if (typeMissing(current)) throw fail(400, "Choose battery or hardwired first.");
       const items = current.invoice_items || [];
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
       const t = totals(items, await prepaid(current.lead_id));
@@ -280,10 +272,9 @@ async function handler(req, res) {
         try {
           await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
         } catch (e) { console.error("tech → lead stage update failed:", e.message); }
-        const flagged = nos.length ? ` Checklist "No": ${nos.map((n) => n.q).join("; ")}.` : "";
         const notes = current.tech_notes ? ` Notes: ${current.tech_notes}` : "";
         await J.leadNote(current.lead_id, tech.name,
-          `✅ Job J${current.job_no} completed by ${tech.name}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText}${flagged}${notes}`);
+          `✅ Job J${current.job_no} completed by ${tech.name}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items, current.alarm_type) : ""}. ${payText}${notes}`);
       }
       return res.status(200).json({ ok: true, job: done });
     }
@@ -296,4 +287,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { reconcileJobPayment, CHECKLIST, priceItems, totals });
+Object.assign(module.exports, { reconcileJobPayment, ALARM_TYPES, priceItems, totals });

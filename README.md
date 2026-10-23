@@ -25,7 +25,7 @@ accept.html           Quote acceptance page (/accept) → Stripe
 tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
 tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
 tools/schedule.html   Fieldworker job schedule (/tools/schedule) — assign jobs to electricians
-tech.html             Electrician phone app (/tech) — jobs, checklist, invoice, card payment
+tech.html             Electrician phone app (/tech) — jobs, alarms installed, invoice, card payment
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
@@ -43,7 +43,7 @@ supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
 supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
-supabase/tech-app.sql Run once (after jobs.sql) — app PINs, checklist, invoice + payment columns
+supabase/tech-app.sql Run once (after jobs.sql) — app PINs, alarms installed/type, invoice + payment columns
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
@@ -139,10 +139,10 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   their own jobs.
 - **My jobs**: day by day, with *Navigate* and *Call*. *On my way* / *Arrived on site*
   update the dispatch board and the lead.
-- **Checklist**: 12 QLD compliance questions (Yes / No / N/A, in `api/_tech.js`).
-  Any "No" needs a note.
-- **Invoice**: starts from the customer's quote; the electrician adds/removes
-  smoke alarms, remote controllers, an inspection or an "other" item. Prices come
+- **Alarms installed**: number of smoke alarms installed (starts from the quote) and
+  whether they are **battery** or **hardwired**. The count is the invoice alarm line.
+- **Invoice**: the electrician can also add remote controllers, an inspection or an
+  "other" item. Prices come
   from `api/_quote.js` on the server. Advance payments other than the booking fee
   (e.g. a prepaid inspection) are deducted.
 - **Approval + payment**: the customer approves the invoice on the phone, then
@@ -150,8 +150,8 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   app. The job is marked paid by the app's check or the Stripe webhook
   (`metadata.job_id`). *Customer pays later* completes the job with the balance
   flagged for the office.
-- **Complete**: job → Completed, lead → Won, and a note with the invoice, payment
-  and any "No" answers is added to the lead. The office sees the electrician's
+- **Complete**: job → Completed, lead → Won, and a note with the alarms installed,
+  invoice and payment is added to the lead. The office sees the electrician's
   report on the job card in /tools/schedule.
 
 Setup: run `supabase/tech-app.sql` once, then set each electrician's app PIN.
