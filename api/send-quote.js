@@ -10,34 +10,37 @@ const Q = require("./_quote");
 const SB = require("./_supabase");
 const S = require("./_senders");
 const { logEmail } = require("./_maillog");
+const { randomUUID } = require('crypto');
+const Sms = require('./_sms-outbound');
 
 // Same passcode the pipeline page and /api/send-email use.
 const PORTAL_KEY = "2026";
 
 // leadId is only honoured when the call came from the pipeline (portal key), so a
 // quote sent from a lead card updates that exact lead instead of matching by email.
-async function recordInPipeline({ customerName, customerEmail, agentName, ref, total, leadId: hintId }) {
+async function recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total, leadId: hintId }) {
   if (!SB.configured()) return null;
   try {
     const patch = { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null };
     let leadId = null;
     if (hintId) {
-      const byId = await SB.sb(`leads?id=eq.${encodeURIComponent(hintId)}&select=id,email&limit=1`);
+      const byId = await SB.sb(`leads?id=eq.${encodeURIComponent(hintId)}&select=id,email,phone&limit=1`);
       if (byId && byId[0]) {
         leadId = byId[0].id;
         if (!byId[0].email) patch.email = customerEmail.toLowerCase();   // remember the address we just used
+        if (!byId[0].phone && customerPhone) patch.phone = customerPhone;
       }
     }
     if (!leadId) {
-      const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
-      if (found && found[0]) leadId = found[0].id;
+      const found = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id,phone&order=updated_at.desc&limit=1`);
+      if (found && found[0]) { leadId = found[0].id; if (!found[0].phone && customerPhone) patch.phone = customerPhone; }
     }
     if (leadId) {
       await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
     } else {
       const rows = await SB.sb("leads", {
         method: "POST",
-        body: { name: customerName || customerEmail, email: customerEmail.toLowerCase(), source: "Phone quote", stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null },
+        body: { name: customerName || customerEmail, email: customerEmail.toLowerCase(), ...(customerPhone ? {phone:customerPhone} : {}), source: "Phone quote", stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null },
       });
       leadId = rows && rows[0] && rows[0].id;
     }
@@ -86,10 +89,12 @@ module.exports = async (req, res) => {
   const agentName = String(b.agentName || "").slice(0, 120).trim();
   const sender = S.resolveSender(b.sendAs);
   const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
+  const customerPhone = fromPipeline ? Sms.cleanPhone(b.customerPhone) : '';
   const hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";
   const { serviceMode, alarmQty, controllerQty } = Q.normalise(b);
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
+  if (customerPhone && !/^\+[1-9]\d{7,14}$/.test(customerPhone)) return res.status(400).json({error:'Enter a valid customer mobile number.'});
   if (serviceMode === "install" && alarmQty < 1) return res.status(400).json({ error: "Alarm quantity must be at least 1 for an installation quote" });
 
   const now = new Date();
@@ -126,9 +131,25 @@ module.exports = async (req, res) => {
       await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
       return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     }
-    const leadId = await recordInPipeline({ customerName, customerEmail, agentName, ref, total: rendered.quote.total, leadId: hintLeadId });
-    await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
-    return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total });
+    const leadId = await recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total: rendered.quote.total, leadId: hintLeadId });
+    const emailId = randomUUID();
+    const saved = await logEmail({ id:emailId, kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
+    const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${emailId}`;
+    let sms = {status:'skipped',error:'SMS requires staff portal access.'};
+    if (fromPipeline) {
+      try {
+        if(!saved)throw new Error('Quote email was sent, but its online copy could not be saved. No SMS link was sent.');
+        if(!leadId)throw new Error('Quote email was sent, but the customer record could not be saved.');
+        const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
+        const first=String(lead?.name || customerName || 'there').trim().split(/\s+/)[0];
+        const message=`Hi ${first}, your PowerSmart smoke alarm quote ${ref} is ready. View your quote here: ${quoteUrl} Call (07) 2141 7792 with any questions.`;
+        sms=await Sms.sendLeadSms({lead,message,key:`quote-${emailId}`,author:agentName});
+      } catch(e) {
+        sms={status:'failed',error:e.message};
+        try {await Sms.logNote(leadId,agentName,`Quote ${ref} SMS issue: ${e.message}`);} catch(_) {}
+      }
+    }
+    return res.status(200).json({ ok: true, id: data && data.id, ref, total: rendered.quote.total, quote_url:saved ? quoteUrl : null, sms });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error sending email" });
   }

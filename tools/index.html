@@ -87,6 +87,10 @@
             <label class="font-bold text-gray-700 text-xs whitespace-nowrap">Customer Email:</label>
             <input type="email" id="custEmail" placeholder="name@example.com" class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
         </div>
+        <div class="flex items-center gap-2">
+            <label for="custPhone" class="font-bold text-gray-700 text-xs whitespace-nowrap">Customer Mobile:</label>
+            <input type="tel" id="custPhone" placeholder="For the quote SMS" class="flex-1 min-w-0 p-2 border rounded-md outline-none focus:ring-1 focus:ring-[#43A8B6] text-sm">
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -216,7 +220,7 @@
                         </select>
                     </div>
                     <button onclick="copySMS()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Copy Quote SMS</button>
-                    <button onclick="sendEmail()" id="sendEmailBtn" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Email Quote to Customer</button>
+                    <button onclick="sendEmail()" id="sendEmailBtn" class="w-full py-2 bg-white text-black rounded font-black text-[10px] uppercase tracking-tighter hover:bg-gray-200 transition">Send Quote by Email &amp; SMS</button>
                     <button onclick="openPdfModal()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Download PDF Quote</button>
                 </div>
 
@@ -573,6 +577,12 @@ async function sendEmail() {
     }
 
     const btn = document.getElementById('sendEmailBtn');
+    let staffKey = '';
+    try { staffKey = localStorage.getItem('powersmart_portal_key') || ''; } catch (e) {}
+    if (!staffKey) {
+        staffKey = prompt('Enter your staff portal code to send the quote email and SMS. Cancel to send email only.') || '';
+        if (staffKey) { try { localStorage.setItem('powersmart_portal_key', staffKey); } catch (e) {} }
+    }
     const originalLabel = btn.innerText;
     btn.disabled = true;
     btn.innerText = 'SENDING...';
@@ -580,9 +590,10 @@ async function sendEmail() {
     try {
         const res = await fetch('/api/send-quote', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-portal-key': staffKey },
             body: JSON.stringify({
                 customerEmail: toEmail,
+                customerPhone: document.getElementById('custPhone').value.trim(),
                 customerName: customerName,
                 agentName: agentName,
                 sendAs: document.getElementById('sendAs').value,
@@ -594,7 +605,7 @@ async function sendEmail() {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok) {
-            alert(`Quote emailed to ${toEmail}`);
+            alert(`Quote emailed to ${toEmail}.\n${data.sms && data.sms.status === 'submitted' ? (data.sms.warning || 'Quote SMS submitted to the customer.') : 'SMS issue: ' + (data.sms && data.sms.error || 'SMS was not sent.')}`);
         } else {
             alert(`Couldn't send automatically: ${data.error || 'server error'}.\n\nOpening your email app as a backup.`);
             window.location.href = `mailto:${toEmail}?subject=${encodeURIComponent('Your Smoke Alarm Quote - Power Smart Co')}&body=${encodeURIComponent(buildPlainTextQuote())}`;

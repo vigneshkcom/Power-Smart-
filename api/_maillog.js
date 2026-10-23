@@ -4,11 +4,12 @@
 const SB = require("./_supabase");
 
 async function logEmail(row) {
-  if (!SB.configured()) return;
+  if (!SB.configured()) return false;
   try {
     await SB.sb("sent_emails", {
       method: "POST",
       body: {
+        ...(row.id ? { id: row.id } : {}),
         kind: row.kind || "email",
         sender: row.sender || "customer_service",
         agent: row.agent || null,
@@ -26,8 +27,10 @@ async function logEmail(row) {
       },
       prefer: "return=minimal",
     });
+    return true;
   } catch (e) {
     console.error("sent_emails log failed:", e.message);
+    return false;
   }
 }
 

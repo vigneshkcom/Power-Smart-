@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const Stripe = require('./_stripe');
 const SB = require('./_supabase');
 const P = require('./_payments');
+const Sms = require('./_sms-outbound');
 const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 const fields = 'id,lead_id,quote_ref,payment_type,description,amount_cents,amount_paid_cents,currency,status,stripe_session_id,checkout_url,created_at,paid_at,request_key';
 
@@ -17,11 +18,24 @@ module.exports = async (req, res) => {
       const payments = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&select=${fields}&order=created_at.desc&limit=200`);
       return res.status(200).json({ payments: payments || [] });
     }
-    if (b.action === 'refresh') {
+    if (['refresh','send_sms','preview_sms'].includes(b.action)) {
       const rows = await SB.sb(`payment_requests?id=eq.${encodeURIComponent(clean(b.payment_id, 40))}&lead_id=eq.${encodeURIComponent(leadId)}&select=${fields}&limit=1`);
       if (!rows?.[0]) return res.status(404).json({ error: 'Payment request not found.' });
       const payment = rows[0], session = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payment.stripe_session_id)}`);
       const updated = await P.reconcile(payment, session);
+      if(b.action === 'send_sms' || b.action === 'preview_sms') {
+        if(updated.status !== 'sent' || session.status !== 'open' || !session.url)return res.status(409).json({error:updated.status === 'paid' ? 'This payment has already been paid. No SMS was sent.' : 'This payment link has expired. Create a new request before sending SMS.'});
+        const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
+        if(!lead)return res.status(404).json({error:'Customer not found.'});
+        const first=String(lead.name || 'there').trim().split(/\s+/)[0],type=(P.TYPES[payment.payment_type] || 'payment').toLowerCase();
+        const message=`Hi ${first}, please pay your PowerSmart ${type} of $${(payment.amount_cents/100).toFixed(2)} AUD. ${payment.description}. Pay securely here: https://smokealarms.powersmartco.com.au/pay?token=${payment.id} Thank you, PowerSmart.`;
+        const phone=Sms.cleanPhone(lead.phone);
+        if(!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone)))return res.status(400).json({error:'Add a valid customer mobile number before sending SMS.'});
+        if(b.action === 'preview_sms')return res.status(200).json({phone,message,payment:updated});
+        if(b.expected_phone !== phone || b.expected_message !== message)return res.status(409).json({error:'The customer or payment details changed. Preview the SMS again before sending.'});
+        const sms=await Sms.sendLeadSms({lead,message,key:`payment-${payment.id}`,author:['Mani','Vignesh'].includes(b.agent) ? b.agent : 'Team'});
+        return res.status(200).json({ok:true,sms,payment:updated});
+      }
       return res.status(200).json({ payment: updated, checkout_url: session.status === 'open' && session.url ? P.checkoutUrl(session.url) : null });
     }
     if (b.action !== 'create') return res.status(400).json({ error: 'Unknown payment action.' });

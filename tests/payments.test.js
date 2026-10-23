@@ -13,7 +13,7 @@ function load(name, mocks) {
   return module.exports;
 }
 function fixture() {
-  const payments = [], comments = [], stripeCalls = [], sessions = new Map(), dbCalls = [];
+  const payments = [], comments = [], stripeCalls = [], sessions = new Map(), dbCalls = [], smsCalls = [];
   const SB = { configured: () => true, async sb(query, options = {}) {
     dbCalls.push({ query, options });
     const [table, qs = ''] = query.split('?'), params = new URLSearchParams(qs);
@@ -22,7 +22,7 @@ function fixture() {
       const v = decodeURIComponent(value.slice(value.indexOf('.') + 1));
       return value.startsWith('neq.') ? String(row[key]) !== v : String(row[key]) === v;
     });
-    if (table === 'leads') return [{ id: 'lead1', name: 'Test Customer', email: '', quote_ref: '7000' }].filter(matches);
+    if (table === 'leads') return [{ id: 'lead1', name: 'Test Customer', email: '', phone:'+61400000000', quote_ref: '7000' }].filter(matches);
     const rows = table === 'payment_requests' ? payments : comments;
     if (options.method === 'POST') {
       if (table === 'payment_requests' && payments.some(p => p.stripe_session_id === options.body.stripe_session_id)) return [];
@@ -42,14 +42,15 @@ function fixture() {
     sessions.set(session.id, session); return session;
   }};
   const P = load('_payments.js', { './_supabase': SB });
-  const handler = load('payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P });
+  const Sms={cleanPhone:v=>v,async sendLeadSms(args){smsCalls.push(args);return {status:'submitted',phone:args.lead.phone};}};
+  const handler = load('payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_sms-outbound':Sms });
   async function call(body, extras = {}) {
     let status = 200, data; const response = { setHeader() {}, status(s) { status = s; return this; }, json(d) { data = d; return this; } };
     await handler({ method: 'POST', headers: { 'x-portal-key': '2026' }, body, ...extras }, response);
     return { status, data };
   }
   const body = { action: 'create', lead_id: 'lead1', amount: '316.25', payment_type: 'installation_balance', description: 'Smoke alarm installation balance', request_key: 'payment-request-key-00001', agent: 'Mani' };
-  return { payments, comments, stripeCalls, sessions, dbCalls, P, SB, Stripe, handler, call, body };
+  return { payments, comments, stripeCalls, sessions, dbCalls, smsCalls, P, SB, Stripe, handler, call, body };
 }
 
 test('amount validation preserves exact cents and rejects malformed or unsafe values', () => {
@@ -140,4 +141,18 @@ test('webhook confirms correct purpose and retries without duplicate notes', asy
   assert.equal(await deliver(s),200);assert.equal(await deliver(s),200);
   assert.equal(f.comments.filter(c=>c.author==='Stripe').length,1);assert.equal(p.stripe_event_id,'evt_1');
   assert.equal(await deliver({...s,id:'cs_not_saved'}),500);
+});
+test('payment SMS requires preview of the correct saved phone and full payment message',async()=>{
+  const f=fixture();await f.call(f.body);const p=f.payments[0];
+  const preview=await f.call({action:'preview_sms',lead_id:'lead1',payment_id:p.id});
+  assert.equal(preview.status,200);assert.match(preview.data.message,/316\.25 AUD/);assert.match(preview.data.message,/\/pay\?token=/);assert.equal(f.smsCalls.length,0);
+  const body={action:'send_sms',lead_id:'lead1',payment_id:p.id,expected_phone:preview.data.phone,expected_message:preview.data.message};
+  assert.equal((await f.call({...body,expected_phone:'+61499999999'})).status,409);assert.equal(f.smsCalls.length,0);
+  assert.equal((await f.call(body)).status,200);assert.equal(f.smsCalls.length,1);assert.equal(f.smsCalls[0].message,preview.data.message);
+});
+test('paid, expired and cross-customer payments cannot be texted',async()=>{
+  const f=fixture();await f.call(f.body);const p=f.payments[0],session=f.sessions.get(p.stripe_session_id);
+  assert.equal((await f.call({action:'send_sms',lead_id:'other',payment_id:p.id})).status,404);
+  session.status='expired';assert.equal((await f.call({action:'preview_sms',lead_id:'lead1',payment_id:p.id})).status,409);
+  session.status='complete';session.payment_status='paid';assert.equal((await f.call({action:'send_sms',lead_id:'lead1',payment_id:p.id})).status,409);assert.equal(f.smsCalls.length,0);
 });

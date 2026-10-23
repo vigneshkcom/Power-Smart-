@@ -331,6 +331,12 @@
           <div class="field"><label for="payment-link">Secure checkout link</label><input id="payment-link" readonly></div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem"><a class="btn btn-primary" id="payment-open" target="_blank" rel="noopener noreferrer">Open Stripe checkout</a><button class="btn btn-ghost" id="payment-copy">Copy link</button></div>
         </div>
+        <div id="payment-sms-panel" hidden style="padding:1rem;border:1px solid var(--line);border-radius:12px;margin:1rem 0">
+          <strong style="font-size:.85rem">Preview payment SMS</strong><p id="payment-sms-to" style="font-size:.8rem"></p>
+          <div class="field"><label for="payment-sms-message">Message</label><textarea id="payment-sms-message" readonly style="min-height:130px"></textarea></div>
+          <p style="font-size:.75rem;color:var(--muted)">Sent from PowerSmart's SMS number. The full message is saved in the customer's notes.</p>
+          <button class="btn btn-primary" id="payment-sms-send">Send SMS</button>
+        </div>
         <h4 style="margin:1rem 0 .6rem">Payment history</h4>
         <p id="payment-total" style="font-size:.82rem;font-weight:700"></p>
         <div id="payment-history" style="display:grid;gap:.6rem"></div>
@@ -424,7 +430,7 @@
             </select>
           </div>
         </div>
-        <p class="qnote">Emails the branded PowerSmart quotation with a link to accept, moves this lead to <strong>Quote Sent</strong> and logs it in the comments.</p>
+        <p class="qnote">Emails the branded PowerSmart quotation and texts a link to the customer's saved mobile number, moves this lead to <strong>Quote Sent</strong> and logs both messages in the comments.</p>
       </div>
       <div class="modal-foot">
         <span class="spacer"></span>
@@ -881,7 +887,7 @@
   });
 
   /* ---------- Custom Stripe payments ---------- */
-  var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "";
+  var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "", paymentSmsPreview = null;
   var paymentTypeLabels = {booking_fee:"Booking fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Other payment"};
   function paymentApi(body){
     return fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify(body)})
@@ -903,7 +909,7 @@
     $("payment-total").textContent="Confirmed payments: "+fmt$(total/100)+" AUD";
     $("payment-history").innerHTML=paymentRows.length ? paymentRows.map(function(p){
       var status={paid:"Paid",sent:"Awaiting payment",expired:"Expired",failed:"Failed"}[p.status] || p.status;
-      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentTypeLabels[p.payment_type] || "Booking fee")+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.description || "Booking fee")+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button>' : '')+'</div></div>';
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentTypeLabels[p.payment_type] || "Booking fee")+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.description || "Booking fee")+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button><button class="btn btn-ghost" data-payment-sms="'+esc(p.id)+'">Text payment link</button>' : '')+'</div></div>';
     }).join("") : '<p style="font-size:.82rem;color:var(--muted)">No payment requests yet.</p>';
   }
   function loadPaymentHistory(){
@@ -920,6 +926,7 @@
     if(!currentId)return;
     var lead=leads.find(function(x){return x.id === currentId;});
     paymentLeadId=currentId;paymentRows=[];paymentRequestKey=crypto.randomUUID();
+    paymentSmsPreview=null;$("payment-sms-panel").hidden=true;
     $("payment-title").textContent="Take payment · "+(lead ? lead.name : "Customer");
     $("payment-type").value="other";$("payment-amount").value="";$("payment-description").value="";
     $("payment-error").textContent="";$("payment-result").hidden=true;$("payment-total").textContent="";
@@ -942,6 +949,22 @@
       .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Create payment link";["payment-type","payment-amount","payment-description"].forEach(function(field){$(field).disabled=false;});});
   });
   $("payment-copy").addEventListener("click",function(){navigator.clipboard.writeText($("payment-link").value).then(function(){toast("Payment link copied");}).catch(function(){$("payment-link").focus();$("payment-link").select();toast("Select and copy the payment link above");});});
+  $("payment-history").addEventListener("click",function(e){
+    var button=e.target.closest("[data-payment-sms]");if(!button || paymentBusy)return;
+    paymentBusy=true;button.disabled=true;$("payment-error").textContent="";$("payment-sms-panel").hidden=true;paymentSmsPreview=null;
+    paymentApi({action:"preview_sms",lead_id:paymentLeadId,payment_id:button.getAttribute("data-payment-sms")})
+      .then(function(d){paymentSmsPreview=d;$("payment-sms-to").textContent="To: "+d.phone;$("payment-sms-message").value=d.message;$("payment-sms-panel").hidden=false;$("payment-sms-panel").scrollIntoView({block:"nearest",behavior:"smooth"});})
+      .catch(function(err){$("payment-error").textContent=err.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;});
+  });
+  $("payment-sms-send").addEventListener("click",function(){
+    if(paymentBusy || !paymentSmsPreview)return;
+    var button=this,p=paymentSmsPreview;paymentBusy=true;button.disabled=true;button.textContent="Sending...";$("payment-error").textContent="";
+    paymentApi({action:"send_sms",lead_id:paymentLeadId,payment_id:p.payment.id,expected_phone:p.phone,expected_message:p.message,agent:currentAgent()})
+      .then(function(d){toast(d.sms.warning || (d.sms.duplicate ? "This payment SMS was already submitted. Check the SMS inbox." : "Payment SMS submitted to "+d.sms.phone));paymentSmsPreview=null;$("payment-sms-panel").hidden=true;return load();})
+      .catch(function(err){$("payment-error").textContent=err.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Send SMS";});
+  });
   $("payment-history").addEventListener("click",function(e){
     var button=e.target.closest("[data-payment-refresh],[data-payment-use]");
     if(!button || paymentBusy)return;
@@ -1157,7 +1180,7 @@
       }); })
       .then(function(d){
         closeQuote();
-        toast("Quote " + d.ref + " (" + fmt$(d.total) + ") emailed to " + to);
+        toast("Quote " + d.ref + " emailed to " + to + (d.sms && d.sms.status === "submitted" ? ". " + (d.sms.warning || "Quote SMS submitted.") : ". SMS issue: " + (d.sms && d.sms.error || "SMS was not sent.")));
         return load();   // card moves to Quote Sent with its quote ref
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })
