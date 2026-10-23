@@ -329,7 +329,7 @@
         <div id="payment-result" hidden style="padding:1rem;background:var(--paper);border:1px solid var(--line);border-radius:12px;margin-bottom:1rem">
           <p id="payment-result-summary" style="margin:0 0 .7rem;font-size:.85rem"></p>
           <div class="field"><label for="payment-link">Secure checkout link</label><input id="payment-link" readonly></div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem"><a class="btn btn-primary" id="payment-open" target="_blank" rel="noopener noreferrer">Open Stripe checkout</a><button class="btn btn-ghost" id="payment-copy">Copy link</button></div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem"><a class="btn btn-primary" id="payment-open" target="_blank" rel="noopener noreferrer">Open Stripe checkout</a><button class="btn btn-ghost" id="payment-copy">Copy link</button><button class="btn btn-primary" id="payment-send-sms">Send SMS</button></div>
         </div>
         <div id="payment-sms-panel" hidden style="padding:1rem;border:1px solid var(--line);border-radius:12px;margin:1rem 0">
           <strong style="font-size:.85rem">Preview payment SMS</strong><p id="payment-sms-to" style="font-size:.8rem"></p>
@@ -907,6 +907,7 @@
     return url.href;
   }
   function showPaymentLink(payment, url){
+    $("payment-send-sms").dataset.paymentId=payment.id;
     $("payment-link").value=safeCheckout(url);
     $("payment-open").href=safeCheckout(url);
     $("payment-result-summary").textContent=(paymentTypeLabels[payment.payment_type] || "Payment")+" · "+fmt$(payment.amount_cents/100)+" AUD · "+payment.description;
@@ -957,6 +958,19 @@
       .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Create payment link";["payment-type","payment-amount","payment-description"].forEach(function(field){$(field).disabled=false;});});
   });
   $("payment-copy").addEventListener("click",function(){navigator.clipboard.writeText($("payment-link").value).then(function(){toast("Payment link copied");}).catch(function(){$("payment-link").focus();$("payment-link").select();toast("Select and copy the payment link above");});});
+  function paymentSmsSent(d){
+    toast(d.sms.warning || (d.sms.duplicate ? "This payment SMS was already submitted. Check the SMS inbox." : "Payment SMS submitted to "+d.sms.phone));
+    paymentSmsPreview=null;$("payment-sms-panel").hidden=true;return load();
+  }
+  $("payment-send-sms").addEventListener("click",function(){
+    var id=this.dataset.paymentId;if(paymentBusy || !paymentLeadId || !id)return;
+    var button=this,leadId=paymentLeadId;paymentBusy=true;button.disabled=true;button.textContent="Sending...";$("payment-error").textContent="";
+    paymentApi({action:"preview_sms",lead_id:leadId,payment_id:id})
+      .then(function(p){return paymentApi({action:"send_sms",lead_id:leadId,payment_id:id,expected_phone:p.phone,expected_message:p.message,agent:currentAgent()});})
+      .then(paymentSmsSent)
+      .catch(function(err){$("payment-error").textContent=err.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Send SMS";});
+  });
   $("payment-history").addEventListener("click",function(e){
     var button=e.target.closest("[data-payment-sms]");if(!button || paymentBusy)return;
     paymentBusy=true;button.disabled=true;$("payment-error").textContent="";$("payment-sms-panel").hidden=true;paymentSmsPreview=null;
@@ -969,7 +983,7 @@
     if(paymentBusy || !paymentSmsPreview)return;
     var button=this,p=paymentSmsPreview;paymentBusy=true;button.disabled=true;button.textContent="Sending...";$("payment-error").textContent="";
     paymentApi({action:"send_sms",lead_id:paymentLeadId,payment_id:p.payment.id,expected_phone:p.phone,expected_message:p.message,agent:currentAgent()})
-      .then(function(d){toast(d.sms.warning || (d.sms.duplicate ? "This payment SMS was already submitted. Check the SMS inbox." : "Payment SMS submitted to "+d.sms.phone));paymentSmsPreview=null;$("payment-sms-panel").hidden=true;return load();})
+      .then(paymentSmsSent)
       .catch(function(err){$("payment-error").textContent=err.message;})
       .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Send SMS";});
   });
