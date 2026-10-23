@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
       const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
       const latestPayments = {};
       try {
-        const payments = await sb("payment_requests?select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
+        const payments = await sb("payment_requests?payment_type=eq.booking_fee&select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
         (payments || []).forEach((payment) => { if (!latestPayments[payment.lead_id]) latestPayments[payment.lead_id] = payment; });
       } catch (_) { /* payment tracking is optional until its migration is run */ }
       // Comment counts via a plain query, tallied here. (Supabase disables

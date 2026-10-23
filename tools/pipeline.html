@@ -304,12 +304,38 @@
           <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
           <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
           <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
+          <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
         </div>
         <button class="lead-delete" id="lm-delete">Delete lead</button>
         <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
       </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="payment-overlay">
+    <div class="modal" style="width:min(720px,100%)">
+      <div class="modal-head"><h3 id="payment-title">Take payment</h3><button class="x" id="payment-close" aria-label="Close payments">&times;</button></div>
+      <div class="modal-body">
+        <p style="font-size:.82rem;color:var(--muted);margin:0 0 1rem">Enter the total amount to charge in AUD. Card details are entered securely on Stripe.</p>
+        <div class="fgrid">
+          <div class="field"><label for="payment-type">Payment type</label><select id="payment-type"><option value="other">Other payment</option><option value="booking_fee">Booking fee</option><option value="inspection">Inspection</option><option value="installation_balance">Installation balance</option></select></div>
+          <div class="field"><label for="payment-amount">Amount (AUD)</label><input id="payment-amount" type="number" min="0.50" max="999999.99" step="0.01" inputmode="decimal" placeholder="e.g. 316.00"></div>
+          <div class="field full"><label for="payment-description">Payment description</label><input id="payment-description" maxlength="250" placeholder="e.g. Smoke alarm installation balance"></div>
+        </div>
+        <div id="payment-error" role="alert" style="color:#a33131;font-size:.82rem;margin-top:.7rem"></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0"><button class="btn btn-primary" id="payment-create">Create payment link</button></div>
+        <div id="payment-result" hidden style="padding:1rem;background:var(--paper);border:1px solid var(--line);border-radius:12px;margin-bottom:1rem">
+          <p id="payment-result-summary" style="margin:0 0 .7rem;font-size:.85rem"></p>
+          <div class="field"><label for="payment-link">Secure checkout link</label><input id="payment-link" readonly></div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem"><a class="btn btn-primary" id="payment-open" target="_blank" rel="noopener noreferrer">Open Stripe checkout</a><button class="btn btn-ghost" id="payment-copy">Copy link</button></div>
+        </div>
+        <h4 style="margin:1rem 0 .6rem">Payment history</h4>
+        <p id="payment-total" style="font-size:.82rem;font-weight:700"></p>
+        <div id="payment-history" style="display:grid;gap:.6rem"></div>
+      </div>
+      <div class="modal-foot"><span class="spacer"></span><button class="btn btn-ghost" id="payment-cancel">Close</button></div>
     </div>
   </div>
 
@@ -853,6 +879,88 @@
       .catch(function(err){ toast("Couldn't send: " + err.message); })
       .finally(function(){ btn.disabled = false; btn.textContent = orig; });
   });
+
+  /* ---------- Custom Stripe payments ---------- */
+  var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "";
+  var paymentTypeLabels = {booking_fee:"Booking fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Other payment"};
+  function paymentApi(body){
+    return fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify(body)})
+      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error || "Payment request failed");return d;});});
+  }
+  function safeCheckout(value){
+    var url = new URL(value);
+    if(url.protocol !== "https:" || url.hostname !== "checkout.stripe.com")throw new Error("Invalid Stripe checkout link");
+    return url.href;
+  }
+  function showPaymentLink(payment, url){
+    $("payment-link").value=safeCheckout(url);
+    $("payment-open").href=safeCheckout(url);
+    $("payment-result-summary").textContent=(paymentTypeLabels[payment.payment_type] || "Payment")+" · "+fmt$(payment.amount_cents/100)+" AUD · "+payment.description;
+    $("payment-result").hidden=false;
+  }
+  function renderPaymentHistory(){
+    var total=paymentRows.reduce(function(sum,p){return sum+(p.status === "paid" ? Number(p.amount_paid_cents || 0) : 0);},0);
+    $("payment-total").textContent="Confirmed payments: "+fmt$(total/100)+" AUD";
+    $("payment-history").innerHTML=paymentRows.length ? paymentRows.map(function(p){
+      var status={paid:"Paid",sent:"Awaiting payment",expired:"Expired",failed:"Failed"}[p.status] || p.status;
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentTypeLabels[p.payment_type] || "Booking fee")+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.description || "Booking fee")+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button>' : '')+'</div></div>';
+    }).join("") : '<p style="font-size:.82rem;color:var(--muted)">No payment requests yet.</p>';
+  }
+  function loadPaymentHistory(){
+    var id=paymentLeadId;
+    return fetch("/api/payments?lead_id="+encodeURIComponent(id),{headers:{"x-portal-key":portalKey()},cache:"no-store"})
+      .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error || "Could not load payments");return d;});})
+      .then(function(d){if(paymentLeadId !== id)return;paymentRows=d.payments || [];renderPaymentHistory();});
+  }
+  function closePayments(){
+    if(paymentBusy){toast("Please wait for the payment request to finish");return;}
+    var id=paymentLeadId;$("payment-overlay").classList.remove("show");paymentLeadId=null;if(id)openLead(id);
+  }
+  $("lm-payment").addEventListener("click",function(){
+    if(!currentId)return;
+    var lead=leads.find(function(x){return x.id === currentId;});
+    paymentLeadId=currentId;paymentRows=[];paymentRequestKey=crypto.randomUUID();
+    $("payment-title").textContent="Take payment · "+(lead ? lead.name : "Customer");
+    $("payment-type").value="other";$("payment-amount").value="";$("payment-description").value="";
+    $("payment-error").textContent="";$("payment-result").hidden=true;$("payment-total").textContent="";
+    $("payment-history").textContent="Loading payment history...";
+    closeModal();$("payment-overlay").classList.add("show");
+    loadPaymentHistory().catch(function(e){$("payment-error").textContent=e.message;});
+  });
+  ["payment-type","payment-amount","payment-description"].forEach(function(id){$(id).addEventListener("input",function(){paymentRequestKey=crypto.randomUUID();$("payment-result").hidden=true;$("payment-error").textContent="";});});
+  $("payment-create").addEventListener("click",function(){
+    if(paymentBusy || !paymentLeadId)return;
+    var amount=$("payment-amount").value.trim(), description=$("payment-description").value.trim();
+    if(!/^\d{1,6}(\.\d{1,2})?$/.test(amount) || Number(amount)<.5 || Number(amount)>999999.99){$("payment-error").textContent="Enter an AUD amount between $0.50 and $999,999.99, with no more than two decimal places.";return;}
+    if(!description){$("payment-error").textContent="Enter a payment description.";return;}
+    var id=paymentLeadId, button=this;paymentBusy=true;button.disabled=true;button.textContent="Creating...";$("payment-error").textContent="";
+    ["payment-type","payment-amount","payment-description"].forEach(function(field){$(field).disabled=true;});
+    paymentApi({action:"create",lead_id:id,payment_type:$("payment-type").value,amount:amount,description:description,request_key:paymentRequestKey,agent:currentAgent()})
+      .then(function(d){showPaymentLink(d.payment,d.checkout_url);return loadPaymentHistory();})
+      .then(function(){return load();})
+      .catch(function(e){$("payment-error").textContent=e.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Create payment link";["payment-type","payment-amount","payment-description"].forEach(function(field){$(field).disabled=false;});});
+  });
+  $("payment-copy").addEventListener("click",function(){navigator.clipboard.writeText($("payment-link").value).then(function(){toast("Payment link copied");}).catch(function(){$("payment-link").focus();$("payment-link").select();toast("Select and copy the payment link above");});});
+  $("payment-history").addEventListener("click",function(e){
+    var button=e.target.closest("[data-payment-refresh],[data-payment-use]");
+    if(!button || paymentBusy)return;
+    var id=button.getAttribute("data-payment-refresh") || button.getAttribute("data-payment-use"), use=button.hasAttribute("data-payment-use"), leadId=paymentLeadId;
+    paymentBusy=true;button.disabled=true;$("payment-error").textContent="";
+    paymentApi({action:"refresh",lead_id:leadId,payment_id:id})
+      .then(function(d){
+        $("payment-result").hidden=true;
+        if(use && d.checkout_url && d.payment.status === "sent")showPaymentLink(d.payment,d.checkout_url);
+        else if(use)toast(d.payment.status === "paid" ? "This payment has already been paid" : "This link has expired. Create a new payment request.");
+        else toast(d.payment.status === "paid" ? "Payment confirmed by Stripe" : d.payment.status === "expired" ? "Payment link expired" : "Stripe has not confirmed payment yet");
+        return loadPaymentHistory();
+      }).then(function(){return load();})
+      .catch(function(err){$("payment-error").textContent=err.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;});
+  });
+  $("payment-close").addEventListener("click",closePayments);$("payment-cancel").addEventListener("click",closePayments);
+  $("payment-overlay").addEventListener("click",function(e){if(e.target===this)closePayments();});
+  document.addEventListener("keydown",function(e){if(e.key === "Escape" && $("payment-overlay").classList.contains("show"))closePayments();});
 
   /* ---------- SMS conversation ---------- */
   var smsLeadId = null, smsPhone = "";

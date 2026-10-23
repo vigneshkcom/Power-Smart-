@@ -6,7 +6,7 @@ function configured() {
   return Boolean((process.env.STRIPE_SECRET_KEY || "").trim());
 }
 
-async function request(path, form) {
+async function request(path, form, options = {}) {
   const key = (process.env.STRIPE_SECRET_KEY || "").trim();
   if (!key) {
     const error = new Error("Stripe is not configured");
@@ -15,7 +15,7 @@ async function request(path, form) {
   }
   const res = await fetch(API + path, {
     method: form ? "POST" : "GET",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded", ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}) },
     ...(form ? { body: new URLSearchParams(form).toString() } : {}),
   });
   const data = await res.json();

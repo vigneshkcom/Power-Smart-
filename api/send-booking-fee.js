@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     if (!checkoutOnly && !lead.email) return res.status(400).json({ error: "Add an email address before sending a booking fee" });
 
-    const payments = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(lead.id)}&order=created_at.desc&select=status,stripe_session_id&limit=100`);
+    const payments = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(lead.id)}&payment_type=eq.booking_fee&order=created_at.desc&select=status,stripe_session_id&limit=100`);
     if ((payments || []).some(payment => payment.status === "paid")) return res.status(409).json({ error: "This customer's booking fee has already been paid." });
     if (checkoutOnly && payments && payments[0]?.stripe_session_id) {
       const existing = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payments[0].stripe_session_id)}`);

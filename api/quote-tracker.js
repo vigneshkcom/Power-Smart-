@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
 
     const paymentByLead = {};
     try {
-      const payments = await sb("payment_requests?select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
+      const payments = await sb("payment_requests?payment_type=eq.booking_fee&select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
       (payments || []).forEach((payment) => {
         if (!paymentByLead[payment.lead_id]) paymentByLead[payment.lead_id] = payment;
       });
