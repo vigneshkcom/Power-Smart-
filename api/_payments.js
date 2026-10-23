@@ -1,6 +1,6 @@
 const SB = require('./_supabase');
 
-const TYPES = { booking_fee: 'Booking fee', inspection: 'Inspection', installation_balance: 'Installation balance', other: 'Other payment' };
+const TYPES = { booking_fee: 'Booking fee', inspection: 'Inspection', installation_balance: 'Installation balance', other: 'Pending balance' };
 function amountCents(value) {
   const text = String(value == null ? '' : value).trim();
   if (!/^\d{1,6}(\.\d{1,2})?$/.test(text)) throw new Error('Enter a valid AUD amount with no more than two decimal places.');

@@ -320,7 +320,7 @@
       <div class="modal-body">
         <p style="font-size:.82rem;color:var(--muted);margin:0 0 1rem">Enter the total amount to charge in AUD. Card details are entered securely on Stripe.</p>
         <div class="fgrid">
-          <div class="field"><label for="payment-type">Payment type</label><select id="payment-type"><option value="other">Other payment</option><option value="booking_fee">Booking fee</option><option value="inspection">Inspection</option><option value="installation_balance">Installation balance</option></select></div>
+          <div class="field"><label for="payment-type">Payment type</label><select id="payment-type"><option value="other">Pending balance</option><option value="booking_fee">Booking fee</option><option value="inspection">Inspection</option><option value="installation_balance">Installation balance</option></select></div>
           <div class="field"><label for="payment-amount">Amount (AUD)</label><input id="payment-amount" type="number" min="0.50" max="999999.99" step="0.01" inputmode="decimal" placeholder="e.g. 316.00"></div>
           <div class="field full"><label for="payment-description">Payment description</label><input id="payment-description" maxlength="250" placeholder="e.g. Smoke alarm installation balance"></div>
         </div>
@@ -896,7 +896,7 @@
 
   /* ---------- Custom Stripe payments ---------- */
   var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "", paymentSmsPreview = null;
-  var paymentTypeLabels = {booking_fee:"Booking fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Other payment"};
+  var paymentTypeLabels = {booking_fee:"Booking fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Pending balance"};
   function paymentApi(body){
     return fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error || "Payment request failed");return d;});});
