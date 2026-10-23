@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
     });
 
     await SB.sb("payment_requests", { method: "POST", body: {
-      lead_id: lead.id, quote_ref: lead.quote_ref || null, customer_email: lead.email,
+      lead_id: lead.id, quote_ref: lead.quote_ref || null, customer_email: lead.email || "",
       amount_cents: FEE_CENTS, currency: "aud", status: "sent", stripe_session_id: session.id,
       checkout_url: session.url, sent_at: new Date().toISOString(),
     }});
