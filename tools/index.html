@@ -66,7 +66,7 @@
                 <input type="radio" name="serviceType" value="install" checked onclick="toggleService('install')"> Install Quote
             </label>
             <label class="text-white text-xs font-medium flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="serviceType" value="inspection" onclick="toggleService('inspect')"> Inspection ($131)
+                <input type="radio" name="serviceType" value="inspection" onclick="toggleService('inspect')"> Inspection ($120)
             </label>
         </div>
     </div>
@@ -163,8 +163,8 @@
             <div id="inspect-script-box" class="hidden bg-white p-4 rounded-lg shadow step-border step-3">
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: INSPECTION SERVICE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
-                    <p>"The inspection cost is <strong>$131 paid upfront</strong> to secure your booking. The electrician will check all alarms for 2027 QLD compliance."</p>
-                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $131 fee</strong>. We only charge the $35 booking fee plus required alarms."</p>
+                    <p>"The inspection cost is <strong>$120 paid upfront</strong> to secure your booking. The electrician will check all alarms for 2027 QLD compliance."</p>
+                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $120 fee</strong>. We only charge the $35 booking fee plus required alarms."</p>
                 </div>
             </div>
 
@@ -448,7 +448,7 @@ function calculate() {
 
     const PRICE_ALARM = 79;
     const PRICE_CTRL = 35;
-    const FEE_BOOKING = serviceMode === 'install' ? 35 : 131;
+    const FEE_BOOKING = serviceMode === 'install' ? 35 : 120;
 
     const totalAlarmPrice = alarmCount * PRICE_ALARM;
     const totalCtrlPrice = controllerQty * PRICE_CTRL;
@@ -466,7 +466,7 @@ function calculate() {
         document.getElementById('res-balance').innerText = formatter.format(totalAlarmPrice + totalCtrlPrice);
     } else {
         document.getElementById('lbl-upfront').innerText = "Inspection Fee:";
-        document.getElementById('res-upfront').innerText = "$131.00";
+        document.getElementById('res-upfront').innerText = "$120.00";
         document.getElementById('res-balance').innerText = "$0.00";
     }
 
@@ -503,7 +503,7 @@ function copySMS() {
         }
         breakdown += `\n- Booking Fee: $35.00\n- Total: ${grandTotal}`;
     } else {
-        breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $131.00\n- Total: ${grandTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
     
     const body = `Hi,\n\nAs discussed, based on the information you provided, your property requires ${qty} interconnected smoke alarms to meet QLD smoke alarm legislation.${breakdown}\n\nThis is an estimate based on the information provided.\n\nIf you have any questions or would like to proceed, please reply to this SMS or call us on 07 2141 7792.\n\nRegards,\nPower Smart Pty Ltd`;
@@ -551,7 +551,7 @@ function buildPlainTextQuote() {
         }
         breakdown += `\n- Booking Fee: $35.00\n- Total: ${grandTotal}`;
     } else {
-        breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $131.00\n- Total: ${grandTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
 
     return `Hi ${nameStr},\n\nAs discussed, based on the information you provided, your property requires ${qty} interconnected smoke alarms to meet QLD smoke alarm legislation.${breakdown}\n\nThis is an estimate based on the information provided.\n\nIf you have any questions or would like to proceed, please reply to this email or call us on 07 2141 7792.\n\nRegards,\nPower Smart Pty Ltd`;
@@ -673,7 +673,7 @@ function generatePDF() {
         }
         rows += `<tr><td class="py-2 border-b">Electrician Booking Fee</td><td class="text-center border-b">1</td><td class="text-right border-b">$35.00</td><td class="text-right border-b">$35.00</td></tr>`;
     } else {
-        rows += `<tr><td class="py-2 border-b">Smoke Alarm Inspection Service</td><td class="text-center border-b">1</td><td class="text-right border-b">$131.00</td><td class="text-right border-b">$131.00</td></tr>`;
+        rows += `<tr><td class="py-2 border-b">Smoke Alarm Inspection Service</td><td class="text-center border-b">1</td><td class="text-right border-b">$120.00</td><td class="text-right border-b">$120.00</td></tr>`;
     }
     
     document.getElementById('pdf-table-body').innerHTML = rows;

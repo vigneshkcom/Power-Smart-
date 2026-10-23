@@ -106,7 +106,7 @@ module.exports = async (req, res) => {
         lead_stage: (lead && lead.stage) || "",
         lead_id: (lead && lead.id) || null,
         payment_status: payment ? payment.status : phonePayment ? "phone" : "",
-        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : phonePayment ? (service === "Inspection" ? 131 : 35) : 0,
+        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : phonePayment ? (service === "Inspection" ? 120 : 35) : 0,
         payment_date: payment ? payment.paid_at || payment.sent_at || null : null,
         subject: email.subject || "",
         body_text: text,

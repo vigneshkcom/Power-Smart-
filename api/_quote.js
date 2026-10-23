@@ -13,7 +13,7 @@ const QUOTE_VALID_DAYS = 30;
 const PRICE_ALARM = 79;
 const PRICE_CTRL = 35;
 const FEE_BOOKING = 35;
-const FEE_INSPECT = 131;
+const FEE_INSPECT = 120;
 
 const IMG = {
   logo: `${SITE}/assets/logo/power-smart-logo-full-colour.png`,
@@ -44,7 +44,7 @@ function buildQuote({ serviceMode, alarmQty, controllerQty }) {
     lines.push({ label: "Smoke alarm compliance inspection", qty: 1, unit: FEE_INSPECT, amount: FEE_INSPECT });
     payableToday = FEE_INSPECT;
     balance = 0;
-    waiverNote = "If your home needs upgrading and you proceed with us, this $131 inspection fee is waived in full. You pay only the $35 booking fee plus the alarms required.";
+    waiverNote = "If your home needs upgrading and you proceed with us, this $120 inspection fee is waived in full. You pay only the $35 booking fee plus the alarms required.";
   } else {
     lines.push({ label: "Photoelectric interconnected smoke alarms - supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
     if (controllerQty > 0) {
