@@ -45,6 +45,7 @@ supabase/emails.sql   Run once — sent_emails log table
 supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
 supabase/tech-app.sql Run once (after jobs.sql) — unique electrician codes, alarms installed/type, invoice + payment columns
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
+supabase/stage-assigned.sql Run once — adds the Job Assigned pipeline stage
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
 assets/email/         Product photos used on the site and in quote emails
@@ -89,7 +90,8 @@ Environment variables (Vercel → Settings → Environment Variables):
 ## Sales pipeline (/tools/pipeline)
 
 GHL-style kanban backed by Supabase. Stages: New Lead, Quote Accepted,
-Follow-Up, Shopping Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
+Follow-Up, Shopping Around, Quote Sent, Job Assigned, Installed, Not Reachable, Out of Area.
+(Installed is stored as `won`.) Job Assigned and Installed follow the job schedule automatically.
 
 - Website enquiries land in **New Lead** automatically (`/api/lead` inserts them).
 - Sending a quote from /tools moves (or creates) the lead in **Quote Sent**
@@ -125,7 +127,9 @@ service management). Same portal passcode and Mani/Vignesh picker as the pipelin
   and *Call customer*. The yellow route button opens that electrician's stops
   for the visible range in Google Maps.
 - **Pipeline sync**: creating, rescheduling or changing status logs a note on the
-  linked lead; marking a job **Completed** moves the lead to **Won/Installed**.
+  linked lead. Assigning the job to an electrician moves the lead to **Job Assigned**;
+  completing it moves the lead to **Installed**; taking it off the schedule (waiting
+  list, cancelled or deleted) moves a Job Assigned lead back to **Quote Accepted**.
 - **Electricians**: add, edit and deactivate fieldworkers from the *Electricians* button.
 - **Report**: completed jobs for This week / Last week / This month / Last month or any
   dates, optionally one electrician. Per-electrician totals (jobs, battery and hardwired

@@ -11,7 +11,8 @@ const STAGE_LABELS = {
   follow_up: "Follow-Up",
   shopping: "Shopping Around",
   quote_sent: "Quote Sent",
-  won: "Won / Installed",
+  assigned: "Job Assigned",
+  won: "Installed",
   not_reachable: "Not Reachable",
   out_of_area: "Out of Area",
 };

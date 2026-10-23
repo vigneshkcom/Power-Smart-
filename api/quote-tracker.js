@@ -3,7 +3,7 @@
 const { sb, configured } = require("./_supabase");
 
 const PORTAL_KEY = "2026";
-const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "assigned", "won", "not_reachable", "out_of_area"];
 
 function quantityFromText(text, pattern) {
   const match = String(text || "").match(pattern);

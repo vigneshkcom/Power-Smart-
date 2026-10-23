@@ -200,6 +200,7 @@ test('a completed job can be reopened, changed and completed again', async () =>
   assert.equal(t.job('j1').completed_at, null);
   assert.equal(t.job('j1').pay_status, 'unpaid', 'can now take a card payment');
   assert.match(t.db.tables.lead_comments.at(-1).body, /J1001 reopened for changes by Jake Turner/);
+  assert.equal(t.db.tables.leads[0].stage, 'assigned', 'reopened job moves the lead from Installed back to Job Assigned');
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2 }, { code: 'alarm_hardwired', qty: 1 }], approve: true });
   assert.equal((await t.call({ action: 'complete', id: 'j1', payment: 'later' })).code, 200);
   assert.equal(t.job('j1').invoice_total_cents, 23700);

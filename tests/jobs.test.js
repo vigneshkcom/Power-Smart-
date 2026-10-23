@@ -233,3 +233,32 @@ test('marking a job completed in the office stamps the completion date', async (
   await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed' } }, r);
   assert(f.calls.find((c) => c.method === 'PATCH' && c.q.startsWith('jobs?')).body.completed_at);
 });
+
+test('pipeline stage follows the job: assigned → Job Assigned, completed → Installed, removed → back to Quote Accepted', async () => {
+  const stageCalls = (f) => f.calls.filter((c) => c.q.startsWith('leads?') && c.body && c.body.stage).map((c) => [c.q.replace('leads?id=eq.lead1', ''), c.body.stage]);
+
+  let f = fixture(), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_create', customer_name: 'Kath', lead_id: 'lead1', electrician_id: 't1', scheduled_start: '2026-10-27T23:30:00.000Z' } }, r);
+  assert.deepEqual(stageCalls(f), [['', 'assigned']]);
+
+  f = fixture(); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_create', customer_name: 'Kath', lead_id: 'lead1' } }, r);
+  assert.deepEqual(stageCalls(f), [['&stage=eq.assigned', 'quote_accepted']], 'waiting-list job does not mark the lead assigned');
+
+  const base = { id: 'j1', job_no: 1001, lead_id: 'lead1', electrician_id: 't1', status: 'scheduled', scheduled_start: '2026-10-27T23:30:00+00:00' };
+  f = fixture(base); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed' } }, r);
+  assert.deepEqual(stageCalls(f), [['', 'won']]);
+
+  f = fixture(base); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: null, scheduled_start: null } }, r);
+  assert.deepEqual(stageCalls(f), [['&stage=eq.assigned', 'quote_accepted']], 'only a Job Assigned lead moves back');
+
+  f = fixture(base); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', notes: 'gate code 1234' } }, r);
+  assert.deepEqual(stageCalls(f), [], 'editing notes leaves the stage alone');
+
+  f = fixture(base); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_delete', id: 'j1' } }, r);
+  assert.deepEqual(stageCalls(f), [['&stage=eq.assigned', 'quote_accepted']]);
+});

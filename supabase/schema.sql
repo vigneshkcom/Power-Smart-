@@ -22,7 +22,7 @@ create table if not exists public.leads (
   address_postcode text,
   source       text not null default 'Website',
   stage        text not null default 'new_lead'
-               check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','won','not_reachable','out_of_area')),
+               check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','assigned','won','not_reachable','out_of_area')),
   agent        text,
   quote_ref    text,
   quote_total  numeric(10,2),

@@ -197,6 +197,7 @@ async function handler(req, res) {
       const f = { status: "on_site", completed_at: null };
       if (job.pay_status !== "paid") f.pay_status = "unpaid";
       const updated = await patchJob(job.id, f);
+      await J.syncLeadStage(updated || { ...job, ...f });          // Installed → Job Assigned until completed again
       await J.leadNote(job.lead_id, tech.name, `↩ Job J${job.job_no} reopened for changes by ${tech.name}.`);
       return res.status(200).json(await jobDetail(updated));
     }
@@ -275,9 +276,7 @@ async function handler(req, res) {
 
       const done = await patchJob(current.id, { status: "completed", completed_at: new Date().toISOString(), pay_status: payStatus, amount_due_cents: t.due });
       if (current.lead_id) {
-        try {
-          await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
-        } catch (e) { console.error("tech → lead stage update failed:", e.message); }
+        await J.syncLeadStage(done || { ...current, status: "completed" });
         const notes = current.tech_notes ? ` Notes: ${current.tech_notes}` : "";
         await J.leadNote(current.lead_id, tech.name,
           `✅ Job J${current.job_no} completed by ${tech.name}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText}${notes}`);

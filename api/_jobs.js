@@ -227,6 +227,20 @@ async function reportWorkbook(data, label) {
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
+// The pipeline stage follows the job: assigned to an electrician → "assigned" (Job Assigned),
+// completed → "won" (Installed). Taking a job off the schedule (waiting list, cancelled,
+// deleted) moves a Job Assigned lead back to Quote Accepted. Best-effort, never fails the request.
+async function syncLeadStage(job, removed = false) {
+  if (!job || !job.lead_id) return;
+  let stage, onlyFrom = "";
+  if (!removed && job.status === "completed") stage = "won";
+  else if (!removed && job.status !== "cancelled" && job.electrician_id && job.scheduled_start) stage = "assigned";
+  else { stage = "quote_accepted"; onlyFrom = "&stage=eq.assigned"; }
+  try {
+    await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}${onlyFrom}`, { method: "PATCH", body: { stage }, prefer: "return=minimal" });
+  } catch (e) { console.error("jobs → lead stage update failed:", e.message); }
+}
+
 function scheduleText(job, tech) {
   if (job.electrician_id && job.scheduled_start) return `assigned to ${tech || "an electrician"} for ${fmtWhen(job.scheduled_start)}`;
   return "added to the waiting list";
@@ -269,6 +283,7 @@ module.exports = async (req, res) => {
       const job = rows && rows[0];
       if (job && job.lead_id) {
         const tech = await techName(job.electrician_id);
+        await syncLeadStage(job);
         await leadNote(job.lead_id, actor, `🛠 Job J${job.job_no} created — ${scheduleText(job, tech)}.`);
       }
       return res.status(200).json({ ok: true, job });
@@ -294,15 +309,14 @@ module.exports = async (req, res) => {
 
       if (job && job.lead_id) {
         const tech = await techName(job.electrician_id);
+        const moved = (f.electrician_id !== undefined && f.electrician_id !== prev.electrician_id) ||
+                      (f.scheduled_start !== undefined && !sameInstant(f.scheduled_start, prev.scheduled_start));
+        if ((f.status && f.status !== prev.status) || moved) await syncLeadStage(job);
         if (f.status === "completed" && prev.status !== "completed") {
-          try {
-            await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
-          } catch (e) { console.error("jobs → lead stage update failed:", e.message); }
           await leadNote(job.lead_id, actor, `✅ Job J${job.job_no} completed${tech ? " by " + tech : ""}.`);
         } else if (f.status && f.status !== prev.status) {
           await leadNote(job.lead_id, actor, `🛠 Job J${job.job_no} status: ${STATUS_LABEL[f.status]}.`);
-        } else if ((f.electrician_id !== undefined && f.electrician_id !== prev.electrician_id) ||
-                   (f.scheduled_start !== undefined && !sameInstant(f.scheduled_start, prev.scheduled_start))) {
+        } else if (moved) {
           await leadNote(job.lead_id, actor, `🛠 Job J${job.job_no} ${scheduleText(job, tech)}.`);
         }
       }
@@ -333,10 +347,13 @@ module.exports = async (req, res) => {
     if (b.action === "job_delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
-      const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=job_no,lead_id&limit=1`);
+      const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=job_no,lead_id,status&limit=1`);
       const prev = prevRows && prevRows[0];
       await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", prefer: "return=minimal" });
-      if (prev && prev.lead_id) await leadNote(prev.lead_id, actor, `🗑 Job J${prev.job_no} removed from the schedule.`);
+      if (prev && prev.lead_id) {
+        await syncLeadStage(prev, true);
+        await leadNote(prev.lead_id, actor, `🗑 Job J${prev.job_no} removed from the schedule.`);
+      }
       return res.status(200).json({ ok: true });
     }
 
@@ -372,4 +389,4 @@ module.exports = async (req, res) => {
 };
 
 // Shared with api/_tech.js (electrician app).
-Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });
+Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote, syncLeadStage });

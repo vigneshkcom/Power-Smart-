@@ -3,7 +3,7 @@
 
 alter table public.leads drop constraint if exists leads_stage_check;
 alter table public.leads add constraint leads_stage_check
-  check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','won','not_reachable','out_of_area'));
+  check (stage in ('new_lead','quote_accepted','follow_up','shopping','quote_sent','assigned','won','not_reachable','out_of_area'));
 
 create sequence if not exists public.quote_reference_sequence
   start with 7000
