@@ -5,7 +5,7 @@
 // Data: Supabase tables `electricians` + `jobs` (see supabase/jobs.sql).
 //
 // GET  ?resource=jobs&from=<ISO>&to=<ISO> → { electricians, jobs (scheduled in range), waiting (unassigned) }
-// POST { action: "job_create" | "job_update" | "job_delete" | "tech_create" | "tech_update", ... }
+// POST { action: "job_create" | "job_update" | "job_delete" | "lead_quote" | "tech_create" | "tech_update", ... }
 
 const { sb, configured } = require("./_supabase");
 
@@ -28,6 +28,10 @@ function intIn(v, min, max, def) {
   const n = parseInt(v, 10);
   if (isNaN(n)) return def;
   return Math.max(min, Math.min(max, n));
+}
+function quantityFromText(text, pattern) {
+  const match = String(text || "").match(pattern);
+  return match ? Number(match[1]) || 0 : 0;
 }
 function sameInstant(a, b) {
   if (!a && !b) return true;
@@ -159,6 +163,33 @@ module.exports = async (req, res) => {
         }
       }
       return res.status(200).json({ ok: true, job });
+    }
+
+    // Latest sent quote for a lead → alarm/controller counts for the job card.
+    // Quantities are read from the saved quote text, same as api/quote-tracker.js.
+    if (b.action === "lead_quote") {
+      const leadId = clean(b.lead_id, 40);
+      const email = clean(b.email, 254).toLowerCase();
+      if (!leadId && !email) return res.status(400).json({ error: "lead_id or email is required" });
+      const cols = "quote_ref,quote_total,body_text,created_at";
+      let quote = null;
+      try {
+        let rows = leadId ? await sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=created_at.desc&limit=1`) : [];
+        if (!(rows && rows[0]) && email) rows = await sb(`sent_emails?kind=eq.quote&status=eq.sent&to_email=eq.${encodeURIComponent(email)}&select=${cols}&order=created_at.desc&limit=1`);
+        const q = rows && rows[0];
+        if (q) {
+          const text = q.body_text || "";
+          quote = {
+            ref: q.quote_ref || "",
+            total: Number(q.quote_total || 0),
+            service: /compliance inspection/i.test(text) ? "inspection" : "install",
+            alarm_qty: quantityFromText(text, /smoke alarms[^\n]*\((\d+)\s*x\s*\$/i),
+            controller_qty: quantityFromText(text, /remote controller[^\n]*\((\d+)\s*x\s*\$/i),
+            sent_at: q.created_at,
+          };
+        }
+      } catch (_) { /* no quote log yet — the dispatcher can type the count */ }
+      return res.status(200).json({ quote });
     }
 
     if (b.action === "job_delete") {

@@ -132,3 +132,38 @@ test('the pipeline function serves job requests (keeps Vercel at 12 functions)',
   const routes = fs.readdirSync(path.join(__dirname, '../api')).filter((f) => f.endsWith('.js') && !f.startsWith('_'));
   assert(routes.length <= 12, `Vercel Hobby allows 12 functions, found ${routes.length}`);
 });
+
+test('lead_quote reads alarm and controller counts from the latest sent quote', async () => {
+  const text = [
+    'Based on the details discussed, your property requires approximately 5 interconnected photoelectric smoke alarms to meet Queensland legislation.',
+    '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00',
+    '- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00',
+  ].join('\n');
+  const queries = [];
+  const SB = { configured: () => true, async sb(q) {
+    queries.push(q);
+    if (q.includes('lead_id=eq.lead1')) return [];                       // quote was logged before it was linked
+    if (q.includes('to_email=eq.kath%40x.com')) return [{ quote_ref: 'Q7012', quote_total: 430, body_text: text, created_at: '2026-10-20T00:00:00Z' }];
+    return [];
+  } };
+  const h = load(SB), r = res();
+  await h({ method: 'POST', headers: KEY, body: { action: 'lead_quote', lead_id: 'lead1', email: 'Kath@X.com' } }, r);
+  assert.equal(r.code, 200);
+  assert.deepEqual({ ref: r.body.quote.ref, alarms: r.body.quote.alarm_qty, ctrl: r.body.quote.controller_qty, service: r.body.quote.service },
+    { ref: 'Q7012', alarms: 5, ctrl: 1, service: 'install' });
+  assert(queries[0].includes('kind=eq.quote') && queries[0].includes('status=eq.sent'), 'only successfully sent quotes count');
+});
+
+test('lead_quote recognises inspections and returns null when no quote exists', async () => {
+  let SB = { configured: () => true, async sb() { return [{ quote_ref: 'Q7013', body_text: '- Smoke alarm compliance inspection (1 x $120.00): $120.00' }]; } };
+  let r = res();
+  await load(SB)({ method: 'POST', headers: KEY, body: { action: 'lead_quote', lead_id: 'lead2' } }, r);
+  assert.equal(r.body.quote.service, 'inspection');
+  assert.equal(r.body.quote.alarm_qty, 0);
+
+  SB = { configured: () => true, async sb() { return []; } };
+  r = res();
+  await load(SB)({ method: 'POST', headers: KEY, body: { action: 'lead_quote', lead_id: 'lead3' } }, r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.quote, null);
+});

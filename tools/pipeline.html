@@ -827,7 +827,7 @@
     $("agent-overlay").classList.add("show");
     $(selectedAgent === "Vignesh" ? "choose-vignesh" : "choose-mani").focus();
   }
-  function chooseAgent(name){
+  function chooseAgent(name, quiet){
     selectedAgent = name;
     try { localStorage.setItem(AGENT_LS, name); } catch(e){}
     $("calling-agent").textContent = "Calling as: " + name + " · Change";
@@ -836,7 +836,7 @@
     $("q-sendas").value = AGENT_TO_SENDER[name];
     $("agent-overlay").classList.remove("show");
     document.querySelectorAll("body > :not(#agent-overlay):not(script)").forEach(function(el){ el.inert = false; });
-    $("calling-agent").focus();
+    if (!quiet) $("calling-agent").focus();
   }
   $("calling-agent").addEventListener("click", showAgentPicker);
   $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
@@ -1324,7 +1324,11 @@
   });
 
   /* ---------- boot ---------- */
-  showAgentPicker();
+  // Ask who is calling once per device; "Change" in the header re-opens the picker.
+  var savedAgent = "";
+  try { savedAgent = localStorage.getItem(AGENT_LS) || ""; } catch(e){}
+  if (AGENT_TO_SENDER[savedAgent]) chooseAgent(savedAgent, true);
+  else showAgentPicker();
   if (!portalKey()){
     $("loading").style.display = "none";
     showGate(false);

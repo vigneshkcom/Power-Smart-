@@ -144,6 +144,8 @@
   .section-label:first-child{border-top:none;padding-top:0;margin-top:0}
   .jm-links{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem;padding-bottom:.9rem;border-bottom:1px solid var(--line)}
   .jm-links:empty{display:none}
+  .hint{font-size:.68rem;color:var(--teal-deep);font-weight:600;min-height:1em}
+  .hint.warn{color:#9A6A0B}
   .lead-chip{grid-column:1/-1;font-size:.78rem;background:var(--teal-soft);color:var(--teal-deep);border-radius:9px;padding:.5rem .7rem;font-weight:600}
   .modal-foot{padding:.85rem 1.4rem;border-top:1px solid var(--line);display:flex;gap:.55rem;align-items:center;flex:none;flex-wrap:wrap}
   .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
@@ -234,7 +236,6 @@
     <label class="fl">To</label>
     <span class="to" id="f-to">—</span>
     <select id="f-slot" aria-label="Timeslot size">
-      <option value="15">Timeslot 15 mins</option>
       <option value="30">Timeslot 30 mins</option>
       <option value="60" selected>Timeslot 60 mins (default)</option>
     </select>
@@ -309,7 +310,7 @@
           <div class="field"><label for="jm-type">Work type</label>
             <select id="jm-type"><option value="install">Install</option><option value="inspection">Inspection</option><option value="service">Service</option></select>
           </div>
-          <div class="field"><label for="jm-alarms">Alarms to install</label><input id="jm-alarms" type="number" min="0" max="99"></div>
+          <div class="field"><label for="jm-alarms">Alarms to install</label><input id="jm-alarms" type="number" min="0" max="99"><small id="jm-quote-hint" class="hint"></small></div>
           <div class="field"><label for="jm-tech">Electrician</label><select id="jm-tech"></select></div>
           <div class="field"><label for="jm-status">Status</label>
             <select id="jm-status">
@@ -318,7 +319,7 @@
             </select>
           </div>
           <div class="field"><label for="jm-date">Date</label><input id="jm-date" type="date"></div>
-          <div class="field"><label for="jm-time">Start time</label><input id="jm-time" type="time" step="900"></div>
+          <div class="field"><label for="jm-time">Start time</label><select id="jm-time"></select></div>
           <div class="field"><label for="jm-duration">Duration</label>
             <select id="jm-duration">
               <option value="30">30 mins</option><option value="60">1 hour</option><option value="90">1.5 hours</option>
@@ -463,7 +464,9 @@
   $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
   $("choose-vignesh").addEventListener("click", function(){ chooseAgent("Vignesh"); });
   $("dispatcher").addEventListener("click", function(){ $("agent-overlay").classList.add("show"); });
-  $(state.agent === "Vignesh" ? "choose-vignesh" : "choose-mani").focus();
+  // Ask once per device (shared with the pipeline + quote tool); "Change" re-opens it.
+  if (state.agent === "Mani" || state.agent === "Vignesh") chooseAgent(state.agent);
+  else $("choose-mani").focus();
 
   /* ---------- load ---------- */
   function load(){
@@ -799,6 +802,26 @@
     if (j.lead_id) links.push('<a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/pipeline">Open sales pipeline</a>');
     $("jm-links").innerHTML = links.join("");
   }
+  // Start-time choices: every half hour, 6:00 am – 8:30 pm, shown as "08:00 am".
+  function timeLabel(h, m){ return pad(h % 12 || 12) + ":" + pad(m) + " " + (h < 12 ? "am" : "pm"); }
+  function buildTimes(){
+    var html = '<option value="">Select time</option>';
+    for (var h = 6; h <= 20; h++) [0, 30].forEach(function(m){
+      html += '<option value="' + pad(h) + ':' + pad(m) + '">' + timeLabel(h, m) + '</option>';
+    });
+    $("jm-time").innerHTML = html;
+  }
+  function setTime(v){
+    var sel = $("jm-time");
+    if (v && !sel.querySelector('option[value="' + v + '"]')){
+      // keep an existing off-grid time (e.g. 7:15 am) selectable rather than silently changing it
+      var p = v.split(":"), o = document.createElement("option");
+      o.value = v; o.textContent = timeLabel(+p[0], +p[1]); sel.appendChild(o);
+    }
+    sel.value = v || "";
+  }
+  buildTimes();
+
   function fillForm(j){
     $("jm-name").value = j.customer_name || "";
     $("jm-phone").value = j.phone || "";
@@ -814,8 +837,9 @@
     $("jm-notes").value = j.notes || "";
     if (j.scheduled_start){
       var d = new Date(j.scheduled_start);
-      $("jm-date").value = isoDate(d); $("jm-time").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
-    } else { $("jm-date").value = ""; $("jm-time").value = ""; }
+      $("jm-date").value = isoDate(d); setTime(pad(d.getHours()) + ":" + pad(d.getMinutes()));
+    } else { $("jm-date").value = ""; setTime(""); }
+    $("jm-quote-hint").textContent = ""; $("jm-quote-hint").classList.remove("warn");
   }
 
   function openNewJob(opts){
@@ -824,7 +848,7 @@
     $("jm-title").textContent = "New job";
     setPill(null);
     fillForm({ status:"scheduled", duration_min: state.slot, scheduled_start: opts.start ? opts.start.toISOString() : null });
-    if (!opts.start){ $("jm-date").value = ""; $("jm-time").value = ""; }
+    if (!opts.start){ $("jm-date").value = ""; setTime(""); }
     techOptions(opts.techId || "");
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
@@ -851,8 +875,34 @@
     $("jm-address").value = l.address_line1 || "";
     $("jm-suburb").value = l.address_suburb || "";
     $("jm-postcode").value = l.address_postcode || l.postcode || "";
+    fillFromQuote(l);
   }
-  $("jm-lead").addEventListener("change", function(){ if (this.value) applyLead(this.value); });
+  function fillFromQuote(l){
+    var hint = $("jm-quote-hint");
+    hint.classList.remove("warn"); hint.textContent = "Checking quote…";
+    jobsApi({ action:"lead_quote", lead_id: l.id, email: l.email || "" }).then(function(d){
+      if ($("jm-lead").value !== l.id) return;           // dispatcher picked another lead meanwhile
+      var q = d.quote;
+      if (!q){ hint.classList.add("warn"); hint.textContent = "No sent quote found — enter the alarm count."; return; }
+      if (q.service === "inspection"){
+        $("jm-type").value = "inspection"; $("jm-alarms").value = "";
+        hint.textContent = "Quote " + q.ref + ": compliance inspection";
+      } else {
+        $("jm-type").value = "install";
+        $("jm-alarms").value = q.alarm_qty || "";
+        hint.textContent = "From quote " + q.ref + ": " + q.alarm_qty + " alarm" + (q.alarm_qty === 1 ? "" : "s") +
+          (q.controller_qty ? " + " + q.controller_qty + " remote controller" + (q.controller_qty === 1 ? "" : "s") : "");
+      }
+      var note = "Quote " + q.ref + (q.service === "inspection" ? ": compliance inspection" : ": " + q.alarm_qty + " smoke alarms" +
+        (q.controller_qty ? ", " + q.controller_qty + " remote controller" + (q.controller_qty === 1 ? "" : "s") : "")) + ".";
+      var notes = $("jm-notes").value.replace(/^Quote [^\n]*\.\n?/, "");   // replace an earlier quote line, keep typed notes
+      $("jm-notes").value = note + (notes ? "\n" + notes : "");
+    }).catch(function(){ hint.classList.add("warn"); hint.textContent = "Couldn't load the quote — enter the alarm count."; });
+  }
+  $("jm-lead").addEventListener("change", function(){
+    if (this.value) applyLead(this.value);
+    else { $("jm-quote-hint").textContent = ""; }
+  });
 
   function openJob(j){
     if (!j) return;
