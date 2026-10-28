@@ -10,6 +10,7 @@
 // The electrician phone app (/tech) has its own API in api/_tech.js and reuses the helpers exported below.
 
 const { sb, configured } = require("./_supabase");
+const PaymentSummary = require('./_payment-summary');
 
 // Passcode staff enter to open the portal (keep in sync with api/pipeline.js).
 const PORTAL_KEY = "2026";
@@ -90,15 +91,17 @@ async function leadNote(leadId, author, body, kind = "status") {
 
 // Latest successfully sent quote for a lead (falls back to the customer's email).
 // Quantities are read from the saved quote text, same as api/quote-tracker.js.
-async function latestQuote(leadId, email) {
-  const cols = "quote_ref,quote_total,body_text,created_at";
+async function latestQuote(leadId, email, ref) {
+  const cols = "id,lead_id,quote_ref,quote_total,body_text,created_at";
+  const reference = ref ? `&quote_ref=eq.${encodeURIComponent(ref)}` : '';
   try {
-    let rows = leadId ? await sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=created_at.desc&limit=1`) : [];
-    if (!(rows && rows[0]) && email) rows = await sb(`sent_emails?kind=eq.quote&status=eq.sent&to_email=eq.${encodeURIComponent(email)}&select=${cols}&order=created_at.desc&limit=1`);
+    let rows = leadId ? await sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${encodeURIComponent(leadId)}${reference}&select=${cols}&order=created_at.desc&limit=1`) : [];
+    if (!(rows && rows[0]) && email) rows = await sb(`sent_emails?kind=eq.quote&status=eq.sent&to_email=eq.${encodeURIComponent(email)}${reference}&select=${cols}&order=created_at.desc&limit=1`);
     const q = rows && rows[0];
     if (!q) return null;
     const text = q.body_text || "";
     return {
+      id: q.id, lead_id: q.lead_id || null,
       ref: q.quote_ref || "",
       total: Number(q.quote_total || 0),
       service: /compliance inspection/i.test(text) ? "inspection" : "install",
@@ -265,6 +268,8 @@ module.exports = async (req, res) => {
       const f = pickJob(b);
       if (!f.customer_name) return res.status(400).json({ error: "Customer name is required" });
       f.created_by = actor;
+      const quote = f.lead_id ? await latestQuote(f.lead_id, f.email) : null;
+      f.quote_ref = quote && quote.lead_id === f.lead_id ? quote.ref : null;
       const rows = await sb("jobs", { method: "POST", body: f });
       const job = rows && rows[0];
       if (job && job.lead_id) {
@@ -283,6 +288,11 @@ module.exports = async (req, res) => {
 
       const f = pickJob(b);
       delete f.created_by;
+      if (f.lead_id !== undefined && f.lead_id !== prev.lead_id) {
+        if (prev.pay_status === 'paid' || prev.pay_session_id) throw bad('A job with a card payment cannot be moved to another customer.');
+        const quote = f.lead_id ? await latestQuote(f.lead_id, f.email || prev.email) : null;
+        f.quote_ref = quote && quote.lead_id === f.lead_id ? quote.ref : null;
+      }
       if ("customer_name" in f && !f.customer_name) return res.status(400).json({ error: "Customer name can't be empty" });
       if (!Object.keys(f).length) return res.status(400).json({ error: "Nothing to update" });
       // completion date drives the weekly report
@@ -323,10 +333,20 @@ module.exports = async (req, res) => {
 
     // Latest sent quote for a lead → alarm/controller counts for the job card.
     if (b.action === "lead_quote") {
-      const leadId = clean(b.lead_id, 40);
-      const email = clean(b.email, 254).toLowerCase();
+      let leadId = clean(b.lead_id, 40), email = clean(b.email, 254).toLowerCase(), ref = '';
+      if (b.job_id) {
+        const rows = await sb(`jobs?id=eq.${encodeURIComponent(clean(b.job_id, 40))}&select=lead_id,email,quote_ref&limit=1`);
+        if (!rows?.[0]) return res.status(404).json({ error: 'Job not found' });
+        leadId = rows[0].lead_id; email = rows[0].email; ref = rows[0].quote_ref;
+      }
       if (!leadId && !email) return res.status(400).json({ error: "lead_id or email is required" });
-      return res.status(200).json({ quote: await latestQuote(leadId, email) });
+      const quote = await latestQuote(leadId, email, ref);
+      let payment = null, payment_error = null;
+      if (quote) {
+        try { payment = await PaymentSummary.read({ lead_id: quote.lead_id, quote_ref: quote.ref, quote_total: quote.total }); }
+        catch (error) { console.error('Job payment summary failed:', error.message); payment_error = 'Payment details could not be loaded. Please refresh before relying on the balance.'; }
+      }
+      return res.status(200).json({ quote, payment, payment_error });
     }
 
     // Removes the job from the schedule only — the linked pipeline lead is kept (just noted).

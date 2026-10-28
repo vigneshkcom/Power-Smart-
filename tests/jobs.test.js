@@ -1,9 +1,9 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 
-function load(SB) {
+function load(SB, file = '_jobs.js') {
   const module = { exports: {} };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/_jobs.js'), 'utf8'), {
-    module, require: (k) => (k === './_supabase' ? SB : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
+    module, require: (k) => (k === './_supabase' ? SB : k === './_payment-summary' ? load(SB, '_payment-summary.js') : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
   }, { filename: '_jobs.js' });
   return module.exports;
 }

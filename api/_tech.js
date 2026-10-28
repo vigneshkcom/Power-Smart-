@@ -155,7 +155,7 @@ async function refreshPayment(job) {
 
 async function jobDetail(job) {
   job = withTypedItems(job);
-  const [quote, credits] = await Promise.all([J.latestQuote(job.lead_id, job.email), prepaid(job.lead_id)]);
+  const [quote, credits] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id)]);
   const items = job.invoice_items || priceItems(defaultItems(job, quote), job.alarm_type);
   return {
     job, quote, credits, items, totals: totals(items, credits),

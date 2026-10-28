@@ -51,7 +51,7 @@ function fakeStripe() {
 function vmLoad(file, mocks) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
-    module, require: (k) => (k in mocks ? mocks[k] : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
+    module, require: (k) => (k in mocks ? mocks[k] : k === './_payment-summary' ? vmLoad('_payment-summary.js', mocks) : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
   }, { filename: file });
   return module.exports;
 }

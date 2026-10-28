@@ -7,7 +7,7 @@ const vm = require('node:vm');
 function load(name, mocks) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', name), 'utf8'), {
-    module, exports: module.exports, require: key => key in mocks ? mocks[key] : require(key),
+    module, exports: module.exports, require: key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : require(key),
     console: { error() {} }, URL, Buffer, Date, process: { env: {} },
   }, { filename: name });
   return module.exports;

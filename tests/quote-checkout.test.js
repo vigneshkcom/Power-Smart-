@@ -7,7 +7,7 @@ const Q = require('../api/_quote');
 function load(name, mocks) {
   const module = {exports:{}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', name), 'utf8'), {
-    module, require:key => key in mocks ? mocks[key] : require(key), URL, URLSearchParams, Buffer, Date,
+    module, require:key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : require(key), URL, URLSearchParams, Buffer, Date,
     console:{error(){}}, process:{env:{}},
   });
   return module.exports;
@@ -21,6 +21,7 @@ function fixture() {
     dbCalls.push({query,opts});
     if (query.startsWith('sent_emails')) return query.includes('quote_ref=eq.other') ? [] : [quote];
     if (query.startsWith('leads')) return [lead];
+    if (query.startsWith('jobs')) return [];
     if (query.startsWith('lead_comments')) {
       if (opts.method==='POST') {notes.push(opts.body);return [];}
       return notes.filter(n=>query.includes(encodeURIComponent(n.body)));
@@ -81,7 +82,7 @@ test('an expired quote checkout is replaced and does not affect another quote',a
 });
 
 test('quote total is unchanged while the live viewer shows $35 received and $588 remaining, without a second fee prompt',async()=>{
-  const f=fixture();f.payments.push({lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'booking_fee',amount_paid_cents:3500});
+  const f=fixture();f.payments.push({id:'payment1',lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'booking_fee',amount_paid_cents:3500});
   const viewer=load('_view-quote.js',{'./_supabase':f.SB,'./_quote-payments':f.QP});
   const result=await invoke(viewer,{method:'GET',query:{token:f.quote.id}});
   assert.equal(result.status,200);assert.match(result.body,/Booking fee paid/);assert.match(result.body,/\$35\.00/);assert.match(result.body,/Remaining balance/);assert.match(result.body,/\$588\.00/);assert.match(result.body,/\$623\.00/);
@@ -118,6 +119,6 @@ test('staff booking checkout reuses its saved link and records Stripe payment be
 });
 
 test('a different-purpose partial credit does not remove the booking payment button',()=>{
-  const f=fixture();const html=f.QP.renderPaidQuote(f.quote,[{status:'paid',payment_type:'other',amount_paid_cents:1000}]);
+  const f=fixture();const html=f.QP.renderPaidQuote(f.quote,[{id:'p1',lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'other',amount_paid_cents:1000}]);
   assert.match(html,/Remaining balance/);assert.match(html,/\$613\.00/);assert.match(html,/Accept this quote/);assert.doesNotMatch(html,/Booking fee paid/);
 });

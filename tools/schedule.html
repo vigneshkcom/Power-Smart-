@@ -319,6 +319,7 @@
             <select id="jm-lead"><option value="">— Not linked to a lead —</option></select>
           </div>
           <div class="lead-chip" id="jm-lead-chip" style="display:none"></div>
+          <div class="field full" id="jm-payment" aria-live="polite" style="display:none;background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:14px"></div>
           <div class="field full"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
           <div class="field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
           <div class="field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
@@ -891,6 +892,7 @@
       $("jm-date").value = isoDate(d); setTime(pad(d.getHours()) + ":" + pad(d.getMinutes()));
     } else { $("jm-date").value = ""; setTime(""); }
     $("jm-quote-hint").textContent = ""; $("jm-quote-hint").classList.remove("warn");
+    paymentRequestId++; $("jm-payment").style.display = "none"; $("jm-payment").innerHTML = "";
   }
 
   function openNewJob(opts){
@@ -954,11 +956,33 @@
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
     box.style.display = "";
   }
+  var paymentRequestId = 0;
+  function renderPaymentSummary(d){
+    var box=$("jm-payment"),q=d.quote,s=d.payment;
+    box.style.display="";
+    if(d.payment_error){box.textContent=d.payment_error;return;}
+    if(!q || !s){box.textContent="No linked quote payment summary is available.";return;}
+    var cash=function(c){return "$"+(c/100).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});};
+    var labels={unpaid:"Unpaid",part_paid:"Part paid",paid:"Paid in full",overpaid:"Credit balance"};
+    box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:12px"><strong>Quote '+esc(q.ref)+' · '+esc(labels[s.status] || s.status)+'</strong>'+(q.id?'<a href="https://smokealarms.powersmartco.com.au/quote?token='+encodeURIComponent(q.id)+'" target="_blank" rel="noopener" style="color:#267582;font-size:12px">View quote</a>':'')+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">'+[['Quote total',s.total_cents],['Received',s.received_cents],['Pending',s.pending_cents]].map(function(x){return '<div><span style="display:block;font-size:11px;color:#526B63;margin-bottom:4px">'+x[0]+'</span><strong style="font-size:17px">'+cash(x[1])+'</strong></div>';}).join('')+'</div>'+
+      '<div style="font-size:12px;margin-top:12px;color:#37604F">Booking fee paid: <strong>'+cash(s.booking_paid_cents)+'</strong>'+(s.other_paid_cents?' · Other payments: '+cash(s.other_paid_cents):'')+(s.overpaid_cents?' · Credit: '+cash(s.overpaid_cents):'')+'</div>'+
+      '<div style="font-size:11px;margin-top:6px;color:#657B73">Pending is based on the quoted total. Final work may change the installation invoice.</div>';
+  }
+  function loadJobPayments(j){
+    var requestId=++paymentRequestId;
+    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments…";
+    jobsApi({action:"lead_quote",job_id:j.id}).then(function(d){if(requestId===paymentRequestId)renderPaymentSummary(d);})
+      .catch(function(){if(requestId===paymentRequestId)renderPaymentSummary({payment_error:"Payment details could not be loaded. Close and reopen the job to retry."});});
+  }
   function fillFromQuote(l){
+    var requestId=++paymentRequestId;
+    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments…";
     var hint = $("jm-quote-hint");
     hint.classList.remove("warn"); hint.textContent = "Checking quote…";
     jobsApi({ action:"lead_quote", lead_id: l.id, email: l.email || "" }).then(function(d){
-      if ($("jm-lead").value !== l.id) return;           // dispatcher picked another lead meanwhile
+      if (requestId!==paymentRequestId || $("jm-lead").value !== l.id) return;
+      renderPaymentSummary(d);
       var q = d.quote;
       if (!q){ hint.classList.add("warn"); hint.textContent = "No sent quote found — enter the alarm count."; return; }
       if (q.service === "inspection"){
@@ -974,11 +998,11 @@
         (q.controller_qty ? ", " + q.controller_qty + " remote controller" + (q.controller_qty === 1 ? "" : "s") : "")) + ".";
       var notes = $("jm-notes").value.replace(/^Quote [^\n]*\.\n?/, "");   // replace an earlier quote line, keep typed notes
       $("jm-notes").value = note + (notes ? "\n" + notes : "");
-    }).catch(function(){ hint.classList.add("warn"); hint.textContent = "Couldn't load the quote — enter the alarm count."; });
+    }).catch(function(){ if(requestId!==paymentRequestId)return; hint.classList.add("warn"); hint.textContent = "Couldn't load the quote — enter the alarm count."; renderPaymentSummary({payment_error:"Payment details could not be loaded. Select the customer again to retry."}); });
   }
   $("jm-lead").addEventListener("change", function(){
     if (this.value) applyLead(this.value);
-    else { $("jm-quote-hint").textContent = ""; }
+    else { paymentRequestId++; $("jm-quote-hint").textContent = ""; $("jm-payment").style.display="none"; }
   });
 
   function openJob(j){
@@ -987,6 +1011,7 @@
     $("jm-title").textContent = "Job J" + j.job_no + " · " + j.customer_name;
     setPill(j.status);
     fillForm(j);
+    if (j.lead_id || j.email) loadJobPayments(j);
     techOptions(j.electrician_id || "");
     $("jm-lead-wrap").style.display = "none";
     var lead = j.lead_id ? (state.leads || []).find(function(l){ return l.id === j.lead_id; }) : null;

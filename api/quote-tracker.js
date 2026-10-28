@@ -1,6 +1,8 @@
 // Read-only quote tracker for the PowerSmart staff portal.
 
 const { sb, configured } = require("./_supabase");
+const PaymentSummary = require('./_payment-summary');
+const QP = require('./_quote-payments');
 
 const PORTAL_KEY = "2026";
 const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
@@ -10,15 +12,17 @@ function quantityFromText(text, pattern) {
   return match ? Number(match[1]) || 0 : 0;
 }
 
-function publicStatus(email, lead, payment) {
+function publicStatus(email, lead, summary) {
   if (email.status === "failed") return "failed";
-  if (payment && payment.status === "paid") return "paid";
+  if (summary.status === 'paid' || summary.status === 'overpaid') return summary.status;
+  if (summary.status === 'part_paid') return 'part_paid';
   if (lead && lead.stage === "won") return "installed";
   if (lead && lead.stage === "quote_accepted") return "accepted";
   return "sent";
 }
 
 module.exports = async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) {
     return res.status(401).json({ error: "Invalid portal key" });
   }
@@ -51,9 +55,10 @@ module.exports = async (req, res) => {
       if (body.action === "content") {
         const quoteId = String(body.quote_id || "").slice(0, 60).trim();
         if (!quoteId) return res.status(400).json({ error: "Quote id is required" });
-        const rows = await sb(`sent_emails?id=eq.${encodeURIComponent(quoteId)}&kind=eq.quote&select=body_html,body_text&limit=1`);
+        const rows = await sb(`sent_emails?id=eq.${encodeURIComponent(quoteId)}&kind=eq.quote&select=id,lead_id,quote_ref,quote_total,body_html,body_text&limit=1`);
         if (!rows || !rows[0]) return res.status(404).json({ error: "Quote not found" });
-        return res.status(200).json({ body_html: rows[0].body_html || "", body_text: rows[0].body_text || "" });
+        const payments = await QP.quotePayments(rows[0], true);
+        return res.status(200).json({ body_html: QP.renderPaidQuote(rows[0], payments) || "", body_text: rows[0].body_text || "" });
       }
       return res.status(400).json({ error: "Unknown quote action" });
     }
@@ -67,17 +72,17 @@ module.exports = async (req, res) => {
     const leadById = {};
     (leads || []).forEach((lead) => { leadById[lead.id] = lead; });
 
-    const paymentByLead = {};
-    try {
-      const payments = await sb("payment_requests?payment_type=eq.booking_fee&select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
-      (payments || []).forEach((payment) => {
-        if (!paymentByLead[payment.lead_id]) paymentByLead[payment.lead_id] = payment;
-      });
-    } catch (_) { /* payment tracking is optional until its migration is run */ }
+    const [requests, paidJobs] = await Promise.all([
+      sb(`payment_requests?select=${PaymentSummary.requestFields}&order=created_at.desc&limit=10000`),
+      sb(`jobs?pay_status=eq.paid&select=${PaymentSummary.jobFields}&limit=10000`),
+    ]);
+    const payments = [...requests || [], ...PaymentSummary.jobPayments(paidJobs)];
 
     const quotes = (emails || []).map((email) => {
       const lead = email.lead_id ? leadById[email.lead_id] || null : null;
-      const payment = lead ? paymentByLead[lead.id] || null : null;
+      const matching = (requests || []).filter(p => p.lead_id === email.lead_id && p.quote_ref === email.quote_ref && p.payment_type === 'booking_fee');
+      const payment = matching.find(p => p.status === 'paid') || matching[0] || null;
+      const summary = PaymentSummary.summarize(email, payments);
       const text = email.body_text || "";
       const service = /compliance inspection/i.test(text) ? "Inspection" : "Installation";
       const phonePayment = Boolean(lead && lead.payment_preference === "phone" && !payment);
@@ -102,7 +107,8 @@ module.exports = async (req, res) => {
         alarm_qty: alarmQty,
         controller_qty: controllerQty,
         email_status: email.status || "sent",
-        status: publicStatus(email, lead, payment),
+        status: publicStatus(email, lead, summary),
+        payment_summary: summary,
         lead_stage: (lead && lead.stage) || "",
         lead_id: (lead && lead.id) || null,
         payment_status: payment ? payment.status : phonePayment ? "phone" : "",

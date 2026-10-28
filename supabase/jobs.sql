@@ -23,6 +23,7 @@ create table if not exists public.jobs (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now(),
   lead_id          uuid references public.leads(id) on delete set null,
+  quote_ref        text,                    -- quote selected when the job was created
   electrician_id   uuid references public.electricians(id) on delete set null,
   scheduled_start  timestamptz,               -- null = waiting list
   duration_min     int not null default 60 check (duration_min between 15 and 720),
