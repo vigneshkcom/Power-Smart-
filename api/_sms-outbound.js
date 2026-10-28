@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const SB = require('./_supabase');
+const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
 function cleanPhone(value) {
   let phone = String(value || '').replace(/[^\d+]/g, '').trim();
   if (/^04\d{8}$/.test(phone)) phone = '+61' + phone.slice(1);
@@ -47,12 +48,13 @@ async function sendLeadSms({ lead, message, key, author }) {
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'unknown'},prefer:'return=minimal'});
     throw new Error('SMS submission could not be confirmed. Check the SMS inbox before trying again.');
   } finally { clearTimeout(timer); }
-  const result = await response.json().catch(()=>({}));
+  const result = await readGatewayResponse(response);
   if (!response.ok) {
     // An upstream server failure can happen after acceptance. Do not retry it blindly.
-    const status = response.status >= 500 || response.status === 409 ? 'unknown' : 'failed';
+    const info = gatewayError(response.status, result);
+    const status = info.uncertain ? 'unknown' : 'failed';
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status},prefer:'return=minimal'});
-    throw new Error(status === 'unknown' ? 'SMS submission is uncertain. Check the SMS inbox before trying again.' : 'SMS service rejected the message. '+String(result.message || result.error || response.status).slice(0,200));
+    throw new Error(info.error + ' ' + info.detail);
   }
   await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'sent',sms_gate_id:String(result.id || result.messageId || id)},prefer:'return=minimal'});
   try {await logNote(lead.id, author, noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}

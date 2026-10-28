@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function load(name,mocks,globals={}){
   const module={exports:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../api',name),'utf8'),{
-    module,require:key=>key in mocks ? mocks[key] : require(key),console:{error(){}},URL,URLSearchParams,Buffer,AbortController,setTimeout,clearTimeout,process:{env:{SMSGATE_USERNAME:'test',SMSGATE_PASSWORD:'test',RESEND_API_KEY:'test'}},...globals,
+    module,require:key=>key in mocks ? mocks[key] : require(key.startsWith('.') ? path.join(__dirname,'../api',key) : key),console:{error(){}},URL,URLSearchParams,Buffer,AbortController,setTimeout,clearTimeout,process:{env:{SMSGATE_USERNAME:'test',SMSGATE_PASSWORD:'test',RESEND_API_KEY:'test'}},...globals,
   },{filename:name});return module.exports;
 }
 function smsFixture({reject=false,timeout=false,optout=false,noteFailure=false}={}){

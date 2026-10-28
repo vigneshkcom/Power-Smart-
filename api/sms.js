@@ -1,5 +1,6 @@
 // Two-way SMS portal API. Credentials stay server-side in Vercel environment variables.
 const { sb, configured } = require('./_supabase');
+const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
 
 const SMS_API = 'https://api.sms-gate.app/3rdparty/v1';
 const smsConfigured = () => Boolean(process.env.SMSGATE_USERNAME && process.env.SMSGATE_PASSWORD);
@@ -69,6 +70,21 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const action = String(req.query.action || 'contacts');
+      if (action === 'diagnostics') {
+        if (req.headers?.['x-portal-key'] !== '2026') return res.status(401).json({ error: 'Invalid portal key' });
+        if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
+        try {
+          const response = await gateway('/devices', { headers: headers() });
+          const result = await readGatewayResponse(response);
+          if (!response.ok) {
+            const info = gatewayError(response.status, result);
+            return res.status(200).json({ gatewayReachable: false, httpStatus: response.status, error: response.status >= 500 ? 'SMS Gate is temporarily unavailable.' : info.error, detail: info.detail });
+          }
+          return res.status(200).json({ gatewayReachable: true, httpStatus: response.status, deviceCount: Array.isArray(result) ? result.length : null });
+        } catch (_) {
+          return res.status(200).json({ gatewayReachable: false, error: 'SMS Gate is not responding. SMS sending may be unavailable.', detail: 'Connection check failed or timed out.' });
+        }
+      }
       if (action === 'health') return res.status(200).json({
         storageConfigured: true,
         smsGateConfigured: smsConfigured(),
@@ -98,7 +114,7 @@ module.exports = async (req, res) => {
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured. Add SMSGATE_USERNAME and SMSGATE_PASSWORD in Vercel.' });
       const phone = cleanPhone(body.phone);
       const message = String(body.message || '').trim();
-      if (!phone || phone.length < 8 || !message) return res.status(400).json({ error: 'Enter a valid phone number and message.' });
+      if (!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone)) || !message) return res.status(400).json({ error: 'Enter a valid phone number and message.' });
       if (message.length > 1600) return res.status(400).json({ error: 'Message is too long.' });
       const consent = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&status=in.(optout,optin)&order=created_at.desc&limit=1&select=status`);
       if (consent && consent[0] && consent[0].status === 'optout') return res.status(403).json({ error: 'This contact opted out. They must reply START before another SMS can be sent.' });
@@ -106,15 +122,8 @@ module.exports = async (req, res) => {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ phoneNumbers: [phone], textMessage: { text: message }, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
       });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = typeof result.message === 'string'
-          ? result.message
-          : typeof result.error === 'string'
-            ? result.error
-            : JSON.stringify(result).slice(0, 600) || `HTTP ${response.status}`;
-        return res.status(502).json({ error: 'SMS Gate rejected the message.', detail });
-      }
+      const result = await readGatewayResponse(response);
+      if (!response.ok) return res.status(502).json(gatewayError(response.status, result));
       const gatewayId = String(result.id || result.messageId || (result.messages && result.messages[0] && result.messages[0].id) || '');
       const saved = await insertMessage({ phone_number: phone, message, direction: 'outbound', status: 'sent', sms_gate_id: gatewayId || null });
       return res.status(200).json({ ok: true, message: saved });
@@ -128,6 +137,8 @@ module.exports = async (req, res) => {
     }
     return res.status(400).json({ error: 'Unknown SMS action.' });
   } catch (error) {
+    if (error.name === 'AbortError') return res.status(504).json({ error: 'SMS Gate did not respond in time. Submission could not be confirmed. Check the SMS inbox and gateway before trying again.', code: 'sms_submission_unknown' });
+    if (error instanceof TypeError && /fetch|network/i.test(error.message)) return res.status(502).json({ error: 'Could not connect to SMS Gate. Submission could not be confirmed. Check the SMS inbox and gateway before trying again.', code: 'sms_submission_unknown' });
     console.error('[SMS]', error.message);
     return res.status(error.status || 500).json({ error: error.message || 'SMS portal request failed.' });
   }
