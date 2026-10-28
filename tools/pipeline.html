@@ -290,6 +290,12 @@
           <div class="field"><label>Booking fee</label><input id="lm-payment-amount" readonly style="background:#F8FBFB"></div>
           <div class="field"><label>Payment status</label><input id="lm-payment-status" readonly style="background:#F8FBFB"></div>
         </div>
+        <section id="lm-reminders" style="margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#F4F9FA">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>Automatic quote reminders</strong><div class="field"><label for="lm-reminder-state">Reminders</label><select id="lm-reminder-state"><option value="on">On</option><option value="paused">Paused</option></select></div></div>
+          <p style="font-size:12px;color:var(--muted)">SMS + email every 3 days · maximum 3 reminders · Quote Sent only · weekdays, 9am–5pm Queensland time</p>
+          <div id="lm-reminder-summary" aria-live="polite">Loading reminders…</div>
+          <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Reminder history</summary><div id="lm-reminder-history" style="margin-top:12px"></div></details>
+        </section>
         <div class="cmts" id="lm-cmts">
           <h4>Comments</h4>
           <div id="cmt-list"><p style="font-size:.8rem;color:var(--muted)">Loadingâ€¦</p></div>
@@ -660,6 +666,7 @@
     currentId = id;
     var l = leads.find(function(x){ return x.id === id; });
     if (!l) return;
+    loadReminders(id);
     $("lm-title").textContent = l.name;
     $("lm-name").value = l.name || "";
     $("lm-phone").value = l.phone || "";
@@ -699,6 +706,31 @@
     }).catch(function(err){ $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--red)">' + esc(err.message) + '</p>'; });
   }
 
+  function reminderApi(id, body){
+    return fetch('/api/pipeline?resource=reminders'+(body?'':'&lead_id='+encodeURIComponent(id)),{
+      method:body?'POST':'GET',headers:{'Content-Type':'application/json','x-portal-key':portalKey()},
+      ...(body?{body:JSON.stringify(Object.assign({lead_id:id,actor:currentAgent()},body))}:{})
+    }).then(function(r){return r.json().then(function(d){if(!r.ok)throw Error(d.error||'Could not load reminders');return d;});});
+  }
+  function reminderDate(value){return value?new Date(value).toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})+' QLD':'Not scheduled';}
+  function renderReminders(d){
+    $('lm-reminder-state').value=d.enabled?'on':'paused';
+    $('lm-reminder-state').disabled=Boolean(d.unsubscribed);
+    $('lm-reminder-summary').innerHTML='<div><strong>Next reminder due:</strong> '+esc(reminderDate(d.next_at))+'</div><div style="margin-top:5px"><strong>Reminders sent:</strong> '+d.reminders_sent+' / 3 · SMS submitted: '+d.sms_sent+' · Emails submitted: '+d.email_sent+'</div>'+(d.reason?'<p style="font-size:12px;color:var(--muted)">'+esc(d.reason)+'</p>':'')+'<p style="font-size:11px;color:var(--muted)">Submitted means accepted by the sending service. SMS replies pause both channels. Pause here when handling an email reply.</p>';
+    var labels={pending:'Not yet submitted',sending:'Processing / verify if interrupted',submitted:'Submitted',failed:'Failed',unknown:'Needs review',skipped:'Not sent'};
+    $('lm-reminder-history').innerHTML=d.history.length?d.history.map(function(r){return '<div style="border-top:1px solid var(--line);padding:12px 0;font-size:12px"><strong>Reminder '+r.sequence+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p style="font-size:12px;color:var(--muted)">No reminder messages sent yet.</p>';
+  }
+  function loadReminders(id){
+    $('lm-reminders').style.display='';$('lm-reminder-state').disabled=true;
+    $('lm-reminder-summary').textContent='Loading reminders…';$('lm-reminder-history').textContent='';
+    reminderApi(id).then(function(d){if(currentId===id)renderReminders(d);}).catch(function(e){if(currentId===id)$('lm-reminder-summary').textContent=e.message;});
+  }
+  $('lm-reminder-state').addEventListener('change',function(){
+    var id=currentId,enabled=this.value==='on';if(!id)return;this.disabled=true;
+    reminderApi(id,{action:'set',enabled:enabled}).then(function(d){if(currentId===id){renderReminders(d);toast(enabled?'Reminders enabled. Next follow-up in 3 days during sending hours.':'SMS and email reminders paused.');}})
+      .catch(function(e){toast(e.message);if(currentId===id)loadReminders(id);});
+  });
+
   function activityKind(c, body){
     var saved = String(c.kind || "").toLowerCase();
     if (saved && saved !== "note") return saved;
@@ -736,6 +768,7 @@
 
   function openNewLead(){
     currentId = null;
+    $("lm-reminders").style.display="none";
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
     $("lm-source").value = "Phone";

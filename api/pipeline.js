@@ -20,6 +20,7 @@ const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_se
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
 module.exports = async (req, res) => {
+  if (/[?&]resource=reminders(&|$)/.test(req.url || "")) return require("./_quote-reminders").handler(req, res);
   // Job schedule shares this function (Vercel Hobby allows 12 functions); see api/_jobs.js.
   if (/[?&]resource=jobs(&|$)/.test(req.url || "")) return require("./_jobs")(req, res);
   // Electrician phone app (/tech) — own PIN auth; see api/_tech.js.

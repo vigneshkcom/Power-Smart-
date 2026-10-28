@@ -2,6 +2,7 @@
 const quote = require('./_view-quote');
 const payment = require('./_payment-link');
 module.exports = (req,res) => {
+  if(req.query.kind === 'reminders')return require('./_quote-reminders').unsubscribe(req,res);
   if(req.query.kind === 'confirmation')return require('./_payment-confirmation')(req,res);
   if(req.query.kind === 'quote')return quote(req,res);
   if(req.query.kind === 'payment')return payment(req,res);

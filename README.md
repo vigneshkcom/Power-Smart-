@@ -194,3 +194,29 @@ Any static file server works, e.g.:
 ```bash
 npx serve .      # then open http://localhost:3000
 ```
+
+
+## Automatic quote reminders
+
+Apply `supabase/quote-reminders.sql` and then `supabase/quote-reminder-scheduler.sql`.
+The worker starts paused. After deploying and checking `/api/pipeline?resource=reminders`,
+activate it with `update public.quote_reminder_worker set active=true where id=true`.
+The worker secret is generated in Supabase and never exposed to the browser.
+The scheduler invokes the existing pipeline function every ten minutes during Queensland
+sending hours; the worker additionally restricts sends to weekdays, 9am–5pm.
+
+Only successfully issued, current, unpaid Quote Sent quotes qualify. Both a valid Australian
+mobile and the original quote email address are required. Each quote has at most three rounds
+at three-day intervals. Each round records SMS and email separately in `quote_reminder_runs`.
+Provider acceptance is shown as Submitted, not delivered. A crashed or uncertain submission
+pauses the customer for review, with no automatic retry. Check provider records before
+resolving an uncertain channel status; do not reset counters to resend it.
+
+Customer cards expose On/Paused, the next due date, counts and full message history.
+Pauses survive new quotes; a new quote resets the three-round count. SMS replies pause both
+channels. Email replies arrive at support and require staff to pause the customer.
+The email stop link requires a POST confirmation, so link scanners cannot unsubscribe.
+Customer unsubscribe cannot be overridden by the staff dropdown.
+
+Rollback-only database checks: `tests/quote-reminders.sql`. Provider-mocked tests:
+`node --test tests/quote-reminders.test.js`. No real messages are sent by either test.
