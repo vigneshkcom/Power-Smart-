@@ -28,7 +28,7 @@ tools/schedule.html   Fieldworker job schedule (/tools/schedule) — assign jobs
 tech.html             Electrician phone app (/tech) — jobs, alarms installed, invoice, card payment
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
-api/_senders.js       Sender identities (Customer Service/Mani/Vignesh) + signature (not a route)
+api/_senders.js       Sender identities (Customer Service/Mani/Sunny) + signature (not a route)
 api/_maillog.js       Logs every outbound email to Supabase sent_emails (not a route)
 api/send-quote.js     POST /api/send-quote  - emails a customer their quotation
 api/send-email.js     POST /api/send-email  — free-form branded email (composer)
@@ -110,7 +110,7 @@ env var — it lives in the code.
 ## Job schedule (/tools/schedule)
 
 Dispatch board for assigning smoke alarm jobs to electricians (phase 1 of field
-service management). Same portal passcode and Mani/Vignesh picker as the pipeline.
+service management). Same portal passcode and Mani/Sunny picker as the pipeline.
 
 - **Day view**: one row per electrician on an hourly timeline (07:00–24:00), job
   blocks coloured by status (scheduled, en route, on site, completed, cancelled)
@@ -167,10 +167,10 @@ Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
 
 ## Senders, composer & email log
 
-- **Agent**: opening `/tools` asks who's using it — **Mani** or **Vignesh**
+- **Agent**: opening `/tools` asks who's using it — **Mani** or **Sunny**
   (remembered per device). This tags quotes, composed emails and pipeline notes.
 - **Send as**: every quote/email has a *Send as* picker — **Customer Service**,
-  **Mani**, or **Vignesh**. It sets the From display name (e.g. "Mani —
+  **Mani**, or **Sunny**. It sets the From display name (e.g. "Mani —
   PowerSmart", address stays `support@`) and the signature. Defaults to the
   logged-in agent.
 - **Compose Email**: the *Compose Email* button on `/tools` opens a box (To,

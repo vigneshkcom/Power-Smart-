@@ -7,7 +7,7 @@ create table if not exists public.sent_emails (
   id           uuid primary key default gen_random_uuid(),
   created_at   timestamptz not null default now(),
   kind         text not null default 'email',          -- 'quote' | 'email'
-  sender       text not null default 'customer_service',-- customer_service | mani | vignesh
+  sender       text not null default 'customer_service',-- customer_service | mani | sunny
   agent        text,                                     -- who operated the portal
   to_email     text not null,
   to_name      text,

@@ -86,7 +86,7 @@ module.exports = async (req, res) => {
   const b = req.body || {};
   const customerEmail = b.customerEmail;
   const customerName = String(b.customerName || "").slice(0, 120).trim();
-  const agentName = String(b.agentName || "").slice(0, 120).trim();
+  const agentName = String(b.agentName || "").slice(0, 120).trim().replace(/^Vignesh$/i, "Sunny");
   const sender = S.resolveSender(b.sendAs);
   const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
   const customerPhone = fromPipeline ? Sms.cleanPhone(b.customerPhone) : '';

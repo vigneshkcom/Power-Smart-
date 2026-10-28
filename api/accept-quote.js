@@ -46,7 +46,7 @@ module.exports = async (req, res) => {
   const ref = String(b.ref || "").slice(0, 40).trim();
   const customerName = String(b.customerName || "").slice(0, 120).trim();
   const customerEmail = String(b.customerEmail || "").slice(0, 254).trim();
-  const agentName = String(b.agentName || "").slice(0, 120).trim();
+  const agentName = String(b.agentName || "").slice(0, 120).trim().replace(/^Vignesh$/i, "Sunny");
   const paymentMethod = b.paymentMethod === "phone" ? "phone" : "stripe";
   const address = {
     line1: String(b.addressLine1 || "").slice(0, 180).trim(),

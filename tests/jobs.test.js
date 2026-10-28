@@ -69,7 +69,7 @@ test('creating a job from a lead logs a status note on the lead', async () => {
 
 test('completing a job moves the lead to Won and logs it', async () => {
   const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', electrician_id: 't1', status: 'on_site', scheduled_start: '2026-10-23T23:00:00.000Z' }), r = res();
-  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed', actor: 'Vignesh' } }, r);
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed', actor: 'Sunny' } }, r);
   assert.equal(r.code, 200);
   const won = f.calls.find((c) => c.q.startsWith('leads?id=eq.lead1') && c.body && c.body.stage === 'won');
   assert(won, 'lead stage set to won');

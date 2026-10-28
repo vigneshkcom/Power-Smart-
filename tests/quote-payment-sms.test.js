@@ -21,7 +21,7 @@ function smsFixture({reject=false,timeout=false,optout=false,noteFailure=false}=
     return rows.filter(r=>r.id===id);
   }};
   const Sms=load('_sms-outbound.js',{'./_supabase':SB},{fetch:async(url,opts)=>{calls.push(JSON.parse(opts.body));if(timeout)throw Error('Timeout');return {ok:!reject,status:reject?400:202,json:async()=>reject?{message:'Invalid device'}:{id:'gateway-id'}};}});
-  const args={lead:{id:'lead1',phone:'0451 898 761'},message:'Hi Test, view your quote here: https://example.test/quote',key:'quote-email-id',author:'Vignesh'};
+  const args={lead:{id:'lead1',phone:'0451 898 761'},message:'Hi Test, view your quote here: https://example.test/quote',key:'quote-email-id',author:'Sunny'};
   return {Sms,args,rows,notes,calls};
 }
 test('SMS uses PowerSmart gateway, normalizes mobile, appears in inbox and logs full text',async()=>{
@@ -58,12 +58,12 @@ function quoteFixture({emailFails=false,smsFails=false,saveFails=false,phone='04
     if(query==='leads')return [lead];return [];
   }};
   const Sms={cleanPhone:v=>v||'',async sendLeadSms(args){smsCalls.push(args);if(smsFails)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({lead_id:id,author,body});}};
-  const Q=load('_quote.js',{}),S={resolveSender:()=>({key:'vignesh'}),fromHeader:()=> 'PowerSmart <support@powersmartco.com.au>'};
+  const Q=load('_quote.js',{}),S={resolveSender:()=>({key:'sunny'}),fromHeader:()=> 'PowerSmart <support@powersmartco.com.au>'};
   class Resend {
     constructor(){this.emails={send:async args=>{emails.push(args);return emailFails?{error:{message:'Rejected'}}:{data:{id:'email-id'}};}};}
   }
   const handler=load('send-quote.js',{'./_quote':Q,'./_supabase':SB,'./_senders':S,'./_sms-outbound':Sms,'./_maillog':{async logEmail(row){logs.push(row);return !saveFails;}},resend:{Resend}});
-  async function call(headers={'x-portal-key':'2026'}){let status=200,data;await handler({method:'POST',headers,body:{leadId:'lead1',customerName:lead.name,customerEmail:lead.email,agentName:'Vignesh',alarmQty:4,controllerQty:0}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
+  async function call(headers={'x-portal-key':'2026'}){let status=200,data;await handler({method:'POST',headers,body:{leadId:'lead1',customerName:lead.name,customerEmail:lead.email,agentName:'Sunny',alarmQty:4,controllerQty:0}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
   return {call,smsCalls,logs,emails,notes};
 }
 test('successful quote email triggers a text with the exact saved full quote URL',async()=>{

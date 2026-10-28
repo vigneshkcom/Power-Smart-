@@ -190,7 +190,7 @@
         <p style="font-size:.86rem;color:var(--body);margin-bottom:1rem">Choose your name for this pipeline session. Your notes, messages, quotes and lead saves will use this agent.</p>
         <div style="display:flex;gap:.8rem">
           <button class="btn btn-primary" id="choose-mani" style="flex:1;justify-content:center;min-height:52px">Mani</button>
-          <button class="btn btn-primary" id="choose-vignesh" style="flex:1;justify-content:center;min-height:52px">Vignesh</button>
+          <button class="btn btn-primary" id="choose-sunny" style="flex:1;justify-content:center;min-height:52px">Sunny</button>
         </div>
       </div>
     </div>
@@ -375,7 +375,7 @@
             <select id="em-sendas">
               <option value="customer_service">Customer Service</option>
               <option value="mani">Mani</option>
-              <option value="vignesh">Vignesh</option>
+              <option value="sunny">Sunny</option>
             </select>
           </div>
           <div class="field full"><label>Subject</label><input id="em-subject" placeholder="e.g. Your smoke alarm booking"></div>
@@ -428,7 +428,7 @@
             <select id="q-sendas">
               <option value="customer_service">Customer Service</option>
               <option value="mani">Mani</option>
-              <option value="vignesh">Vignesh</option>
+              <option value="sunny">Sunny</option>
             </select>
           </div>
         </div>
@@ -819,14 +819,14 @@
   });
 
   /* ---------- email composer ---------- */
-  var AGENT_TO_SENDER = { "Mani": "mani", "Vignesh": "vignesh" };
+  var AGENT_TO_SENDER = { "Mani": "mani", "Sunny": "sunny" };
   var emailLeadId = null;
 
   function currentAgent(){ return selectedAgent; }
   function showAgentPicker(){
     document.querySelectorAll("body > :not(#agent-overlay):not(script)").forEach(function(el){ el.inert = true; });
     $("agent-overlay").classList.add("show");
-    $(selectedAgent === "Vignesh" ? "choose-vignesh" : "choose-mani").focus();
+    $(selectedAgent === "Sunny" ? "choose-sunny" : "choose-mani").focus();
   }
   function chooseAgent(name, quiet){
     selectedAgent = name;
@@ -841,11 +841,11 @@
   }
   $("calling-agent").addEventListener("click", showAgentPicker);
   $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
-  $("choose-vignesh").addEventListener("click", function(){ chooseAgent("Vignesh"); });
+  $("choose-sunny").addEventListener("click", function(){ chooseAgent("Sunny"); });
   $("agent-overlay").addEventListener("keydown", function(e){
     if (e.key === "Tab") {
       e.preventDefault();
-      (document.activeElement === $("choose-mani") ? $("choose-vignesh") : $("choose-mani")).focus();
+      (document.activeElement === $("choose-mani") ? $("choose-sunny") : $("choose-mani")).focus();
     }
   });
 
@@ -1214,7 +1214,7 @@
   });
 
   /* ---------- sent-email thread viewer ---------- */
-  var SENDER_LABEL = { customer_service:"Customer Service", mani:"Mani", vignesh:"Vignesh" };
+  var SENDER_LABEL = { customer_service:"Customer Service", mani:"Mani", sunny:"Sunny" };
   function senderLabel(k){ return SENDER_LABEL[k] || "Customer Service"; }
   var threadEmails = [];
 
@@ -1328,6 +1328,7 @@
   // Ask who is calling once per device; "Change" in the header re-opens the picker.
   var savedAgent = "";
   try { savedAgent = localStorage.getItem(AGENT_LS) || ""; } catch(e){}
+  if (savedAgent === 'Vignesh') savedAgent = 'Sunny';
   if (AGENT_TO_SENDER[savedAgent]) chooseAgent(savedAgent, true);
   else showAgentPicker();
   if (!portalKey()){

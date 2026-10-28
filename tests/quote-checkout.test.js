@@ -112,7 +112,7 @@ test('public acceptance uses stored quote quantities and amount, ignores changed
 
 test('staff booking checkout reuses its saved link and records Stripe payment before refusing a second fee',async()=>{
   const f=fixture();const handler=load('send-booking-fee.js',{'./_supabase':f.SB,'./_stripe':f.Stripe,'./_quote-payments':f.QP,resend:{Resend:class{}}});
-  const req={method:'POST',headers:{'x-portal-key':'2026'},body:{lead_id:f.lead.id,action:'checkout',agent:'Vignesh'}};
+  const req={method:'POST',headers:{'x-portal-key':'2026'},body:{lead_id:f.lead.id,action:'checkout',agent:'Sunny'}};
   assert.equal((await invoke(handler,req)).status,200);assert.equal((await invoke(handler,req)).status,200);assert.equal(f.sessions.size,1);
   const s=[...f.sessions.values()][0];s.payment_status='paid';s.status='complete';
   assert.equal((await invoke(handler,req)).status,409);assert.equal(f.payments[0].status,'paid');assert.equal(f.sessions.size,1);

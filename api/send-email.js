@@ -3,7 +3,7 @@
 // Called from the pipeline lead card, so it requires the portal key.
 //
 // Body: { to, toName?, subject, message, sendAs, agent?, leadId? }
-// sendAs ∈ customer_service | mani | vignesh
+// sendAs ∈ customer_service | mani | sunny
 
 const S = require("./_senders");
 const SB = require("./_supabase");
@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
   const toName = String(b.toName || "").slice(0, 120).trim();
   const subject = String(b.subject || "").slice(0, 200).trim();
   const message = String(b.message || "").slice(0, 20000);
-  const agent = String(b.agent || "").slice(0, 120).trim();
+  const agent = String(b.agent || "").slice(0, 120).trim().replace(/^Vignesh$/i, "Sunny");
   const leadId = String(b.leadId || "").slice(0, 40).trim();
   const sender = S.resolveSender(b.sendAs);
 

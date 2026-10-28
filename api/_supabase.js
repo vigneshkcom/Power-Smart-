@@ -2,6 +2,7 @@
 // Uses SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY — server only, never the browser.
 // Underscore prefix => Vercel does not expose this file as a route.
 
+const Staff = require('./_staff-identity');
 const URL_ = (process.env.SUPABASE_URL || "").trim();
 const KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
@@ -23,7 +24,7 @@ async function sb(path, { method = "GET", body, prefer } = {}) {
       "Content-Type": "application/json",
       Prefer: prefer || (method === "GET" ? "count=none" : "return=representation"),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(Staff.record(body, path.split("?")[0])),
   });
   if (!res.ok) {
     let msg = `Supabase ${res.status}`;
@@ -35,7 +36,7 @@ async function sb(path, { method = "GET", body, prefer } = {}) {
   }
   if (res.status === 204) return null;
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  return text ? Staff.record(JSON.parse(text), path.split("?")[0]) : null;
 }
 
 module.exports = { sb, configured };

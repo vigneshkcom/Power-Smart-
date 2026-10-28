@@ -13,11 +13,11 @@ const LOGO = `${SITE}/assets/logo/power-smart-logo-full-colour.png`;
 const SENDERS = {
   customer_service: { key: "customer_service", label: "Customer Service", fromName: "PowerSmart",           signName: "Customer Service Team", title: "PowerSmart" },
   mani:             { key: "mani",             label: "Mani",             fromName: "Mani - PowerSmart", signName: "Mani",                  title: "PowerSmart" },
-  vignesh:          { key: "vignesh",          label: "Vignesh",          fromName: "Vignesh - PowerSmart", signName: "Vignesh",             title: "PowerSmart" },
+  sunny:          { key: "sunny",          label: "Sunny",          fromName: "Sunny - PowerSmart", signName: "Sunny",             title: "PowerSmart" },
 };
 
 function resolveSender(key) {
-  return SENDERS[key] || SENDERS.customer_service;
+  return SENDERS[key === 'vignesh' ? 'sunny' : key] || SENDERS.customer_service;
 }
 
 // "Mani - PowerSmart <support@powersmartco.com.au>"

@@ -216,7 +216,7 @@
                         <select id="sendAs" class="flex-1 min-w-0 bg-gray-800 text-white text-xs rounded px-2 py-1 outline-none border border-gray-700">
                             <option value="customer_service">Customer Service</option>
                             <option value="mani">Mani</option>
-                            <option value="vignesh">Vignesh</option>
+                            <option value="sunny">Sunny</option>
                         </select>
                     </div>
                     <button onclick="copySMS()" class="w-full py-2 bg-powersmart text-white rounded font-black text-[10px] uppercase tracking-tighter hover:bg-blue-800 transition">Copy Quote SMS</button>
@@ -355,7 +355,7 @@
         <p class="text-xs text-gray-500 mb-4">This tags your quotes, emails and pipeline notes.</p>
         <div class="space-y-2">
             <button onclick="setAgent('Mani')" class="w-full py-3 bg-powersmart text-white rounded font-bold hover:bg-blue-800 transition">Mani</button>
-            <button onclick="setAgent('Vignesh')" class="w-full py-3 bg-gray-800 text-white rounded font-bold hover:bg-gray-700 transition">Vignesh</button>
+            <button onclick="setAgent('Sunny')" class="w-full py-3 bg-gray-800 text-white rounded font-bold hover:bg-gray-700 transition">Sunny</button>
         </div>
     </div>
 </div>
@@ -366,8 +366,8 @@ let customerName = "";
 let agentName = "";
 const formatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' });
 
-// ---- Agent identity (Mani / Vignesh), asked once, remembered per device ----
-const AGENT_TO_SENDER = { 'Mani': 'mani', 'Vignesh': 'vignesh' };
+// ---- Agent identity (Mani / Sunny), asked once, remembered per device ----
+const AGENT_TO_SENDER = { 'Mani': 'mani', 'Sunny': 'sunny' };
 
 function applyAgent() {
     document.getElementById('agentBadgeLabel').innerText = agentName || 'Choose…';
@@ -391,7 +391,8 @@ function openAgentPicker() {
 (function initAgent() {
     let saved = "";
     try { saved = localStorage.getItem('powersmart_agent_name') || ""; } catch (e) {}
-    if (saved === 'Mani' || saved === 'Vignesh') {
+    if (saved === 'Vignesh') { saved = 'Sunny'; try { localStorage.setItem('powersmart_agent_name', saved); } catch(e) {} }
+    if (saved === 'Mani' || saved === 'Sunny') {
         agentName = saved;
         applyAgent();
     } else {
