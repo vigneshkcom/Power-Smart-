@@ -202,9 +202,9 @@ function renderQuoteEmail(opts) {
       <tr><td style="background:#ffffff;border-radius:0 0 0 0;padding:20px 27px 8px;">
         <div style="font-size:11px;letter-spacing:1.5px;color:#2E8494;font-weight:bold;text-transform:uppercase;text-align:center;padding-bottom:12px;">What we install</div>
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-          ${productCard(IMG.battery, "Battery operated interconnected smoke alarms", "Battery Operated Alarm", "Bedrooms, hallways &amp; every level")}
+          ${productCard(IMG.battery, "Anka battery operated interconnected smoke alarms", "Anka Battery Operated Smoke Alarm", "Bedrooms, hallways &amp; every level")}
           ${productCard(IMG.controller, "Smoke alarm remote controller", "Remote Controller", opts.controllerQty > 0 ? "Included in your quote" : "Optional add-on")}
-          ${productCard(IMG.hardwired, "240V hardwired smoke alarm", "240V Hardwired Alarm", "Replaces existing hardwired alarms")}
+          ${productCard(IMG.hardwired, "Anka 240V hardwired smoke alarm", "Anka 240V Hardwired Smoke Alarm", "Replaces existing hardwired alarms")}
         </tr></table>
       </td></tr>
 
