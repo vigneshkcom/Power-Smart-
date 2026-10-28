@@ -86,7 +86,7 @@ test('unauthenticated quote-email callers cannot trigger SMS',async()=>{
 async function publicCall(handler,token){let status=200,body,headers={};await handler({method:'GET',query:{token}},{setHeader(k,v){headers[k]=v;},status(n){status=n;return this;},send(v){body=v;return this;},end(){return this;}});return {status,body,headers};}
 test('public quote viewer requires an unguessable token and serves only successfully saved quotes',async()=>{
   const token='8abe9f5b-2495-4ee3-b521-0364df34db00';let calls=0;
-  const handler=load('_view-quote.js',{'./_supabase':{async sb(q){calls++;assert.match(q,/kind=eq.quote&status=eq.sent/);return [{body_html:'<h1>Quote 7001</h1>'}];}}});
+  const handler=load('_view-quote.js',{'./_quote-payments':{async quotePayments(){return [];},renderPaidQuote(q){return q.body_html;}},'./_supabase':{async sb(q){calls++;assert.match(q,/kind=eq.quote&status=eq.sent/);return [{body_html:'<h1>Quote 7001</h1>'}];}}});
   assert.equal((await publicCall(handler,'7001')).status,404);assert.equal(calls,0);
   const r=await publicCall(handler,token);assert.equal(r.status,200);assert.equal(r.body,'<h1>Quote 7001</h1>');assert.equal(r.headers['Cache-Control'],'no-store');assert.match(r.headers['Content-Security-Policy'],/default-src 'none'/);
 });

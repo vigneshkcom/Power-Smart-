@@ -3,7 +3,6 @@
 // always computed here so it can't be tampered with.
 
 const SITE = "https://smokealarms.powersmartco.com.au";
-const STRIPE_LINK = "https://book.stripe.com/14AeVc6Xk57J7QF4CXao802";
 const PHONE_DISPLAY = "(07) 2141 7792";
 const PHONE_TEL = "+61721417792";
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
@@ -248,7 +247,7 @@ ${SITE}`;
 }
 
 module.exports = {
-  SITE, STRIPE_LINK, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
+  SITE, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
   PRICE_ALARM, PRICE_CTRL, FEE_BOOKING, FEE_INSPECT,
   fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };

@@ -1,6 +1,8 @@
 // POST /api/send-booking-fee. Creates a per-lead Stripe Checkout Session and emails it.
 const Stripe = require("./_stripe");
 const SB = require("./_supabase");
+const QP = require('./_quote-payments');
+const crypto = require('crypto');
 const { Resend } = require("resend");
 
 const PORTAL_KEY = "2026";
@@ -25,19 +27,16 @@ module.exports = async (req, res) => {
     if (!lead) return res.status(404).json({ error: "Lead not found" });
     if (!checkoutOnly && !lead.email) return res.status(400).json({ error: "Add an email address before sending a booking fee" });
 
-    const payments = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(lead.id)}&payment_type=eq.booking_fee&order=created_at.desc&select=status,stripe_session_id&limit=100`);
+    const payments = await QP.refreshPending(await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(lead.id)}&payment_type=eq.booking_fee&order=created_at.desc&select=*&limit=100`));
     if ((payments || []).some(payment => payment.status === "paid")) return res.status(409).json({ error: "This customer's booking fee has already been paid." });
-    if (checkoutOnly && payments && payments[0]?.stripe_session_id) {
-      const existing = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payments[0].stripe_session_id)}`);
-      if (existing.payment_status === "paid") return res.status(409).json({ error: "This booking fee has already been paid. Payment confirmation is updating." });
-      if (existing.status === "open" && existing.url) return res.status(200).json({ ok: true, amount: 35, checkout_url: existing.url });
-    }
+    const pending = payments.find(payment => payment.status === 'sent');
+    const requestKey = crypto.createHash('sha256').update(`${lead.id}:${payments[0]?.stripe_session_id || 'initial'}`).digest('hex');
 
-    const session = await Stripe.request("/checkout/sessions", {
+    const session = pending ? { id: pending.stripe_session_id, url: pending.checkout_url } : await Stripe.request("/checkout/sessions", {
       mode: "payment",
       ...(lead.email ? { customer_email: lead.email } : {}),
       "payment_method_types[0]": "card",
-      success_url: `${SITE}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${SITE}/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/payment-cancelled`,
       "line_items[0][price_data][currency]": "aud",
       "line_items[0][price_data][product_data][name]": "PowerSmart booking fee",
@@ -49,13 +48,14 @@ module.exports = async (req, res) => {
       "metadata[payment_type]": "booking_fee",
       "payment_intent_data[metadata][lead_id]": lead.id,
       "payment_intent_data[metadata][payment_type]": "booking_fee",
-    });
+    }, { idempotencyKey: `powersmart-booking-${requestKey}` });
 
-    await SB.sb("payment_requests", { method: "POST", body: {
+    if (!pending) await SB.sb("payment_requests?on_conflict=stripe_session_id", { method: "POST", body: {
       lead_id: lead.id, quote_ref: lead.quote_ref || null, customer_email: lead.email || "",
+      payment_type: 'booking_fee', description: 'Booking fee', request_key: requestKey,
       amount_cents: FEE_CENTS, currency: "aud", status: "sent", stripe_session_id: session.id,
       checkout_url: session.url, sent_at: new Date().toISOString(),
-    }});
+    }, prefer: 'resolution=ignore-duplicates,return=minimal' });
 
     if (checkoutOnly) {
       await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Mani", "Vignesh"].includes(req.body?.agent) ? req.body.agent : "System", kind: "payment", body: "Stripe checkout created for the $35.00 booking fee. Payment has not yet been confirmed." }, prefer: "return=minimal" });

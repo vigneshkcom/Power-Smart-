@@ -22,7 +22,8 @@ function fixture() {
       const v = decodeURIComponent(value.slice(value.indexOf('.') + 1));
       return value.startsWith('neq.') ? String(row[key]) !== v : String(row[key]) === v;
     });
-    if (table === 'leads') return [{ id: 'lead1', name: 'Test Customer', email: '', phone:'+61400000000', quote_ref: '7000' }].filter(matches);
+    if (table === 'leads') return [{ id: 'lead1', name: 'Test Customer', email: 'test@example.test', phone:'+61400000000', quote_ref: '7000' }].filter(matches);
+    if (table === 'sent_emails') return [{ id:'quote1', lead_id:'lead1', quote_ref:'7000', kind:'quote', status:'sent' }].filter(matches);
     const rows = table === 'payment_requests' ? payments : comments;
     if (options.method === 'POST') {
       if (table === 'payment_requests' && payments.some(p => p.stripe_session_id === options.body.stripe_session_id)) return [];
@@ -42,8 +43,9 @@ function fixture() {
     sessions.set(session.id, session); return session;
   }};
   const P = load('_payments.js', { './_supabase': SB });
+  const QP = load('_quote-payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_quote': require('../api/_quote') });
   const Sms={cleanPhone:v=>v,async sendLeadSms(args){smsCalls.push(args);return {status:'submitted',phone:args.lead.phone};}};
-  const handler = load('payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_sms-outbound':Sms });
+  const handler = load('payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_sms-outbound':Sms, './_quote-payments':QP });
   async function call(body, extras = {}) {
     let status = 200, data; const response = { setHeader() {}, status(s) { status = s; return this; }, json(d) { data = d; return this; } };
     await handler({ method: 'POST', headers: { 'x-portal-key': '2026' }, body, ...extras }, response);
@@ -66,7 +68,7 @@ test('custom checkout uses exact amount, purpose and lead metadata and writes a 
   const f = fixture(), result = await f.call(f.body);
   assert.equal(result.status, 200); assert.equal(f.payments[0].amount_cents, 31625);
   assert.equal(f.payments[0].payment_type, 'installation_balance');
-  assert.equal(f.payments[0].customer_email, '');
+  assert.equal(f.payments[0].customer_email, 'test@example.test');
   const form = f.stripeCalls[0].form;
   assert.equal(form['metadata[lead_id]'], 'lead1'); assert.equal(form['metadata[quote_ref]'], '7000');
   assert.equal(form['payment_method_types[0]'], 'card');
@@ -155,4 +157,32 @@ test('paid, expired and cross-customer payments cannot be texted',async()=>{
   assert.equal((await f.call({action:'send_sms',lead_id:'other',payment_id:p.id})).status,404);
   session.status='expired';assert.equal((await f.call({action:'preview_sms',lead_id:'lead1',payment_id:p.id})).status,409);
   session.status='complete';session.payment_status='paid';assert.equal((await f.call({action:'send_sms',lead_id:'lead1',payment_id:p.id})).status,409);assert.equal(f.smsCalls.length,0);
+});
+
+function historicalReceipt(f) {
+  const id='cs_live_'+'x'.repeat(40), intent='pi_historical';
+  const session={id,mode:'payment',status:'complete',payment_status:'paid',currency:'aud',amount_total:3500,
+    customer_details:{email:'test@example.test'},payment_link:'plink_1SWWsTAD1FbYoqscP2NF37oF',payment_intent:intent,created:1793170166,metadata:{}};
+  f.sessions.set(id,session);
+  const receipt={status:'succeeded',amount_received:3500,currency:'aud',latest_charge:{created:1793170166,paid:true,refunded:false,amount_refunded:0}};
+  f.sessions.set(intent+'?expand[]=latest_charge',receipt);
+  return {session,receipt,body:{action:'recover_booking',lead_id:'lead1',quote_ref:'7000',session_id:id}};
+}
+
+test('historical shared-link repair verifies Stripe customer, amount, receipt and quote, and cannot count a retry twice',async()=>{
+  const f=fixture(),h=historicalReceipt(f);
+  assert.equal((await f.call(h.body)).status,200);assert.equal((await f.call(h.body)).status,200);
+  assert.equal(f.payments.length,1);assert.equal(f.payments[0].status,'paid');assert.equal(f.payments[0].amount_paid_cents,3500);assert.equal(f.payments[0].quote_ref,'7000');
+  assert.equal(f.comments.length,1);assert.match(f.comments[0].body,/Verified historical Stripe payment: pi_historical/);
+});
+
+test('historical repair refuses wrong customers, non-booking links, unpaid, refunded or wrong-amount Stripe receipts',async()=>{
+  for(const change of [h=>h.session.customer_details.email='other@example.test',h=>h.session.amount_total=350,h=>h.session.payment_link='other',h=>h.session.payment_status='unpaid',h=>h.receipt.latest_charge.amount_refunded=3500,h=>h.receipt.amount_received=350]) {
+    const f=fixture(),h=historicalReceipt(f);change(h);assert.equal((await f.call(h.body)).status,409);assert.equal(f.payments.length,0);assert.equal(f.comments.length,0);
+  }
+});
+
+test('historical repair refuses a checkout allocated to another customer or quote',async()=>{
+  const f=fixture(),h=historicalReceipt(f);f.payments.push({id:'other',stripe_session_id:h.session.id,lead_id:'another',quote_ref:'8000'});
+  assert.equal((await f.call(h.body)).status,409);assert.equal(f.payments.length,1);assert.equal(f.comments.length,0);
 });

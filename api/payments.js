@@ -3,6 +3,7 @@ const Stripe = require('./_stripe');
 const SB = require('./_supabase');
 const P = require('./_payments');
 const Sms = require('./_sms-outbound');
+const QP = require('./_quote-payments');
 const clean = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 const fields = 'id,lead_id,quote_ref,payment_type,description,amount_cents,amount_paid_cents,currency,status,stripe_session_id,checkout_url,created_at,paid_at,request_key';
 
@@ -16,7 +17,37 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const payments = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&select=${fields}&order=created_at.desc&limit=200`);
-      return res.status(200).json({ payments: payments || [] });
+      return res.status(200).json({ payments: await QP.refreshPending(payments) });
+    }
+    if (b.action === 'recover_booking') {
+      // Staff-only repair of the historical shared booking link. Never infer a
+      // payment from an acceptance, a screenshot, or a customer-supplied amount.
+      const sessionId = clean(b.session_id, 220), ref = clean(b.quote_ref, 40);
+      if (!/^cs_live_[a-zA-Z0-9]{20,200}$/.test(sessionId) || !ref) return res.status(400).json({ error: 'A Stripe checkout session and quote reference are required.' });
+      const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,email,quote_ref&limit=1`), lead = leads?.[0];
+      if (!lead || lead.quote_ref !== ref || !lead.email) return res.status(409).json({ error: 'The customer and current quote must match.' });
+      const quotes = await SB.sb(`sent_emails?lead_id=eq.${encodeURIComponent(leadId)}&quote_ref=eq.${encodeURIComponent(ref)}&kind=eq.quote&status=eq.sent&select=id&limit=1`);
+      if (!quotes?.length) return res.status(409).json({ error: 'No issued quote was found for this customer.' });
+      const session = await Stripe.request(`/checkout/sessions/${encodeURIComponent(sessionId)}`);
+      const email = session.customer_details?.email || session.customer_email || '';
+      if (session.payment_status !== 'paid' || session.status !== 'complete' || session.mode !== 'payment' || session.amount_total !== 3500 || session.currency !== 'aud' ||
+          email.toLowerCase() !== lead.email.toLowerCase() || session.payment_link !== 'plink_1SWWsTAD1FbYoqscP2NF37oF' ||
+          (session.metadata?.lead_id && session.metadata.lead_id !== leadId)) return res.status(409).json({ error: 'Stripe has not confirmed a matching $35 booking payment for this customer.' });
+      const existing = await SB.sb(`payment_requests?stripe_session_id=eq.${encodeURIComponent(sessionId)}&select=*&limit=1`);
+      if (existing?.[0] && (existing[0].lead_id !== leadId || existing[0].quote_ref !== ref)) return res.status(409).json({ error: 'This Stripe payment belongs to a different customer or quote.' });
+      const intentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+      if (!intentId) throw new Error('Stripe did not return a payment receipt.');
+      const intent = await Stripe.request(`/payment_intents/${encodeURIComponent(intentId)}?expand[]=latest_charge`);
+      if (intent.status !== 'succeeded' || intent.amount_received !== 3500 || intent.currency !== 'aud' || intent.latest_charge?.paid !== true || intent.latest_charge?.refunded || Number(intent.latest_charge?.amount_refunded || 0) > 0) return res.status(409).json({ error: 'The Stripe receipt is not a successful, unrefunded $35 payment.' });
+      const paidAt = new Date((intent.latest_charge?.created || session.created) * 1000).toISOString();
+      const row = { lead_id: leadId, quote_ref: ref, customer_email: lead.email, payment_type: 'booking_fee',
+        description: `Booking fee for quote ${ref}`, amount_cents: 3500, amount_paid_cents: 3500, currency: 'aud', status: 'paid',
+        stripe_session_id: sessionId, stripe_payment_intent_id: intentId, checkout_url: session.url || 'https://book.stripe.com/14AeVc6Xk57J7QF4CXao802', paid_at: paidAt,
+      };
+      if (existing?.[0]) await SB.sb(`payment_requests?id=eq.${encodeURIComponent(existing[0].id)}`, { method: 'PATCH', body: row, prefer: 'return=minimal' });
+      else await SB.sb('payment_requests?on_conflict=stripe_session_id', { method: 'POST', body: row, prefer: 'resolution=ignore-duplicates,return=minimal' });
+      await P.note(leadId, 'Stripe', `Booking fee paid: $35.00 AUD. Quote ${ref}. Verified historical Stripe payment: ${intentId}. Stripe checkout: ${sessionId}.`);
+      return res.status(200).json({ ok: true, payment: row });
     }
     if (['refresh','send_sms','preview_sms'].includes(b.action)) {
       const rows = await SB.sb(`payment_requests?id=eq.${encodeURIComponent(clean(b.payment_id, 40))}&lead_id=eq.${encodeURIComponent(leadId)}&select=${fields}&limit=1`);
@@ -72,7 +103,7 @@ module.exports = async (req, res) => {
     }
     const session = await Stripe.request('/checkout/sessions', {
       mode: 'payment', 'payment_method_types[0]': 'card', ...(lead.email ? { customer_email: lead.email } : {}),
-      success_url: 'https://smokealarms.powersmartco.com.au/payment-complete?session_id={CHECKOUT_SESSION_ID}',
+      success_url: 'https://smokealarms.powersmartco.com.au/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://smokealarms.powersmartco.com.au/payment-cancelled', client_reference_id: leadId,
       'line_items[0][price_data][currency]': 'aud', 'line_items[0][price_data][unit_amount]': String(amount),
       'line_items[0][price_data][product_data][name]': `PowerSmart - ${P.TYPES[b.payment_type]}`,

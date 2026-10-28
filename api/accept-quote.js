@@ -7,18 +7,10 @@
 
 const Q = require("./_quote");
 const SB = require("./_supabase");
+const QP = require('./_quote-payments');
 
-async function logAcceptance({ ref, customerName, customerEmail, payableToday, paymentMethod, address }) {
+async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address }) {
   if (!SB.configured()) throw new Error("The customer record service is not configured");
-  let lead = null;
-  if (ref) {
-    const byRef = await SB.sb(`leads?quote_ref=eq.${encodeURIComponent(ref)}&select=id&limit=1`);
-    lead = byRef && byRef[0];
-  }
-  if (!lead && customerEmail) {
-    const byEmail = await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id&order=updated_at.desc&limit=1`);
-    lead = byEmail && byEmail[0];
-  }
   if (!lead) throw new Error("We could not find this quote. Please call (07) 2141 7792.");
   await SB.sb(`leads?id=eq.${encodeURIComponent(lead.id)}`, {
     method: "PATCH",
@@ -66,15 +58,23 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Please enter the complete installation address" });
   }
   address.full = `${address.line1}, ${address.suburb} ${address.state} ${address.postcode}`;
-  const { serviceMode, alarmQty, controllerQty } = Q.normalise(b);
-  const q = Q.buildQuote({ serviceMode, alarmQty, controllerQty });
-
-  // Always hand back the Stripe link so the customer can pay even if the
-  // notification email fails for any reason.
-  const stripeUrl = Q.STRIPE_LINK;
-
+  let serviceMode, q, stripeUrl = null, paymentReceived = false;
   try {
-    await logAcceptance({ ref, customerName, customerEmail, payableToday: q.payableToday, paymentMethod, address });
+    if (!ref || !customerEmail) throw new Error('Please open the link in your quote or contact PowerSmart.');
+    const quotes = await SB.sb(`sent_emails?quote_ref=eq.${encodeURIComponent(ref)}&to_email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&kind=eq.quote&status=eq.sent&select=id,lead_id,quote_ref,quote_total,body_html&order=created_at.desc&limit=1`);
+    const quote = quotes?.[0];
+    if (!quote?.lead_id) throw new Error('We could not find this quote. Please contact PowerSmart.');
+    const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(quote.lead_id)}&select=id,email,quote_ref&limit=1`);
+    const lead = leads?.[0];
+    if (!lead || lead.quote_ref !== ref || lead.email?.toLowerCase() !== customerEmail.toLowerCase()) throw new Error('Please use your latest quote link or contact PowerSmart.');
+    const saved = QP.quoteOptions(quote);
+    serviceMode = saved.serviceMode; q = saved.calculation;
+    if (paymentMethod === 'stripe') {
+      const checkout = await QP.checkout(quote, lead);
+      stripeUrl = checkout.url; paymentReceived = checkout.paid;
+    }
+    if (paymentReceived) return res.status(200).json({ ok: true, paymentMethod, paymentReceived, stripeUrl });
+    await logAcceptance({ ref, customerName, lead, payableToday: q.payableToday, paymentMethod, address });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Could not save the accepted quote" });
   }
@@ -128,5 +128,5 @@ module.exports = async (req, res) => {
     }
   }
 
-  return res.status(200).json({ ok: true, paymentMethod, stripeUrl: paymentMethod === "stripe" ? stripeUrl : null });
+  return res.status(200).json({ ok: true, paymentMethod, paymentReceived, stripeUrl: paymentMethod === "stripe" ? stripeUrl : null });
 };
