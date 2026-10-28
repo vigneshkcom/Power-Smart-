@@ -15,7 +15,7 @@ const { welcomeLead } = require('./_welcome-sms');
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
 
-const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "scheduled", "won", "not_reachable", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 

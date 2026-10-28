@@ -9,9 +9,9 @@ function load(file,mocks){const module={exports:{}};vm.runInNewContext(fs.readFi
   console:{error(){}},URL,URLSearchParams,Buffer,Date,process:{env:{}},
 });return module.exports;}
 async function call(handler,body){let status=200,data;await handler({method:body?'POST':'GET',headers:{'x-portal-key':'2026'},body},{setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
-function database({requests=[booking],jobs=[],quotes=[quote],failPayments=false}={}){
+function database({requests=[booking],jobs=[],quotes=[quote],failPayments=false,stage="quote_accepted"}={}){
   const writes=[];
-  const leads=[{id:'lead1',name:'Customer',quote_ref:'7011',stage:'quote_accepted'}];
+  const leads=[{id:'lead1',name:'Customer',quote_ref:'7011',stage}];
   const SB={configured:()=>true,async sb(query,opts={}){
     const [table,filter='']=query.split('?');
     if(opts.method){writes.push({table,body:opts.body});if(table==='jobs'&&opts.method==='POST')return [{id:'new-job',job_no:1002,...opts.body}];return [];}
@@ -62,4 +62,12 @@ test('a new job saves its issued quote reference and existing jobs read that ref
   const linked=database({quotes:[issued({...quote,id:'newer',quote_ref:'7012',quote_total:465}),issued()],jobs:[{...paidJob,pay_status:'unpaid'}]});
   const existing=await call(load('_jobs.js',{'./_supabase':linked.SB}),{action:'lead_quote',job_id:'j1'});
   assert.equal(existing.status,200);assert.equal(existing.data.quote.ref,'7011');assert.equal(existing.data.payment.pending_cents,58800);
+});
+
+
+test('a scheduled customer keeps an accepted quote status without a payment',async()=>{
+  const db=database({quotes:[issued()],requests:[],stage:'scheduled'});
+  const result=await call(load('quote-tracker.js',{'./_supabase':db.SB}));
+  assert.equal(result.status,200);assert.equal(result.data.quotes[0].status,'accepted');
+  assert.equal(result.data.quotes[0].lead_stage,'scheduled');
 });

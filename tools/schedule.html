@@ -910,7 +910,7 @@
     $("jm-report").style.display = "none";
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
-      var order = { won:0, quote_accepted:1, quote_sent:2 };
+      var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
       var sorted = leads.slice().sort(function(a,b){ return (order[a.stage] ?? 9) - (order[b.stage] ?? 9); });
       $("jm-lead").innerHTML = '<option value="">— Not linked to a lead —</option>' + sorted.map(function(l){
         var where = l.address_suburb || l.address_postcode || l.postcode || "";
