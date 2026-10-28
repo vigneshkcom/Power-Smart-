@@ -57,6 +57,10 @@ test('only the exact current, unpaid Quote Sent customer is eligible',async()=>{
   for(const stage of ['new_lead','quote_accepted','scheduled','won','follow_up']){f.db.leads[0].stage=stage;assert.match(await f.R.eligibility(f.c()),/Only customers/);}
   f.db.leads[0].stage='quote_sent';f.db.leads[0].quote_ref='7012';assert.match(await f.R.eligibility(f.c()),/replaced/);
 });
+test('an accepted customer without reminder enrollment is correctly labelled inactive',async()=>{
+  const f=fixture();f.db.leads[0].stage='quote_accepted';f.db.quote_reminder_settings=[];
+  const s=await f.R.summary(leadId);assert.equal(s.next_at,null);assert.match(s.reason,/Only customers in Quote Sent/);
+});
 test('paid, expired, opted out, replied and paused customers cannot be sent reminders',async()=>{
   const f=fixture();f.db.payment_requests.push({lead_id:leadId,quote_ref:'7011',status:'paid',amount_paid_cents:3500});assert.match(await f.R.eligibility(f.c()),/Payment received/);f.db.payment_requests=[];
   f.db.sent_emails[0].body_text='Valid until: 1 January 2020';assert.match(await f.R.eligibility(f.c()),/expired/);f.db.sent_emails[0].body_text='';

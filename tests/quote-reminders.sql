@@ -36,6 +36,11 @@ begin
     values(l,'quote','sent','reminder@example.invalid','REMINDER-TEST-NEW') returning id into q2;
   select * into s from public.quote_reminder_settings where lead_id=l;
   if s.enabled or s.quote_id<>q2 or s.reminder_count<>0 then raise exception 'New quote lost pause or did not reset sequence'; end if;
+  update public.quote_reminder_settings set quote_id=null where lead_id=l;
+  update public.leads set stage='follow_up',quote_ref='REMINDER-TEST-NEW' where id=l;
+  update public.leads set stage='quote_sent' where id=l;
+  select * into s from public.quote_reminder_settings where lead_id=l;
+  if s.quote_id<>q2 or s.enabled then raise exception 'Stage entry did not link an existing quote or lost pause'; end if;
   if has_table_privilege('anon','public.quote_reminder_worker','SELECT') or has_function_privilege('anon','public.claim_quote_reminder(uuid)','EXECUTE') then raise exception 'Public worker access'; end if;
 end $$;
 rollback;

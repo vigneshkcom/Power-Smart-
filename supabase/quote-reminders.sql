@@ -95,6 +95,14 @@ create trigger sms_pause_quote_reminders after insert on public.sms_messages for
 create or replace function public.reschedule_reminders_on_stage() returns trigger language plpgsql set search_path=public as $$
 begin
   if new.stage is distinct from old.stage then
+    if new.stage='quote_sent' then
+      insert into public.quote_reminder_settings(lead_id,quote_id,next_at,reply_baseline)
+      select new.id,e.id,now()+interval '3 days',e.created_at from public.sent_emails e
+      where e.lead_id=new.id and e.quote_ref=new.quote_ref and e.kind='quote' and e.status='sent'
+      order by e.created_at desc limit 1
+      on conflict(lead_id) do update set quote_id=excluded.quote_id,reply_baseline=excluded.reply_baseline
+      where quote_reminder_settings.quote_id is null;
+    end if;
     update public.quote_reminder_settings set
       next_at=case when new.stage='quote_sent' and enabled and not unsubscribed and reminder_count<3 then now()+interval '3 days' else null end,
       updated_at=now() where lead_id=new.id;

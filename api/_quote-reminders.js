@@ -53,10 +53,10 @@ async function context(leadId) {
 async function eligibility(c,now=new Date(),{ignorePaused=false,refreshPayment=false}={}) {
   const {s,lead,q}=c;
   if(!lead)return 'Customer not found';
+  if(lead.stage!=='quote_sent')return 'Only customers in Quote Sent receive reminders';
   if(!s || !q)return 'No successfully sent quote';
   if(s.unsubscribed)return 'Customer stopped automatic reminders';
   if(!ignorePaused && !s.enabled)return s.reason || 'Paused by staff';
-  if(lead.stage!=='quote_sent')return 'Only customers in Quote Sent receive reminders';
   if(q.kind!=='quote' || q.status!=='sent' || q.lead_id!==lead.id || q.quote_ref!==lead.quote_ref)return 'Quote has been replaced or is unavailable';
   if(expiresAt(q)<now.getTime())return 'Quote has expired';
   const phone=Sms.cleanPhone(lead.phone);
