@@ -15,11 +15,12 @@ const { welcomeLead } = require('./_welcome-sms');
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
 
-const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "scheduled", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "quote_sent", "scheduled", "won", "not_reachable", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
 module.exports = async (req, res) => {
+  if (/[?&]resource=address-config(&|$)/.test(req.url || "")) return require("./_address-config")(req, res);
   if (/[?&]resource=reminders(&|$)/.test(req.url || "")) return require("./_quote-reminders").handler(req, res);
   // Job schedule shares this function (Vercel Hobby allows 12 functions); see api/_jobs.js.
   if (/[?&]resource=jobs(&|$)/.test(req.url || "")) return require("./_jobs")(req, res);

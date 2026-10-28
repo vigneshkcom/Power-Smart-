@@ -277,7 +277,7 @@
           <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
           <div class="field"><label>Agent</label><input id="lm-agent" readonly></div>
           <div class="section-label">Installation address</div>
-          <div class="field full"><label>Street address</label><input id="lm-address-line1" placeholder="Unit and street number"></div>
+          <div class="field full"><label>Street address</label><input id="lm-address-line1" data-address-autofill data-address-suburb="lm-address-suburb" data-address-state="lm-address-state" data-address-postcode="lm-address-postcode" data-address-extra-postcode="lm-postcode" placeholder="Unit and street number"></div>
           <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
           <div class="field"><label>State</label><input id="lm-address-state" maxlength="20"></div>
           <div class="field"><label>Address postcode</label><input id="lm-address-postcode" maxlength="12"></div>
@@ -473,7 +473,6 @@
     { id:"new_lead",     label:"New Lead",       color:"#43A8B6" },
     { id:"quote_accepted",label:"Quote Accepted", color:"#3BAE6A" },
     { id:"follow_up",    label:"Follow-Up",      color:"#7FB0F5" },
-    { id:"shopping",     label:"Shopping Around",color:"#B58AE0" },
     { id:"quote_sent",   label:"Quote Sent",     color:"#F5B841" },
     { id:"scheduled",    label:"Scheduled",      color:"#3B82C4" },
     { id:"won",          label:"Installed",      color:"#3BAE6A" },
@@ -1374,5 +1373,6 @@
   }
 })();
 </script>
+<script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>

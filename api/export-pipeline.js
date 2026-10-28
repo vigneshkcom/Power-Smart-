@@ -9,7 +9,6 @@ const STAGE_LABELS = {
   new_lead: "New Lead",
   quote_accepted: "Quote Accepted",
   follow_up: "Follow-Up",
-  shopping: "Shopping Around",
   quote_sent: "Quote Sent",
   won: "Won / Installed",
   not_reachable: "Not Reachable",

@@ -113,7 +113,7 @@
           <h2 id="address-title">Installation address</h2>
           <p>Enter the full address where the smoke alarm work will be completed.</p>
           <div class="address-grid">
-            <div class="address-field full"><label for="addressLine1">Street address</label><input id="addressLine1" autocomplete="address-line1" placeholder="Unit and street number" required></div>
+            <div class="address-field full"><label for="addressLine1">Street address</label><input id="addressLine1" data-address-autofill data-address-suburb="addressSuburb" data-address-state="addressState" data-address-postcode="addressPostcode" autocomplete="address-line1" placeholder="Unit and street number" required></div>
             <div class="address-field suburb"><label for="addressSuburb">Suburb</label><input id="addressSuburb" autocomplete="address-level2" required></div>
             <div class="address-field"><label for="addressState">State</label><select id="addressState" autocomplete="address-level1" required><option value="QLD">QLD</option><option value="NSW">NSW</option><option value="VIC">VIC</option><option value="ACT">ACT</option><option value="SA">SA</option><option value="WA">WA</option><option value="TAS">TAS</option><option value="NT">NT</option></select></div>
             <div class="address-field"><label for="addressPostcode">Postcode</label><input id="addressPostcode" inputmode="numeric" autocomplete="postal-code" maxlength="4" pattern="[0-9]{4}" required></div>
@@ -266,5 +266,6 @@
   });
 })();
 </script>
+<script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>

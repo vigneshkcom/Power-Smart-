@@ -323,7 +323,7 @@
           <div class="field full"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
           <div class="field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
           <div class="field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
-          <div class="field full"><label for="jm-address">Street address</label><input id="jm-address" placeholder="e.g. 27 Wilga Street"></div>
+          <div class="field full"><label for="jm-address">Street address</label><input id="jm-address" data-address-autofill data-address-suburb="jm-suburb" data-address-postcode="jm-postcode" placeholder="e.g. 27 Wilga Street"></div>
           <div class="field"><label for="jm-suburb">Suburb</label><input id="jm-suburb"></div>
           <div class="field"><label for="jm-postcode">Postcode</label><input id="jm-postcode" inputmode="numeric"></div>
 
@@ -1246,5 +1246,6 @@
   }
 })();
 </script>
+<script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>

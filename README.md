@@ -89,7 +89,7 @@ Environment variables (Vercel → Settings → Environment Variables):
 ## Sales pipeline (/tools/pipeline)
 
 GHL-style kanban backed by Supabase. Stages: New Lead, Quote Accepted,
-Follow-Up, Shopping Around, Quote Sent, Won/Installed, Not Reachable, Out of Area.
+Follow-Up, Quote Sent, Won/Installed, Not Reachable, Out of Area.
 
 - Website enquiries land in **New Lead** automatically (`/api/lead` inserts them).
 - Sending a quote from /tools moves (or creates) the lead in **Quote Sent**
@@ -220,3 +220,23 @@ Customer unsubscribe cannot be overridden by the staff dropdown.
 
 Rollback-only database checks: `tests/quote-reminders.sql`. Provider-mocked tests:
 `node --test tests/quote-reminders.test.js`. No real messages are sent by either test.
+
+
+## Australian address autofill
+
+Add `GOOGLE_MAPS_BROWSER_KEY` to Vercel Production environment variables and redeploy.
+This must be a dedicated public browser key with website restrictions for
+`https://portal.powersmartco.com.au/*` and `https://smokealarms.powersmartco.com.au/*`.
+Enable Maps JavaScript API and Places API (New), with billing enabled in Google Cloud.
+Restrict this key to those two APIs. Do not use a private server key.
+
+The shared `/assets/address-autofill.js` picker is used in the pipeline customer card,
+job schedule, PDF quote form and customer acceptance address form. Results are limited
+to Australia, with a Brisbane preference. Selecting an address fills the street,
+suburb, state and postcode where those fields exist. Unit numbers remain editable.
+The public `GET /api/pipeline?resource=address-config` returns only this browser key;
+without a key, all manual address fields continue to work. No existing addresses are
+changed automatically. The landing-page enquiry asks only for a postcode.
+
+Apply `supabase/remove-shopping-stage.sql` when upgrading an existing database.
+It moves any legacy Shopping Around leads to Follow-Up before removing that stage.
