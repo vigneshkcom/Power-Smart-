@@ -45,7 +45,7 @@ function buildQuote({ serviceMode, alarmQty, controllerQty }) {
     balance = 0;
     waiverNote = "If your home needs upgrading and you proceed with us, this $120 inspection fee is waived in full. You pay only the $35 booking fee plus the alarms required.";
   } else {
-    lines.push({ label: "Photoelectric interconnected smoke alarms - supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
+    lines.push({ label: "Anka Smoke Alarms - photoelectric, interconnected, supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
     if (controllerQty > 0) {
       lines.push({ label: "Smoke alarm remote controller (test / hush / locate)", qty: controllerQty, unit: PRICE_CTRL, amount: controllerQty * PRICE_CTRL });
     }
@@ -94,7 +94,7 @@ function renderQuoteEmail(opts) {
 
   const introLine = isInspect
     ? "Thank you for the opportunity to quote. Please find your quotation for a full smoke alarm compliance inspection of your property against Queensland's 2027 legislation below."
-    : `Thank you for the opportunity to quote. Based on the details discussed, your property requires approximately <strong>${q.lines[0].qty} interconnected photoelectric smoke alarm${q.lines[0].qty === 1 ? "" : "s"}</strong> to meet Queensland's smoke alarm legislation. The exact number and placement is confirmed on-site by your licensed electrician.`;
+    : `Thank you for the opportunity to quote. Based on the details discussed, your property requires approximately <strong>${q.lines[0].qty} Anka interconnected photoelectric smoke alarm${q.lines[0].qty === 1 ? "" : "s"}</strong> to meet Queensland's smoke alarm legislation. The exact number and placement is confirmed on-site by your licensed electrician.`;
 
   const totalsRow = (label, value, opt) => `
     <tr>

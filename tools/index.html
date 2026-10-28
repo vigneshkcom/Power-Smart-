@@ -501,7 +501,7 @@ function copySMS() {
     
     let breakdown = "";
     if (serviceMode === 'install') {
-        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $79.00): ${alarmTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Anka Smoke Alarms (${qty} x $79.00): ${alarmTotal}`;
         if (hasControllers) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
@@ -549,7 +549,7 @@ function buildPlainTextQuote() {
 
     let breakdown = "";
     if (serviceMode === 'install') {
-        breakdown = `\n\nLine Item Breakdown:\n- Smoke Alarms (${qty} x $79.00): ${alarmTotal}`;
+        breakdown = `\n\nLine Item Breakdown:\n- Anka Smoke Alarms (${qty} x $79.00): ${alarmTotal}`;
         if (controllerQty > 0) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
