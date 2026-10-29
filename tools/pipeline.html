@@ -107,6 +107,25 @@
   .sms-bubble small{display:block;margin-top:.2rem;font-size:.61rem;opacity:.72}.sms-empty{margin:auto;color:var(--muted);font-size:.82rem;text-align:center}
   .sms-compose{margin-top:.8rem}.sms-compose textarea{min-height:94px;resize:vertical}.sms-meta{display:flex;align-items:center;gap:.7rem;margin-top:.45rem;font-size:.68rem;color:var(--muted)}.sms-meta a{margin-left:auto;color:var(--teal-deep);font-weight:700;text-decoration:none}
 
+  /* quote reminders */
+  .reminder-card{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+  .reminder-card[hidden]{display:none}
+  .reminder-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;background:#F7FAFA}
+  .reminder-head h4{font-size:.86rem;font-weight:700;margin-bottom:4px}
+  .reminder-head p{font-size:.7rem;color:var(--muted);line-height:1.5}
+  .reminder-control{flex:none}
+  .reminder-control select{font-size:.76rem;min-width:100px;background:#fff}
+  .reminder-stats{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;padding:16px 18px}
+  .reminder-stat small{display:block;color:var(--muted);font-size:.65rem;font-weight:600;margin-bottom:5px}
+  .reminder-stat strong{display:block;font-size:.78rem;line-height:1.6;font-weight:600}
+  .reminder-note{margin:0 18px 14px;padding:9px 12px;background:var(--paper);border-radius:8px;font-size:.72rem;line-height:1.6;color:var(--body)}
+  .reminder-details{border-top:1px solid var(--line);padding:12px 18px;font-size:.72rem;color:var(--body)}
+  .reminder-details>summary{cursor:pointer;font-weight:600;color:var(--teal-deep)}
+  .reminder-help{margin-top:12px;font-size:.68rem;line-height:1.7;color:var(--muted)}
+  .reminder-history-item{border-top:1px solid var(--line);padding:12px 0;font-size:.72rem;line-height:1.7}
+  .reminder-history-item p{margin:5px 0}
+  @media (max-width:480px){.reminder-head{align-items:flex-start;padding:14px}.reminder-stats{grid-template-columns:1fr;padding:14px;gap:12px}.reminder-note{margin-left:14px;margin-right:14px}.reminder-details{padding:12px 14px}}
+
   /* comments */
   .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
   .cmts h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem}
@@ -290,11 +309,10 @@
           <div class="field"><label>Booking fee</label><input id="lm-payment-amount" readonly style="background:#F8FBFB"></div>
           <div class="field"><label>Payment status</label><input id="lm-payment-status" readonly style="background:#F8FBFB"></div>
         </div>
-        <section id="lm-reminders" style="margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#F4F9FA">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px"><strong>Automatic quote reminders</strong><div class="field"><label for="lm-reminder-state">Reminders</label><select id="lm-reminder-state"><option value="on">On</option><option value="paused">Paused</option></select></div></div>
-          <p style="font-size:12px;color:var(--muted)">SMS + email every 3 days · maximum 3 reminders · Quote Sent only · weekdays, 9am–5pm Queensland time</p>
-          <div id="lm-reminder-summary" aria-live="polite">Loading reminders…</div>
-          <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">Reminder history</summary><div id="lm-reminder-history" style="margin-top:12px"></div></details>
+        <section id="lm-reminders" class="reminder-card" hidden aria-labelledby="lm-reminder-title">
+          <div class="reminder-head"><div><h4 id="lm-reminder-title">Quote reminders</h4><p>SMS + email · every 3 days · up to 3 follow-ups</p></div><div class="field reminder-control"><select id="lm-reminder-state" aria-label="Automatic quote reminders"><option value="on">On</option><option value="paused">Paused</option></select></div></div>
+          <div id="lm-reminder-summary" aria-live="polite"></div>
+          <details id="lm-reminder-details" class="reminder-details"><summary>History &amp; sending details</summary><p class="reminder-help">Weekdays, 9am–5pm Queensland time. SMS replies pause reminders. Pause here when handling an email reply. Submitted means accepted by the sending service.</p><div id="lm-reminder-history"></div></details>
         </section>
         <div class="cmts" id="lm-cmts">
           <h4>Comments</h4>
@@ -714,16 +732,20 @@
   }
   function reminderDate(value){return value?new Date(value).toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})+' QLD':'Not scheduled';}
   function renderReminders(d){
+    $('lm-reminders').hidden=!d.available;
+    if(!d.available)return;
     $('lm-reminder-state').value=d.enabled?'on':'paused';
     $('lm-reminder-state').disabled=Boolean(d.unsubscribed);
-    $('lm-reminder-summary').innerHTML='<div><strong>Next reminder due:</strong> '+esc(reminderDate(d.next_at))+'</div><div style="margin-top:5px"><strong>Reminders sent:</strong> '+d.reminders_sent+' / 3 · SMS submitted: '+d.sms_sent+' · Emails submitted: '+d.email_sent+'</div>'+(d.reason?'<p style="font-size:12px;color:var(--muted)">'+esc(d.reason)+'</p>':'')+'<p style="font-size:11px;color:var(--muted)">Submitted means accepted by the sending service. SMS replies pause both channels. Pause here when handling an email reply.</p>';
+    $('lm-reminder-summary').innerHTML='<div class="reminder-stats"><div class="reminder-stat"><small>Next follow-up</small><strong>'+esc(reminderDate(d.next_at))+'</strong></div><div class="reminder-stat"><small>Follow-ups submitted</small><strong>'+Number(d.reminders_sent || 0)+' of 3</strong></div></div>'+(d.reason?'<p class="reminder-note">'+esc(d.reason)+'</p>':'');
     var labels={pending:'Not yet submitted',sending:'Processing / verify if interrupted',submitted:'Submitted',failed:'Failed',unknown:'Needs review',skipped:'Not sent'};
-    $('lm-reminder-history').innerHTML=d.history.length?d.history.map(function(r){return '<div style="border-top:1px solid var(--line);padding:12px 0;font-size:12px"><strong>Reminder '+r.sequence+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p style="font-size:12px;color:var(--muted)">No reminder messages sent yet.</p>';
+    $('lm-reminder-history').innerHTML='<p class="reminder-help">SMS submitted: '+Number(d.sms_sent || 0)+' · Emails submitted: '+Number(d.email_sent || 0)+'</p>'+(d.history.length?d.history.map(function(r){return '<div class="reminder-history-item"><strong>Follow-up '+r.sequence+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p class="reminder-help">No follow-ups sent yet.</p>');
   }
   function loadReminders(id){
-    $('lm-reminders').style.display='';$('lm-reminder-state').disabled=true;
-    $('lm-reminder-summary').textContent='Loading reminders…';$('lm-reminder-history').textContent='';
-    reminderApi(id).then(function(d){if(currentId===id)renderReminders(d);}).catch(function(e){if(currentId===id)$('lm-reminder-summary').textContent=e.message;});
+    $('lm-reminders').hidden=true;$('lm-reminder-state').disabled=true;
+    $('lm-reminder-summary').textContent='';$('lm-reminder-history').textContent='';$('lm-reminder-details').open=false;
+    var lead=leads.find(function(l){return l.id===id;});
+    if(!lead || lead.stage!=='quote_sent')return;
+    reminderApi(id).then(function(d){if(currentId===id)renderReminders(d);}).catch(function(){if(currentId===id)toast('Could not check quote reminders. Reopen this lead to retry.');});
   }
   $('lm-reminder-state').addEventListener('change',function(){
     var id=currentId,enabled=this.value==='on';if(!id)return;this.disabled=true;
@@ -768,7 +790,7 @@
 
   function openNewLead(){
     currentId = null;
-    $("lm-reminders").style.display="none";
+    $("lm-reminders").hidden=true;
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
     $("lm-source").value = "Phone";

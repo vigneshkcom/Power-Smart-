@@ -61,6 +61,29 @@ test('an accepted customer without reminder enrollment is correctly labelled ina
   const f=fixture();f.db.leads[0].stage='quote_accepted';f.db.quote_reminder_settings=[];
   const s=await f.R.summary(leadId);assert.equal(s.next_at,null);assert.match(s.reason,/Only customers in Quote Sent/);
 });
+test('reminder controls are unavailable without a successfully sent current quote',async()=>{
+  for(const change of [
+    f=>{f.db.leads[0].stage='new_lead';},
+    f=>{f.db.quote_reminder_settings=[];},
+    f=>{f.db.sent_emails=[];},
+    f=>{f.db.sent_emails[0].status='failed';},
+    f=>{f.db.sent_emails[0].kind='email';},
+    f=>{f.db.sent_emails[0].lead_id='another-customer';},
+    f=>{f.db.leads[0].quote_ref='7012';}
+  ]){
+    const f=fixture();change(f);
+    const s=await f.R.summary(leadId);
+    assert.equal(s.available,false);assert.equal(s.enabled,false);assert.equal(s.next_at,null);
+    for(const enabled of [true,false])await assert.rejects(()=>f.R.toggle(leadId,enabled,'Sunny'),/Send a quote/);
+    assert.equal(f.writes.length+f.sms.length+f.emails.length,0);
+  }
+});
+test('a sent current quote exposes controls, including when paused for review',async()=>{
+  const f=fixture();let s=await f.R.summary(leadId);
+  assert.equal(s.available,true);assert.equal(s.enabled,true);
+  f.db.quote_reminder_settings[0].enabled=false;
+  s=await f.R.summary(leadId);assert.equal(s.available,true);assert.equal(s.enabled,false);
+});
 test('paid, expired, opted out, replied and paused customers cannot be sent reminders',async()=>{
   const f=fixture();f.db.payment_requests.push({lead_id:leadId,quote_ref:'7011',status:'paid',amount_paid_cents:3500});assert.match(await f.R.eligibility(f.c()),/Payment received/);f.db.payment_requests=[];
   f.db.sent_emails[0].body_text='Valid until: 1 January 2020';assert.match(await f.R.eligibility(f.c()),/expired/);f.db.sent_emails[0].body_text='';

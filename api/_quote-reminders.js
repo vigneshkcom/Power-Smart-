@@ -50,6 +50,9 @@ async function context(leadId) {
   const q=s?.quote_id ? first(await SB.sb(`sent_emails?id=eq.${enc(s.quote_id)}&select=id,lead_id,kind,status,quote_ref,created_at,body_text,body_html,to_email&limit=1`)) : null;
   return {s,lead,q};
 }
+function hasCurrentSentQuote({s,lead,q}) {
+  return Boolean(s && lead && q && q.id===s.quote_id && q.kind==='quote' && q.status==='sent' && q.lead_id===lead.id && q.quote_ref===lead.quote_ref);
+}
 async function eligibility(c,now=new Date(),{ignorePaused=false,refreshPayment=false}={}) {
   const {s,lead,q}=c;
   if(!lead)return 'Customer not found';
@@ -80,11 +83,12 @@ async function pause(leadId,reason,quoteId) {
 async function summary(leadId) {
   const c=await context(leadId);
   if(!c.lead)throw new Error('Customer not found');
-  const runs=await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&select=*&order=created_at.desc&limit=30`);
+  const available=c.lead.stage==='quote_sent' && hasCurrentSentQuote(c);
+  const runs=available ? await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&select=*&order=created_at.desc&limit=30`) : [];
   const reason=await eligibility(c);
   const s=c.s;
   const activeRuns=(runs || []).filter(r=>r.quote_id===s?.quote_id);
-  return {enabled:s?.enabled ?? true,unsubscribed:s?.unsubscribed || false,
+  return {available,enabled:available && Boolean(s?.enabled),unsubscribed:s?.unsubscribed || false,
     eligible:!reason,reason:reason || (s?.reminder_count>=3?'Three-reminder limit reached':null),
     next_at:!reason && s?.next_at && s.reminder_count<3?nextWindow(s.next_at):null,
     rounds_attempted:s?.reminder_count || 0,
@@ -95,6 +99,7 @@ async function summary(leadId) {
 async function toggle(leadId,enabled,actor) {
   let c=await context(leadId);
   if(!c.lead)throw new Error('Customer not found');
+  if(c.lead.stage!=='quote_sent' || !hasCurrentSentQuote(c))throw new Error('Send a quote and keep the lead in Quote Sent before changing reminders');
   if(enabled){
     if(!c.s)throw new Error('Send a quote before enabling reminders');
     if(c.s.reminder_count>=3)throw new Error('Three reminders have already been attempted for this quote. Send a new quote to start a new sequence.');
