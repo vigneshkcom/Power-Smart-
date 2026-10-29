@@ -12,6 +12,7 @@ create table if not exists public.leads (
   id           uuid primary key default gen_random_uuid(),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
+  pipeline_order_at timestamptz not null default now(),
   name         text not null,
   phone        text,
   email        text,
@@ -22,7 +23,7 @@ create table if not exists public.leads (
   address_postcode text,
   source       text not null default 'Website',
   stage        text not null default 'new_lead'
-               check (stage in ('new_lead','quote_accepted','follow_up','quote_sent','scheduled','won','not_reachable','out_of_area')),
+               check (stage in ('new_lead','quote_accepted','follow_up','quote_sent','scheduled','won','not_reachable','not_interested','out_of_area')),
   agent        text,
   quote_ref    text,
   quote_total  numeric(10,2),
@@ -31,6 +32,7 @@ create table if not exists public.leads (
 
 create index if not exists leads_stage_idx      on public.leads (stage);
 create index if not exists leads_updated_idx    on public.leads (updated_at desc);
+create index if not exists leads_pipeline_order_idx on public.leads (pipeline_order_at desc, id desc);
 create index if not exists leads_email_idx      on public.leads (lower(email));
 
 -- ---------- Comments on a lead ----------

@@ -5,7 +5,7 @@ const PaymentSummary = require('./_payment-summary');
 const QP = require('./_quote-payments');
 
 const PORTAL_KEY = "2026";
-const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "scheduled", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "shopping", "quote_sent", "scheduled", "won", "not_reachable", "not_interested", "out_of_area"];
 
 function quantityFromText(text, pattern) {
   const match = String(text || "").match(pattern);

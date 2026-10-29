@@ -359,7 +359,7 @@
       <div class="modal-head"><h3 id="sms-title">Customer SMS</h3><button class="x" id="sms-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="sms-thread" id="sms-thread"><div class="sms-empty">Loading conversation...</div></div>
-        <div class="field sms-compose"><label for="sms-template">SMS template</label><select id="sms-template"><option value="">Choose a template...</option><option value="missed">Tried calling</option><option value="enquiry">Enquiry follow-up</option><option value="quote">Quote follow-up</option></select></div>
+        <div class="field sms-compose"><label for="sms-template">SMS template</label><select id="sms-template"><option value="">Choose a template...</option><optgroup label="New lead follow-ups"><option value="missed">Tried calling</option><option value="second_attempt">Tried calling again</option><option value="callback_time">Best time to call</option><option value="offer_help">Questions about your enquiry</option><option value="later">Follow up later</option><option value="close_enquiry">Close the enquiry?</option><option value="enquiry">Enquiry follow-up</option></optgroup><optgroup label="Quote follow-up"><option value="quote">Quote follow-up</option></optgroup></select></div>
         <div class="field sms-compose"><label for="sms-message">Message</label><textarea id="sms-message" maxlength="1600" placeholder="Write an SMS"></textarea></div>
         <div class="sms-meta"><span id="sms-count">0 characters</span><span id="sms-parts">1 SMS part</span><a id="sms-full-link" href="https://portal.powersmartco.com.au/sms" target="_blank" rel="noopener">Open full SMS Inbox</a></div>
       </div>
@@ -477,6 +477,7 @@
     { id:"scheduled",    label:"Scheduled",      color:"#3B82C4" },
     { id:"won",          label:"Installed",      color:"#3BAE6A" },
     { id:"not_reachable",label:"Not Reachable",  color:"#9AA9AC" },
+    { id:"not_interested",label:"Not interested", color:"#B684A4" },
     { id:"out_of_area",  label:"Out of Area",    color:"#D96B6B" }
   ];
   var KEY_LS = "powersmart_portal_key";
@@ -1046,6 +1047,11 @@
   var smsLeadId = null, smsPhone = "";
   var smsTemplates = {
     missed: "We tried to contact you regarding your smoke alarm enquiry with PowerSmart but were unable to reach you. Please call us back on this number at a convenient time so we can assist you. Thank you, PowerSmart.",
+    second_attempt: "It's PowerSmart. We tried calling again about your smoke alarm enquiry. If you'd still like a hand, reply with a suitable time and we'll give you a call.",
+    callback_time: "It's PowerSmart following up on your smoke alarm enquiry. Is there a day or time that works best for a quick call? Reply here and we'll arrange a callback.",
+    offer_help: "It's PowerSmart. Do you have any questions about your smoke alarm enquiry? Reply here with what you'd like to know and our team will be happy to help.",
+    later: "It's PowerSmart checking in on your smoke alarm enquiry. If now isn't a good time, let us know when you'd prefer us to follow up.",
+    close_enquiry: "It's PowerSmart following up on your smoke alarm enquiry. Would you still like our help, or would you prefer us to close your enquiry? Please reply and let us know. Thank you.",
     enquiry: "It's PowerSmart following up on your smoke alarm enquiry. Please call us back on this number so we can help with the next steps. Thanks!",
     quote: "It's PowerSmart checking in about your smoke alarm quote. Please call us back on this number to discuss it or arrange your booking. Thanks!"
   };

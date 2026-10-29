@@ -15,7 +15,7 @@ const { welcomeLead } = require('./_welcome-sms');
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
 
-const STAGES = ["new_lead", "quote_accepted", "follow_up", "quote_sent", "scheduled", "won", "not_reachable", "out_of_area"];
+const STAGES = ["new_lead", "quote_accepted", "follow_up", "quote_sent", "scheduled", "won", "not_reachable", "not_interested", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
 
@@ -34,7 +34,8 @@ module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
       const cols = "id,created_at,updated_at,name,phone,email,postcode,address_line1,address_suburb,address_state,address_postcode,source,stage,agent,quote_ref,quote_total,payment_preference";
-      const leads = await sb(`leads?select=${cols}&order=updated_at.desc&limit=1000`);
+      // Saved board positions survive edits, notes, messages and page reloads.
+      const leads = await sb(`leads?select=${cols}&order=pipeline_order_at.desc,id.desc&limit=1000`);
       const latestPayments = {};
       try {
         const payments = await sb("payment_requests?payment_type=eq.booking_fee&select=lead_id,status,amount_cents,amount_paid_cents,sent_at,paid_at&order=created_at.desc&limit=10000");
@@ -123,7 +124,7 @@ module.exports = async (req, res) => {
         method: "POST",
         body: { lead_id: leadId, author: clean(b.author, 120) || null, kind, body },
       });
-      // bump the card so it floats to the top of its column (trigger forces updated_at=now())
+      // Keep activity dates current without changing the saved board position.
       await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: "PATCH", body: { updated_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
       return res.status(200).json({ ok: true, comment: rows && rows[0] });
     }

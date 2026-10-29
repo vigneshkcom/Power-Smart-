@@ -12,6 +12,7 @@ const STAGE_LABELS = {
   quote_sent: "Quote Sent",
   won: "Won / Installed",
   not_reachable: "Not Reachable",
+  not_interested: "Not interested",
   out_of_area: "Out of Area",
 };
 
