@@ -1,0 +1,5 @@
+-- Compliance certificate: electrician licence number (printed on the certificate) and
+-- when the certificate PDF was emailed (it is only sent once the job is paid in full).
+-- Run once in Supabase → SQL Editor.
+alter table public.electricians add column if not exists licence_no text;
+alter table public.jobs add column if not exists certificate_sent_at timestamptz;

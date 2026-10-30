@@ -57,9 +57,9 @@ function vmLoad(file, mocks) {
 }
 const QUOTE_TEXT = '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00\n- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00';
 
-const invoiceCalls = [];
+const invoiceCalls = [], certCalls = [];
 function setup() {
-  invoiceCalls.length = 0;
+  invoiceCalls.length = 0; certCalls.length = 0;
   const db = fakeDb({
     electricians: [
       { id: 't1', code: '1011', name: 'Jake Turner', phone: '0411 111 111', active: true },
@@ -77,7 +77,7 @@ function setup() {
   });
   const Stripe = fakeStripe();
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; } } };
+  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
@@ -281,4 +281,20 @@ test('alarm records are saved one by one and validated', async () => {
   assert.equal(t.job('j1').alarm_units.length, 1);
   assert.equal((await t.call({ action: 'save', id: 'j1', alarm_units: [{ location: 'Hall', type: 'solar' }] })).code, 400);
   assert.equal((await t.call({ action: 'save', id: 'j1', alarm_units: [{ location: 'Hall', type: 'battery', photo: '/etc/passwd' }] })).code, 400);
+});
+
+test('the compliance certificate is only released when the job is paid in full', async () => {
+  const t = setup();
+  const sig = 'data:image/png;base64,iVBORw0KGgo=';
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const later = await t.call({ action: 'complete', id: 'j1', paid_in_full: false, signoff_name: 'Jake Turner', signature: sig });
+  assert.equal(later.code, 200);
+  assert.equal(t.job('j1').pay_status, 'later');
+  assert.equal(certCalls.length, 0, 'invoice still owing: no certificate');
+
+  const paid = setup();
+  await paid.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  assert.equal((await paid.call({ action: 'complete', id: 'j1', paid_in_full: true, method: 'cash', signoff_name: 'Jake Turner', signature: sig })).code, 200);
+  assert.equal(certCalls.length, 1, 'paid in full on site: certificate released');
+  assert.equal(certCalls[0].id, 'j1');
 });

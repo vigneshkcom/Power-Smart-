@@ -330,7 +330,7 @@ module.exports = async (req, res) => {
       const f = {
         status: "scheduled", completed_at: null, tech_notes: null,
         invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
-        approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null,
+        approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null, certificate_sent_at: null,
       };
       if (prev.pay_status !== "paid" && prev.pay_status !== "pending") f.pay_status = "unpaid";
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
@@ -345,6 +345,31 @@ module.exports = async (req, res) => {
         await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} reverted to Assigned — electrician's work cleared; payments and photos kept.`);
       }
       return res.status(200).json({ ok: true, job });
+    }
+
+    // Office records the balance of a completed job (pay-later invoice) as received. Full payment releases the certificate.
+    if (b.action === "job_mark_paid") {
+      const id = clean(b.id, 40);
+      const method = String(b.method || "");
+      if (!["bank_transfer", "cash", "card"].includes(method)) return res.status(400).json({ error: "Choose how the payment was received" });
+      const prev = (await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`))?.[0];
+      if (!prev) return res.status(404).json({ error: "Job not found" });
+      if (prev.status !== "completed" || prev.pay_status !== "later") return res.status(409).json({ error: "Only a completed job with an invoice owing can be marked paid." });
+      const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&pay_status=eq.later`, { method: "PATCH", body: { pay_status: "paid", pay_method: method, paid_cents: prev.amount_due_cents || 0, paid_at: new Date().toISOString() } });
+      const job = rows && rows[0];
+      if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+      await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} balance of $${((prev.amount_due_cents || 0) / 100).toFixed(2)} received (${method.replace("_", " ")}) and marked paid.`, "payment");
+      const certificate = await require("./_certificate").issueCertificate(job.id, { agent: actor });
+      return res.status(200).json({ ok: true, job, certificate });
+    }
+
+    // (Re)send the compliance certificate PDF for a completed, fully paid job.
+    if (b.action === "certificate_send") {
+      const id = clean(b.id, 40);
+      if (!id) return res.status(400).json({ error: "id is required" });
+      const certificate = await require("./_certificate").issueCertificate(id, { agent: actor, force: b.force === true });
+      if (certificate.status === "failed") return res.status(502).json({ error: certificate.reason || "Certificate could not be sent", certificate });
+      return res.status(200).json({ ok: true, certificate });
     }
 
     if (b.action === "report") {
@@ -394,6 +419,7 @@ module.exports = async (req, res) => {
       if (b.code !== undefined) f.code = clean(b.code, 20) || null;
       if (b.phone !== undefined) f.phone = clean(b.phone, 40) || null;
       if (b.email !== undefined) f.email = clean(b.email, 254).toLowerCase() || null;
+      if (b.licence_no !== undefined) f.licence_no = clean(b.licence_no, 40) || null;
       if (b.active !== undefined) f.active = Boolean(b.active);
       if (b.sort_order !== undefined) f.sort_order = intIn(b.sort_order, 0, 9999, 0);
       if (f.code && await codeTaken(f.code, b.action === "tech_update" ? clean(b.id, 40) : null)) {

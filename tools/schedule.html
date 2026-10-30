@@ -176,7 +176,7 @@
   .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
   .modal-foot .spacer{flex:1}
 
-  .tech-row{display:grid;grid-template-columns:70px 1.3fr 1fr 1.4fr auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)}
+  .tech-row{display:grid;grid-template-columns:70px 1.3fr 1fr 1.4fr 1fr auto auto;gap:.45rem;align-items:center;padding:.45rem 0;border-bottom:1px solid var(--line)}
   .tech-row input[type=text],.tech-row input[type=email],.tech-row input[type=tel]{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-size:.8rem;width:100%;outline:none}
   .tech-row input:focus{border-color:var(--teal);background:#fff}
   .tech-row .act{display:flex;align-items:center;gap:.3rem;font-size:.7rem;font-weight:700;color:var(--body)}
@@ -369,6 +369,8 @@
       <div class="modal-foot">
         <button class="del" id="jm-delete">Delete job</button>
         <span class="spacer"></span>
+        <button class="btn btn-ghost" id="jm-markpaid" style="display:none" title="Record that the balance owing on this completed job has been received. This sends the compliance certificate.">Mark paid in full</button>
+        <button class="btn btn-ghost" id="jm-sendcert" style="display:none">Send certificate</button>
         <button class="btn btn-ghost" id="jm-revert" title="Clear the electrician's work (alarms, invoice, notes, sign-off). Payments and photos are kept.">Revert to assigned</button>
         <button class="btn btn-ghost" id="jm-unassign">Move to waiting list</button>
         <button class="btn btn-ghost" id="jm-cancel">Close</button>
@@ -415,7 +417,7 @@
         <button class="x" id="tm-close" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
-        <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>Active</span><span></span></div>
+        <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>Licence no.</span><span>Active</span><span></span></div>
         <div id="tech-list"></div>
         <p class="hint" style="margin-top:.6rem">Electricians sign in to the phone app at <a href="/tech" target="_blank" rel="noopener">portal.powersmartco.com.au/tech</a> by typing their <b>code</b> — each code must be different.</p>
         <div class="section-label" style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--line)">Add electrician</div>
@@ -424,6 +426,7 @@
           <input type="text" id="nt-name" placeholder="Full name">
           <input type="tel" id="nt-phone" placeholder="04xx xxx xxx">
           <input type="email" id="nt-email" placeholder="name@email.com">
+          <input type="text" id="nt-licence" placeholder="Licence no.">
           <span></span>
           <button class="btn btn-primary" id="nt-add">Add</button>
         </div>
@@ -954,7 +957,7 @@
     updateConfirmUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
-    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none";
+    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-sendcert").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
     $("jm-report").style.display = "none";
@@ -1072,6 +1075,10 @@
     $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
     $("jm-delete").style.display = "";
     $("jm-revert").style.display = j.status === "cancelled" ? "none" : "";
+    $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
+    var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none");
+    $("jm-sendcert").style.display = certReady ? "" : "none";
+    $("jm-sendcert").textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate";
     $("jm-photos-wrap").style.display = "";
     window.PSPhotos.mount($("jm-photos"),
       function(){ return call("/api/pipeline", "POST", { action:"job_photos", job_id: j.id }); },
@@ -1144,6 +1151,25 @@
     closeJob();
     moveJob(j, { electrician_id: null, scheduled_start: null }, "J" + j.job_no + " moved to waiting list");
   });
+  $("jm-markpaid").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    var m = (prompt("How was the balance for J" + j.job_no + " received?\nType: bank transfer, cash or card", "bank transfer") || "").trim().toLowerCase().replace(" ", "_");
+    if (!m) return;
+    if (["bank_transfer", "cash", "card"].indexOf(m) < 0){ toast("Type bank transfer, cash or card"); return; }
+    if (!confirm("Mark J" + j.job_no + " as paid in full?\n\nThe compliance certificate PDF will be emailed to " + (j.email || "the customer") + " now.")) return;
+    jobsApi({ action:"job_mark_paid", id: j.id, method: m }).then(function(r){
+      var c = r.certificate || {}; closeJob();
+      toast(c.status === "sent" ? "Marked paid. Certificate emailed." : "Marked paid. Certificate not sent: " + (c.reason || "see the lead notes"));
+      return reload();
+    }).catch(function(err){ toast(err.message); });
+  });
+  $("jm-sendcert").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    if (!confirm((j.certificate_sent_at ? "Resend" : "Send") + " the compliance certificate PDF for J" + j.job_no + " to " + (j.email || "the customer") + "?")) return;
+    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    jobsApi({ action:"certificate_send", id: j.id, force: !!j.certificate_sent_at }).then(function(){ closeJob(); toast("Certificate emailed"); return reload(); })
+      .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; });
+  });
   $("jm-revert").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
     if (!confirm("Revert J" + j.job_no + " to Assigned?\n\nThis clears the electrician's alarms, invoice, notes and sign-off so it can be reassigned. Payments received and photos are kept.\n\nUnsynchronized work on the electrician's phone is not cleared, so ask them not to synchronize it.")) return;
@@ -1165,6 +1191,7 @@
         '<input type="text" data-f="name" value="' + esc(t.name || "") + '">' +
         '<input type="tel" data-f="phone" value="' + esc(t.phone || "") + '">' +
         '<input type="email" data-f="email" value="' + esc(t.email || "") + '">' +
+        '<input type="text" data-f="licence_no" placeholder="Licence no." value="' + esc(t.licence_no || "") + '">' +
         '<label class="act"><input type="checkbox" data-f="active"' + (t.active ? " checked" : "") + '> Active</label>' +
         '<button class="btn btn-ghost" data-save-tech>Save</button></div>';
     }).join("") : '<p style="font-size:.82rem;color:var(--muted);padding:.8rem 0">No electricians yet — add your first one below.</p>';
@@ -1182,7 +1209,7 @@
     var row = btn.closest(".tech-row"), get = function(f){ return row.querySelector('[data-f="' + f + '"]'); };
     btn.disabled = true;
     jobsApi({ action:"tech_update", id: row.dataset.techId, code: get("code").value, name: get("name").value,
-      phone: get("phone").value, email: get("email").value, active: get("active").checked })
+      phone: get("phone").value, email: get("email").value, licence_no: get("licence_no").value, active: get("active").checked })
       .then(function(){ toast("Electrician saved"); return reload(); })
       .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
@@ -1190,8 +1217,8 @@
     var name = $("nt-name").value.trim();
     if (!name){ toast("Enter the electrician's name"); $("nt-name").focus(); return; }
     var btn = this; btn.disabled = true;
-    jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, active: true })
-      .then(function(){ ["nt-name","nt-phone","nt-email"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
+    jobsApi({ action:"tech_create", code: $("nt-code").value, name: name, phone: $("nt-phone").value, email: $("nt-email").value, licence_no: $("nt-licence").value, active: true })
+      .then(function(){ ["nt-name","nt-phone","nt-email","nt-licence"].forEach(function(i){ $(i).value = ""; }); toast(name + " added"); return reload(); })
       .then(renderTechs).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
 

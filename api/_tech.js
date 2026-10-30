@@ -155,6 +155,8 @@ async function reconcileJobPayment(session) {
   if (updated && updated.length) {
     await J.leadNote(job.lead_id, "Stripe", `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. Stripe checkout: ${session.id}.`, "payment");
   }
+  // A card payment received after sign-off (pay-later invoice) releases the certificate; it checks the job is completed.
+  if (updated && updated.length) await require("./_certificate").issueCertificate(jobId, { agent: "Stripe" });
   return (updated && updated[0]) || { ...job, pay_status: "paid" };
 }
 
@@ -336,6 +338,8 @@ async function handler(req, res) {
       const lead = current.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
       const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, bookingFee: await bookingFeePaid(current.lead_id), paid, method: f.pay_method, agent: tech.name });
       if (invoice.status === "sent") await patchJob(current.id, { invoice_emailed_at: new Date().toISOString() }).catch(() => {});
+      // Certificate only goes out when the job is paid in full (paid on site, or nothing owing).
+      const certificate = f.pay_status !== "later" ? await require("./_certificate").issueCertificate(current.id, { agent: tech.name }) : { status: "skipped", reason: "Invoice not paid yet." };
       const invoiceText = invoice.status === "sent" ? `${paid ? "Tax invoice" : "Pending invoice"} emailed to ${invoice.to}.` : `Invoice email not sent (${invoice.error}).`;
       if (current.lead_id) {
         try {
@@ -345,7 +349,7 @@ async function handler(req, res) {
         await J.leadNote(current.lead_id, tech.name,
           `✅ Job J${current.job_no} completed and signed off by ${signoffName}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText} ${invoiceText}${notes}`);
       }
-      return res.status(200).json({ ok: true, job: done, invoice });
+      return res.status(200).json({ ok: true, job: done, invoice, certificate });
     }
 
     return res.status(400).json({ error: "Unknown action" });

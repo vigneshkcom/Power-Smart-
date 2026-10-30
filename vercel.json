@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": { "api/pipeline.js": { "maxDuration": 60 } },
+  "functions": {
+    "api/pipeline.js": { "maxDuration": 60, "memory": 1024, "includeFiles": "api/_cert-assets/**" },
+    "api/stripe-webhook.js": { "maxDuration": 60, "memory": 1024, "includeFiles": "api/_cert-assets/**" }
+  },
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
