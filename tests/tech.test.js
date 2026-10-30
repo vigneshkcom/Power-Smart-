@@ -325,3 +325,14 @@ test('a job reverted to assigned can be redone: money already received counts ag
   const more = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], alarm_units: [{ id: 'u1', location: 'Hall', type: 'hardwired' }, { id: 'u2', location: 'Study', type: 'hardwired' }, { id: 'u3', location: 'Bedroom', type: 'hardwired' }], approve: true });
   assert.equal(more.data.totals.due, 7900, 'only the extra alarm is still owing');
 });
+
+test('a reset job still marked paid is healed when the electrician opens it: payment becomes a credit and alarms can be added', async () => {
+  const t = setup();
+  Object.assign(t.job('j1'), { status: 'scheduled', pay_status: 'paid', pay_method: 'cash', paid_cents: 15800, pay_receipt: '/PowerSmart Jobs/J1001 - Kath/Receipts/r.jpg', invoice_items: null, alarm_units: null });
+  const opened = await t.call({ action: 'job', id: 'j1' });
+  assert.equal(opened.code, 200);
+  assert.equal(t.job('j1').pay_status, 'unpaid');
+  assert.equal(t.job('j1').prior_paid_cents, 15800);
+  assert.equal(opened.data.job.pay_status, 'unpaid', 'the app is no longer locked');
+  assert.equal(opened.data.credits.length, 1);
+});

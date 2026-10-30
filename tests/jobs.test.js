@@ -263,3 +263,27 @@ test('the board shows what each customer has paid and how', async () => {
   assert.equal(JSON.stringify(l1.paid_methods), JSON.stringify(['Card', 'Cash']));
   assert.equal(l2.paid_total_cents, 0);
 });
+
+test('reassigning a job to another electrician starts it over as a new job; payments stay as credit', async () => {
+  const f = fixture({ id: 'j1', job_no: 1008, lead_id: 'lead1', electrician_id: 't1', status: 'completed', pay_status: 'paid', pay_method: 'cash', paid_cents: 15800, pay_receipt: '/PowerSmart Jobs/J1008/Receipts/r.jpg',
+    invoice_items: [{ code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ id: 'u1' }], tech_notes: 'x', signoff_name: 'Jake', signoff_signature: 'data:image/png;base64,AA', approved_at: '2026-10-30T01:00:00Z' }), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: 't2', status: 'completed', actor: 'Mani' } }, r);
+  assert.equal(r.code, 200);
+  const j = r.body.job;
+  assert.equal(j.status, 'scheduled', 'forced back to scheduled even if the form still said completed');
+  assert.equal(j.electrician_id, 't2');
+  for (const k of ['invoice_items', 'alarm_units', 'tech_notes', 'signoff_signature', 'approved_at', 'completed_at', 'paid_cents', 'pay_method', 'pay_receipt']) assert.equal(j[k], null, k);
+  assert.equal(j.pay_status, 'unpaid');
+  assert.equal(j.prior_paid_cents, 15800); assert.equal(j.prior_pay_method, 'cash'); assert.equal(j.prior_paid_by, 't1');
+  assert.ok(j.work_reset_at, 'phones use this to drop old drafts');
+  assert(f.calls.some((c) => c.q.startsWith('leads?id=eq.lead1') && c.body && c.body.stage === 'scheduled'), 'lead moves back from Installed');
+});
+
+test('changing only the time, or assigning a fresh job, does not wipe anything', async () => {
+  let f = fixture({ id: 'j1', job_no: 1, electrician_id: 't1', status: 'on_site', invoice_items: [{ code: 'x' }] }), r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', scheduled_start: '2026-10-25T01:00:00.000Z' } }, r);
+  assert.equal(r.body.job.status, 'on_site'); assert.equal(r.body.job.invoice_items.length, 1);
+  f = fixture({ id: 'j1', job_no: 1, electrician_id: null, status: 'scheduled' }); r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: 't2' } }, r);
+  assert.equal(r.body.job.work_reset_at, undefined);
+});

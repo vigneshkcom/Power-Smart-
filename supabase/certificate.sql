@@ -15,3 +15,5 @@ alter table public.jobs
   add column if not exists prior_paid_at    timestamptz,
   add column if not exists prior_receipt    text;
 notify pgrst, 'reload schema';
+alter table public.jobs add column if not exists work_reset_at timestamptz;   -- set when a job is reset for a new electrician; phones drop old drafts
+notify pgrst, 'reload schema';

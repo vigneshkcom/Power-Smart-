@@ -89,6 +89,12 @@ async function prepaid(leadId) {
     return (rows || []).map((p) => ({ label: p.description || p.payment_type, cents: Number(p.amount_paid_cents || p.amount_cents || 0) }));
   } catch (_) { return []; }   // payment tracking not set up yet
 }
+// A job reset for a new electrician but still marked paid (reset before credits existed): carry that payment as a
+// credit so the electrician can start the invoice, instead of leaving the job locked as "paid" with nothing on it.
+async function healPaidEmpty(job) {
+  if (!job || job.pay_status !== "paid" || job.status === "completed" || (job.invoice_items || []).length || !(job.paid_cents > 0)) return job;
+  return (await patchJob(job.id, J.carryPaymentFields(job))) || job;
+}
 // Money received before the job was reverted to assigned counts against the new invoice.
 function priorCredit(job) {
   return job && job.prior_paid_cents > 0 ? [{ label: `Paid earlier (${({ cash: "cash", bank_transfer: "bank transfer", card: "card" })[job.prior_pay_method] || "payment"})`, cents: job.prior_paid_cents }] : [];
@@ -217,7 +223,7 @@ async function handler(req, res) {
     }
 
     if (b.action === "job") {
-      const job = await refreshPayment(await ownJob(tech, b.id));
+      const job = await healPaidEmpty(await refreshPayment(await ownJob(tech, b.id)));
       return res.status(200).json(await jobDetail(job));
     }
 
@@ -239,7 +245,7 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, path: saved.path });
     }
 
-    const job = await ownJob(tech, b.id);
+    let job = await ownJob(tech, b.id);
 
     // Reopen a completed job to correct it; a card-paid invoice stays locked (see "save").
     if (b.action === "reopen") {
@@ -252,6 +258,7 @@ async function handler(req, res) {
     }
 
     if (job.status === "completed") throw fail(409, "This job is already completed — tap Edit job to change it.");
+    job = await healPaidEmpty(job);
 
     if (b.action === "status") {
       if (!["en_route", "on_site"].includes(b.status)) throw fail(400, "Invalid status");

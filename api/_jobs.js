@@ -80,6 +80,44 @@ async function techName(id) {
   } catch (_) { return null; }
 }
 
+/* ---------- starting a job over (revert to assigned, or reassigning to a different electrician) ---------- */
+
+// Money already received becomes a credit against the next invoice. It stays with the electrician who took it,
+// so cash is still deducted from their pay. The job goes back to unpaid so it can be redone and edited.
+function carryPaymentFields(prev) {
+  const f = { pay_status: "unpaid", pay_session_id: null, paid_cents: null, paid_at: null, pay_method: null, pay_receipt: null };
+  if (prev.pay_status === "paid" && prev.paid_cents > 0) {
+    f.prior_paid_cents = (prev.prior_paid_cents || 0) + prev.paid_cents;
+    f.prior_pay_method = prev.pay_method || "card"; f.prior_paid_by = prev.electrician_id || null;
+    f.prior_paid_at = prev.paid_at || new Date().toISOString(); f.prior_receipt = prev.pay_receipt || prev.prior_receipt || null;
+  }
+  return f;
+}
+// Everything the previous electrician recorded, so the next one starts a brand-new job. Photos stay in Dropbox.
+function resetFields(prev) {
+  return {
+    status: "scheduled", completed_at: null, tech_notes: null,
+    invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
+    approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null, certificate_sent_at: null,
+    paid_invoice_emailed_at: null, work_reset_at: new Date().toISOString(),
+    ...carryPaymentFields(prev),
+  };
+}
+function hasWork(j) {
+  return ["en_route", "on_site", "completed"].includes(j.status) || (j.invoice_items || []).length > 0 || (j.alarm_units || []).length > 0 ||
+    Boolean(j.tech_notes) || j.pay_status === "paid" || j.pay_status === "later" || j.pay_status === "pending";
+}
+async function afterReset(job, prev, actor, f, what) {
+  if (!job.lead_id) return;
+  if (prev.status === "completed") {
+    try {
+      const others = await sb(`jobs?lead_id=eq.${encodeURIComponent(job.lead_id)}&status=eq.completed&id=neq.${encodeURIComponent(job.id)}&select=id&limit=1`);
+      if (!others || !others.length) await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&stage=eq.won`, { method: "PATCH", body: { stage: "scheduled" }, prefer: "return=minimal" });
+    } catch (e) { console.error("jobs → lead stage revert failed:", e.message); }
+  }
+  await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} ${what}: the previous electrician's work was cleared so it starts fresh; payments and photos kept${f.prior_paid_cents ? ` ($${(f.prior_paid_cents / 100).toFixed(2)} received stays as credit)` : ""}.`);
+}
+
 // Best-effort note on the linked pipeline lead — never fails the request.
 async function leadNote(leadId, author, body, kind = "status") {
   if (!leadId) return;
@@ -315,6 +353,9 @@ module.exports = async (req, res) => {
       }
       if ("customer_name" in f && !f.customer_name) return res.status(400).json({ error: "Customer name can't be empty" });
       if (!Object.keys(f).length) return res.status(400).json({ error: "Nothing to update" });
+      // Handing the job to a different electrician (or back to the waiting list) starts it over as a brand-new job.
+      const reassigned = Boolean(prev.electrician_id) && "electrician_id" in f && f.electrician_id !== prev.electrician_id && hasWork(prev);
+      if (reassigned) Object.assign(f, resetFields(prev));
       // completion date drives the weekly report
       if (f.status === "completed" && prev.status !== "completed") f.completed_at = new Date().toISOString();
       else if (f.status && f.status !== "completed" && prev.status === "completed") f.completed_at = null;
@@ -322,7 +363,8 @@ module.exports = async (req, res) => {
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
       const job = rows && rows[0];
 
-      if (job && job.lead_id) {
+      if (job && reassigned) { await afterReset(job, prev, actor, f, "reassigned"); await leadNote(job.lead_id, actor, `🛠 Job J${job.job_no} ${scheduleText(job, await techName(job.electrician_id))}.`); }
+      else if (job && job.lead_id) {
         const tech = await techName(job.electrician_id);
         if (f.status === "completed" && prev.status !== "completed") {
           try {
@@ -347,30 +389,10 @@ module.exports = async (req, res) => {
       const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
       const prev = prevRows && prevRows[0];
       if (!prev) return res.status(404).json({ error: "Job not found" });
-      const f = {
-        status: "scheduled", completed_at: null, tech_notes: null,
-        invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
-        approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null, certificate_sent_at: null,
-      };
-      // Money already received is kept as a credit against the next invoice (and stays on the electrician who took it,
-      // so cash is still deducted from their pay). The job itself goes back to unpaid so it can be redone and edited.
-      f.pay_status = "unpaid"; f.pay_session_id = null; f.paid_cents = null; f.paid_at = null; f.pay_method = null; f.pay_receipt = null;
-      if (prev.pay_status === "paid" && prev.paid_cents > 0) {
-        f.prior_paid_cents = (prev.prior_paid_cents || 0) + prev.paid_cents;
-        f.prior_pay_method = prev.pay_method || "card"; f.prior_paid_by = prev.electrician_id || null;
-        f.prior_paid_at = prev.paid_at || new Date().toISOString(); f.prior_receipt = prev.pay_receipt || prev.prior_receipt || null;
-      }
+      const f = resetFields(prev);
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
       const job = rows && rows[0];
-      if (job && job.lead_id) {
-        if (prev.status === "completed") {
-          try {
-            const others = await sb(`jobs?lead_id=eq.${encodeURIComponent(job.lead_id)}&status=eq.completed&id=neq.${encodeURIComponent(id)}&select=id&limit=1`);
-            if (!others || !others.length) await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&stage=eq.won`, { method: "PATCH", body: { stage: "scheduled" }, prefer: "return=minimal" });
-          } catch (e) { console.error("jobs → lead stage revert failed:", e.message); }
-        }
-        await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} reverted to Assigned — electrician's work cleared; payments and photos kept${f.prior_paid_cents ? ` ($${(f.prior_paid_cents / 100).toFixed(2)} received stays as credit)` : ""}.`);
-      }
+      if (job) await afterReset(job, prev, actor, f, "reverted to Assigned");
       return res.status(200).json({ ok: true, job });
     }
 
@@ -473,4 +495,4 @@ module.exports = async (req, res) => {
 };
 
 // Shared with api/_tech.js (electrician app).
-Object.assign(module.exports, { STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });
+Object.assign(module.exports, { carryPaymentFields, STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });

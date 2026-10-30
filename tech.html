@@ -404,13 +404,19 @@
     if (!cur) return;
     try {
       localStorage.setItem(draftKey(), JSON.stringify({ dirty: dirty, units: unitList(), items: wireItems(), notes: cur.job.tech_notes || "", approved_at: cur.job.approved_at || null,
-        pay: pay, soName: soName, soOk: soOk, sigData: sigData, at: Date.now() }));
+        pay: pay, soName: soName, soOk: soOk, sigData: sigData, resetAt: cur.job.work_reset_at || null, at: Date.now() }));
     } catch(e){ toast("This phone is out of storage space. Synchronize now."); }
   }
   function markDirty(){ dirty = true; persistDraft(); renderSyncBar(); }
   function restoreDraft(){
     var d = null; try { d = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch(e){}
     if (!d || cur.job.status === "completed") return false;
+    // The office reset this job for a new electrician: drop whatever an earlier attempt left on this phone.
+    if ((d.resetAt || null) !== (cur.job.work_reset_at || null)){
+      localRecs.forEach(function(r){ idbDel(r.key).catch(function(){}); }); localRecs = [];
+      try { localStorage.removeItem(draftKey()); } catch(e){}
+      return false;
+    }
     pay = d.pay || pay; soName = d.soName || ""; soOk = !!d.soOk; sigData = d.sigData || null;
     if (!d.dirty) return false;
     cur.job.alarm_units = d.units || []; cur.job.tech_notes = d.notes || ""; cur.job.approved_at = d.approved_at || null;
