@@ -139,6 +139,16 @@ function installedCounts(job) {
   return c;
 }
 
+const METHOD_WORD = { card: "card", cash: "cash", bank_transfer: "bank transfer" };
+// Cash the electrician took on site (receipt photo saved at sign-off) is theirs to hand over: deduct it from their pay.
+// Anything else paid (card, bank transfer, cash recorded by the office) went straight to the company.
+function paidSplit(j) {
+  if (j.pay_status !== "paid") return { card: 0, cash: 0, other: 0 };
+  const amt = (j.paid_cents || 0) / 100, method = j.pay_method || "card";
+  if (method === "card") return { card: amt, cash: 0, other: 0 };
+  if (method === "cash" && j.pay_receipt) return { card: 0, cash: amt, other: 0 };
+  return { card: 0, cash: 0, other: amt };
+}
 const PAY_LABEL = { paid: "Paid by card", later: "To collect", none: "Nothing to pay", pending: "Card payment started", unpaid: "Not paid" };
 
 async function reportData(from, to, techId) {
@@ -158,8 +168,8 @@ async function reportData(from, to, techId) {
       customer: j.customer_name || "", address: [j.address, j.suburb, j.postcode].filter(Boolean).join(", "), work_type: j.work_type,
       battery: c.battery, hardwired: c.hardwired, untyped: c.untyped, alarms: c.battery + c.hardwired + c.untyped,
       controllers: c.controllers, inspections: c.inspections, other: c.other.join(", "),
-      invoice, payment: PAY_LABEL[j.pay_status] || "",
-      paid: j.pay_status === "paid" ? (j.paid_cents || 0) / 100 : 0,
+      invoice, payment: j.pay_status === "paid" ? `Paid by ${METHOD_WORD[j.pay_method || "card"] || j.pay_method}` : (PAY_LABEL[j.pay_status] || ""),
+      paid_card: paidSplit(j).card, paid_cash: paidSplit(j).cash, paid_other: paidSplit(j).other, cash_receipt: Boolean(j.pay_receipt),
       to_collect: j.pay_status === "later" ? (j.amount_due_cents || 0) / 100 : 0,
       notes: j.tech_notes || "",
     };
@@ -167,14 +177,14 @@ async function reportData(from, to, techId) {
   const by = {};
   for (const r of rows) {
     const k = r.electrician_id || "none";
-    const s = by[k] || (by[k] = { electrician: r.electrician, electrician_code: r.electrician_code, jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid: 0, to_collect: 0 });
+    const s = by[k] || (by[k] = { electrician: r.electrician, electrician_code: r.electrician_code, jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid_card: 0, paid_cash: 0, paid_other: 0, to_collect: 0 });
     s.jobs += 1;
-    for (const f2 of ["battery", "hardwired", "untyped", "alarms", "controllers", "inspections", "paid", "to_collect"]) s[f2] += r[f2];
+    for (const f2 of ["battery", "hardwired", "untyped", "alarms", "controllers", "inspections", "paid_card", "paid_cash", "paid_other", "to_collect"]) s[f2] += r[f2];
     s.invoice += r.invoice || 0;
   }
   const summary = Object.values(by).sort((a, b) => a.electrician.localeCompare(b.electrician));
   const totals = summary.reduce((acc, s) => { for (const k of Object.keys(acc)) acc[k] += s[k]; return acc; },
-    { jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid: 0, to_collect: 0 });
+    { jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid_card: 0, paid_cash: 0, paid_other: 0, to_collect: 0 });
   return { from, to, rows, summary, totals };
 }
 
@@ -197,11 +207,11 @@ async function reportWorkbook(data, label) {
   }
 
   const sCols = [["Electrician", 24], ["Code", 9], ["Jobs", 8], ["Battery alarms", 15], ["Hardwired alarms", 17], ["Alarms (type not recorded)", 24],
-    ["Total alarms", 13], ["Remote controllers", 18], ["Inspections", 12], ["Invoiced", 13], ["Paid by card", 14], ["To collect", 13]];
+    ["Total alarms", 13], ["Remote controllers", 18], ["Inspections", 12], ["Invoiced", 13], ["Paid by card", 14], ["Cash collected (deduct from pay)", 32], ["Other payments (to company)", 27], ["To collect", 13]];
   const sum = wb.addWorksheet("Summary by electrician", { views: [{ state: "frozen", ySplit: 4 }] });
   title(sum, "PowerSmart – completed jobs by electrician", sCols.length);
   sum.columns = sCols.map(([, width]) => ({ width }));
-  const sRow = (s, name) => [xText(name || s.electrician), xText(s.electrician_code || ""), s.jobs, s.battery, s.hardwired, s.untyped, s.alarms, s.controllers, s.inspections, s.invoice, s.paid, s.to_collect];
+  const sRow = (s, name) => [xText(name || s.electrician), xText(s.electrician_code || ""), s.jobs, s.battery, s.hardwired, s.untyped, s.alarms, s.controllers, s.inspections, s.invoice, s.paid_card, s.paid_cash, s.paid_other, s.to_collect];
   const sRows = data.summary.length ? data.summary.map((s) => sRow(s)) : [sRow({ ...data.totals, electrician_code: "" }, "No completed jobs")];
   sum.addTable({
     name: "ElectricianSummary", ref: "A4", headerRow: true, totalsRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
@@ -210,11 +220,11 @@ async function reportWorkbook(data, label) {
       : { name, totalsRowFunction: "sum", filterButton: false })),
     rows: sRows,
   });
-  [10, 11, 12].forEach((c) => { sum.getColumn(c).numFmt = money; });
+  [10, 11, 12, 13, 14].forEach((c) => { sum.getColumn(c).numFmt = money; });
 
   const jCols = [["Completed", 18], ["Job", 9], ["Electrician", 22], ["Code", 9], ["Customer", 24], ["Address", 40], ["Work type", 11],
     ["Battery alarms", 15], ["Hardwired alarms", 17], ["Alarms (type not recorded)", 24], ["Total alarms", 13], ["Remote controllers", 18],
-    ["Inspections", 12], ["Other items", 30], ["Invoice", 12], ["Payment", 16], ["Paid by card", 14], ["To collect", 13], ["Electrician notes", 40]];
+    ["Inspections", 12], ["Other items", 30], ["Invoice", 12], ["Payment", 22], ["Paid by card", 14], ["Cash collected (deduct from pay)", 32], ["Other payments (to company)", 27], ["Cash receipt photo", 18], ["To collect", 13], ["Electrician notes", 40]];
   const js = wb.addWorksheet("Jobs", { views: [{ state: "frozen", ySplit: 4 }] });
   title(js, "PowerSmart – completed jobs", jCols.length);
   js.columns = jCols.map(([, width]) => ({ width }));
@@ -222,11 +232,11 @@ async function reportWorkbook(data, label) {
     name: "CompletedJobs", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: jCols.map(([name]) => ({ name, filterButton: true })),
     rows: data.rows.length ? data.rows.map((r) => [new Date(r.completed_at), "J" + r.job_no, xText(r.electrician), xText(r.electrician_code), xText(r.customer), xText(r.address), xText(r.work_type),
-      r.battery, r.hardwired, r.untyped, r.alarms, r.controllers, r.inspections, xText(r.other), r.invoice, r.payment, r.paid, r.to_collect, xText(r.notes)])
-      : [[null, "", "No completed jobs in this period", "", "", "", "", 0, 0, 0, 0, 0, 0, "", null, "", 0, 0, ""]],
+      r.battery, r.hardwired, r.untyped, r.alarms, r.controllers, r.inspections, xText(r.other), r.invoice, r.payment, r.paid_card, r.paid_cash, r.paid_other, r.paid_cash ? (r.cash_receipt ? "Yes" : "MISSING") : "", r.to_collect, xText(r.notes)])
+      : [[null, "", "No completed jobs in this period", "", "", "", "", 0, 0, 0, 0, 0, 0, "", null, "", 0, 0, 0, "", 0, ""]],
   });
   js.getColumn(1).numFmt = "ddd dd/mm/yyyy";
-  [15, 17, 18].forEach((c) => { js.getColumn(c).numFmt = money; });
+  [15, 17, 18, 19, 21].forEach((c) => { js.getColumn(c).numFmt = money; });
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 

@@ -185,6 +185,9 @@ test('report totals what each electrician installed and builds an Excel file', a
     { id: 'b', job_no: 1002, status: 'completed', electrician_id: 't1', completed_at: '2026-10-21T01:00:00Z', customer_name: 'B', pay_status: 'later', amount_due_cents: 15300, invoice_total_cents: 15300,
       invoice_items: [{ code: 'alarm', qty: 1, label: 'old' }, { code: 'controller', qty: 1 }, { code: 'other', qty: 1, label: 'Extra callout' }], alarm_type: 'hardwired' },
     { id: 'c', job_no: 1003, status: 'completed', electrician_id: 't2', completed_at: null, scheduled_start: '2026-10-22T01:00:00Z', customer_name: '=cmd', alarms: 3 },
+    { id: 'd', job_no: 1004, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T02:00:00Z', customer_name: 'D', pay_status: 'paid', pay_method: 'cash', paid_cents: 20000, pay_receipt: '/PowerSmart Jobs/J1004/Receipts/r.jpg', invoice_total_cents: 20000, invoice_items: [] },
+    { id: 'e', job_no: 1005, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T03:00:00Z', customer_name: 'E', pay_status: 'paid', pay_method: 'cash', paid_cents: 5000, invoice_total_cents: 5000, invoice_items: [] },
+    { id: 'f', job_no: 1006, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T04:00:00Z', customer_name: 'F', pay_status: 'paid', pay_method: 'bank_transfer', paid_cents: 7000, invoice_total_cents: 7000, invoice_items: [] },
   ];
   const queries = [];
   const SB = { configured: () => true, async sb(q) {
@@ -199,9 +202,13 @@ test('report totals what each electrician installed and builds an Excel file', a
   assert.equal(r.code, 200);
   assert(queries[0].includes('status=eq.completed') && queries[0].includes('completed_at.gte.2026-10-18T14%3A00%3A00.000Z'), 'filtered by completion date');
   const jake = r.body.summary.find((s) => s.electrician === 'Jake Turner');
-  assert.equal(JSON.stringify([jake.jobs, jake.battery, jake.hardwired, jake.alarms, jake.controllers, jake.invoice, jake.paid, jake.to_collect]),
+  assert.equal(JSON.stringify([jake.jobs, jake.battery, jake.hardwired, jake.alarms, jake.controllers, jake.invoice, jake.paid_card, jake.to_collect]),
     JSON.stringify([2, 4, 3, 7, 1, 627, 474, 153]));
   const liam = r.body.summary.find((s) => s.electrician === 'Liam Brooks');
+  assert.equal(liam.paid_cash, 200, 'cash the electrician collected (with receipt) is deducted from pay');
+  assert.equal(liam.paid_other, 120, 'office-recorded cash and bank transfers went to the company');
+  assert.equal(liam.paid_card, 0);
+  assert.equal(r.body.rows.find((x) => x.job_no === 1004).payment, 'Paid by cash');
   assert.equal(liam.untyped, 3, 'office-completed job without an invoice still counts booked alarms');
   assert.equal(r.body.totals.alarms, 10);
   assert.equal(r.body.rows[1].other, '1 × Extra callout');

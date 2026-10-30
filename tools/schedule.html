@@ -999,12 +999,12 @@
     var box = $("jm-report"), items = j.invoice_items || [];
     if (!items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
-    var PAY = { paid:"Paid by card", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
+    var PAY = { paid:"Paid", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
     box.innerHTML = '<b>Electrician report</b>' +
       (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
       (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
-        '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) : "") + '</span>' +
+        '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
         (j.approved_at ? '<br>Customer approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" })) : '') : '') +
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
     box.style.display = "";
@@ -1257,11 +1257,11 @@
       $("rp-label").textContent = "Completed " + rpLabel(r) + " · " + d.totals.jobs + " job" + (d.totals.jobs === 1 ? "" : "s");
       var untyped = d.totals.untyped > 0;
       var head = '<thead><tr><th>Electrician</th><th class="n">Jobs</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
-        '<th class="n">Total alarms</th><th class="n">Controllers</th><th class="n">Inspections</th><th class="n">Invoiced</th><th class="n">Paid by card</th><th class="n">To collect</th></tr></thead>';
+        '<th class="n">Total alarms</th><th class="n">Controllers</th><th class="n">Inspections</th><th class="n">Invoiced</th><th class="n">Paid by card</th><th class="n" title="Cash the electrician took on site (receipt photo saved). Deduct from their pay.">Cash collected</th><th class="n">Other paid</th><th class="n">To collect</th></tr></thead>';
       var line = function(s, name){
         return '<td>' + esc(name || s.electrician) + (s.electrician_code ? ' <span class="hint">' + esc(s.electrician_code) + '</span>' : '') + '</td><td class="n">' + s.jobs + '</td><td class="n">' + s.battery + '</td><td class="n">' + s.hardwired + '</td>' +
           (untyped ? '<td class="n">' + s.untyped + '</td>' : '') + '<td class="n"><b>' + s.alarms + '</b></td><td class="n">' + s.controllers + '</td><td class="n">' + s.inspections + '</td>' +
-          '<td class="n">' + rpMoney(s.invoice) + '</td><td class="n">' + rpMoney(s.paid) + '</td><td class="n">' + rpMoney(s.to_collect) + '</td>';
+          '<td class="n">' + rpMoney(s.invoice) + '</td><td class="n">' + rpMoney(s.paid_card) + '</td><td class="n">' + (s.paid_cash ? '<b style="color:#8A5A0B">' + rpMoney(s.paid_cash) + '</b>' : rpMoney(0)) + '</td><td class="n">' + rpMoney(s.paid_other) + '</td><td class="n">' + rpMoney(s.to_collect) + '</td>';
       };
       $("rp-summary").innerHTML = d.summary.length ? head + '<tbody>' + d.summary.map(function(s){ return '<tr>' + line(s) + '</tr>'; }).join("") + '</tbody>' +
         (d.summary.length > 1 ? '<tfoot><tr>' + line(Object.assign({ electrician_code: "" }, d.totals), "Total") + '</tr></tfoot>' : '')
@@ -1270,7 +1270,7 @@
         '<th class="n">Controllers</th><th>Other</th><th class="n">Invoice</th><th>Payment</th></tr></thead><tbody>' + d.rows.map(function(x){
           return '<tr><td>' + esc(new Date(x.completed_at).toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" })) + '</td><td>J' + esc(x.job_no) + '</td><td>' + esc(x.electrician) + '</td><td>' + esc(x.customer) + '</td><td>' + esc(x.address) + '</td>' +
             '<td class="n">' + x.battery + '</td><td class="n">' + x.hardwired + '</td>' + (untyped ? '<td class="n">' + x.untyped + '</td>' : '') + '<td class="n">' + x.controllers + '</td><td>' + esc(x.other) + '</td>' +
-            '<td class="n">' + (x.invoice == null ? "—" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + '</td></tr>';
+            '<td class="n">' + (x.invoice == null ? "—" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + (x.paid_cash ? (x.cash_receipt ? ' · receipt ✓' : ' · <b style="color:#B3261E">no receipt</b>') : '') + '</td></tr>';
         }).join("") + '</tbody>' : '';
     }).catch(function(err){ $("rp-label").textContent = err.message; });
   }
