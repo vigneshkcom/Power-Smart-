@@ -5,6 +5,7 @@ const SB = require("./_supabase");
 const S = require("./_senders");
 const { logEmail } = require("./_maillog");
 const { randomUUID } = require("crypto");
+const Sms = require("./_sms-outbound");
 
 const TZ = "Australia/Brisbane";
 const esc = Q.escapeHtml;
@@ -103,7 +104,7 @@ async function sendBookingConfirmation({ leadId, sendAs, agent }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
   const id = encodeURIComponent(leadId);
-  const lead = (await SB.sb(`leads?id=eq.${id}&select=id,name,email,address_line1,address_suburb,address_state,address_postcode,quote_ref,quote_total&limit=1`))?.[0];
+  const lead = (await SB.sb(`leads?id=eq.${id}&select=id,name,phone,email,address_line1,address_suburb,address_state,address_postcode,quote_ref,quote_total&limit=1`))?.[0];
   if (!lead) throw fail(404, "Lead not found");
   if (!lead.email) throw fail(400, "Add an email address before sending a booking confirmation");
   const jobs = await SB.sb(`jobs?lead_id=eq.${id}&status=in.(scheduled,en_route,on_site)&scheduled_start=not.is.null&select=job_no,scheduled_start,address,suburb,postcode&order=scheduled_start.asc&limit=20`);
@@ -145,7 +146,19 @@ async function sendBookingConfirmation({ leadId, sendAs, agent }) {
   try {
     await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: agent || "System", kind: "email", body: `Booking confirmation emailed to ${lead.email}: ${slot.date}, ${slot.slot} slot.` }, prefer: "return=minimal" });
   } catch (e) { console.error("booking confirmation note failed:", e.message); }
-  return { ok: true, to: lead.email, date: slot.date, slot: slot.slot };
+  // The email has gone, so an SMS problem is reported but never fails the request.
+  let sms = { status: "skipped", error: "No mobile number saved." };
+  if (lead.phone) {
+    try {
+      const first = String(lead.name || "there").trim().split(/\s+/)[0] || "there";
+      const balance = lead.quote_total != null ? Math.max(0, Number(lead.quote_total) - feePaid) : null;
+      const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY}.`;
+      sms = await Sms.sendLeadSms({ lead, message, key: `booking-${lead.id}-${job.scheduled_start}`, author: agent });
+    } catch (e) {
+      sms = { status: "failed", error: e.message };
+    }
+  }
+  return { ok: true, to: lead.email, date: slot.date, slot: slot.slot, sms };
 }
 
 module.exports = { bookingSlot, renderBookingEmail, sendBookingConfirmation };

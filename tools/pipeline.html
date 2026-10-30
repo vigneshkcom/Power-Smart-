@@ -354,7 +354,7 @@
           <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
           <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
           <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
-          <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
+          <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
           <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
@@ -1286,10 +1286,10 @@
     if (!lead || !lead.email) { toast("Add an email address before sending a booking confirmation"); return; }
     if (!lead.scheduled_start) { toast("Schedule the job first, then send the confirmation"); return; }
     var when = fmtVisit(lead.scheduled_start);
-    if (!confirm("Email a booking confirmation to " + lead.email + " for " + when.split(" · ")[0] + "?")) return;
+    if (!confirm("Email" + (lead.phone ? " and text" : "") + " a booking confirmation to " + lead.email + (lead.phone ? " / " + lead.phone : "") + " for " + when.split(" · ")[0] + "?")) return;
     var button = this, original = button.textContent; button.disabled = true; button.textContent = "Sending…";
     api("POST", { action:"booking_confirmation", lead_id:leadId, send_as:AGENT_TO_SENDER[currentAgent()] || "customer_service", agent:currentAgent() })
-      .then(function(d){ toast("Booking confirmation emailed to " + d.to + " (" + d.slot + " slot)"); return load(); })
+      .then(function(d){ toast("Booking confirmation emailed to " + d.to + " (" + d.slot + " slot). " + (d.sms && d.sms.status === "submitted" ? "SMS submitted." : "SMS not sent: " + (d.sms && d.sms.error || "unknown issue"))); return load(); })
       .then(function(){ if (currentId === leadId) openLead(leadId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
