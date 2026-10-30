@@ -485,7 +485,9 @@
       (d.location === "Other" ? '<div class="field"><input type="text" id="d-other" maxlength="40" placeholder="e.g. Rumpus room" value="' + esc(d.other) + '"></div>' : "") +
       '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>Hardwired</option></select></div>' +
       '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
-        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" capture="environment" hidden' + (d.busy ? " disabled" : "") + '></label>' +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">Choose from library<input id="d-file-lib" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div></div>' +
       '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
   }
   // Alarm invoice lines always follow the alarms recorded one by one.
@@ -543,7 +545,7 @@
     }).join("");
     return '<div class="card" id="ph-card"><h2>Photos</h2>' +
       '<div class="ph-row"><select id="ph-cat" aria-label="Photo type">' + opts + '</select>' +
-      '<label class="btn btn-primary">Add photo<input id="ph-file" type="file" accept="image/*" multiple hidden></label></div>' +
+      '<label class="btn btn-primary">Take photo<input id="ph-file" type="file" accept="image/*" capture="environment" hidden></label> <label class="btn btn-ghost">Choose from library<input id="ph-file-lib" type="file" accept="image/*" multiple hidden></label></div>' +
       '<div class="muted" id="ph-status"></div><div class="ph-grid" id="ph-grid">' + photoGrid() + '</div></div>';
   }
   function loadPhotos(){
@@ -581,7 +583,7 @@
   }
   $("j-body").addEventListener("change", function(e){
     if (e.target.id === "ph-cat") photoCat = e.target.value;
-    if (e.target.id === "ph-file" && e.target.files.length){ var f = e.target.files; uploadPhotos(f).then(function(){ e.target.value = ""; }); }
+    if ((e.target.id === "ph-file" || e.target.id === "ph-file-lib") && e.target.files.length){ var f = e.target.files; uploadPhotos(f).then(function(){ e.target.value = ""; }); }
   });
   $("j-body").addEventListener("click", function(e){
     var b = e.target.closest("[data-photo]"); if (!b) return;
@@ -806,7 +808,7 @@
     if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
     if (id === "d-type"){ draft.type = e.target.value; }
     if (id === "so-ok"){ soOk = e.target.checked; persistDraft(); updateComplete(); }
-    if (id === "d-file" && e.target.files.length){
+    if ((id === "d-file" || id === "d-file-lib") && e.target.files.length){
       var file = e.target.files[0]; draft.busy = true; keepScroll(renderJob);
       var old = draft.photoKey;
       shrink(file).then(function(data){
