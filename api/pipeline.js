@@ -166,6 +166,15 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (action === "booking_confirmation") {
+      const leadId = clean(b.lead_id, 40);
+      if (!leadId) return res.status(400).json({ error: "lead_id is required" });
+      try {
+        const sent = await require("./_booking-confirmation").sendBookingConfirmation({ leadId, sendAs: clean(b.send_as, 40), agent: clean(b.agent, 120) });
+        return res.status(200).json(sent);
+      } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not send booking confirmation" }); }
+    }
+
     if (action === "delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
