@@ -319,6 +319,34 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, job });
     }
 
+    // Back to Assigned: wipe the electrician's work (alarms, invoice, notes, sign-off) so another electrician can
+    // start fresh. Payments received and Dropbox photos are kept.
+    if (b.action === "job_revert") {
+      const id = clean(b.id, 40);
+      if (!id) return res.status(400).json({ error: "id is required" });
+      const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+      const prev = prevRows && prevRows[0];
+      if (!prev) return res.status(404).json({ error: "Job not found" });
+      const f = {
+        status: "scheduled", completed_at: null, tech_notes: null,
+        invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
+        approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null,
+      };
+      if (prev.pay_status !== "paid" && prev.pay_status !== "pending") f.pay_status = "unpaid";
+      const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
+      const job = rows && rows[0];
+      if (job && job.lead_id) {
+        if (prev.status === "completed") {
+          try {
+            const others = await sb(`jobs?lead_id=eq.${encodeURIComponent(job.lead_id)}&status=eq.completed&id=neq.${encodeURIComponent(id)}&select=id&limit=1`);
+            if (!others || !others.length) await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&stage=eq.won`, { method: "PATCH", body: { stage: "scheduled" }, prefer: "return=minimal" });
+          } catch (e) { console.error("jobs → lead stage revert failed:", e.message); }
+        }
+        await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} reverted to Assigned — electrician's work cleared; payments and photos kept.`);
+      }
+      return res.status(200).json({ ok: true, job });
+    }
+
     if (b.action === "report") {
       const from = isoOrNull(b.from), to = isoOrNull(b.to);
       if (!from || !to || from >= to) return res.status(400).json({ error: "Choose a valid date range" });
