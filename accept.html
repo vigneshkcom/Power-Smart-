@@ -48,6 +48,14 @@
   .address-grid{display:grid;grid-template-columns:1fr 110px 110px;gap:10px}
   .address-field{display:flex;flex-direction:column;gap:5px}.address-field.full{grid-column:1/-1}
   .address-field label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .addr-search-box{position:relative}
+  .addr-search{width:100%;padding:11px 12px 11px 2.35rem;border:1.5px solid var(--line);border-radius:10px;background:#F4F9FA url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2352676c' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat .8rem 50%;outline:none;font:inherit;font-size:.86rem}
+  .addr-search:focus{border-color:var(--teal);background-color:#fff}
+  .addr-suggest{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);margin:0;padding:.25rem;list-style:none;background:#fff;border:1.5px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(20,50,60,.14);max-height:260px;overflow:auto}
+  .addr-suggest[hidden]{display:none}
+  .addr-suggest li{display:flex;flex-direction:column;gap:.1rem;padding:.5rem .6rem;border-radius:7px;cursor:pointer;font-size:.84rem}
+  .addr-suggest li span{font-size:.74rem;color:var(--muted)}
+  .addr-suggest li:hover,.addr-suggest li.on{background:#F4F9FA}
   .address-field input,.address-field select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:#fff;font:inherit;font-size:.88rem;outline:none}
   .address-field input:focus,.address-field select:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(67,168,182,.12)}
   .btn{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:1.05rem 1.5rem;border:none;border-radius:999px;
@@ -113,7 +121,7 @@
           <h2 id="address-title">Installation address</h2>
           <p>Enter the full address where the smoke alarm work will be completed.</p>
           <div class="address-grid">
-            <div class="address-field full"><label for="addressLine1">Street address</label><input id="addressLine1" data-address-autofill data-address-suburb="addressSuburb" data-address-state="addressState" data-address-postcode="addressPostcode" autocomplete="address-line1" placeholder="Unit and street number" required></div>
+            <div class="address-field full"><label for="addressLine1">Street address</label><input id="addressLine1" data-address-autofill data-address-compact data-address-suburb="addressSuburb" data-address-state="addressState" data-address-postcode="addressPostcode" autocomplete="address-line1" placeholder="Unit and street number" required></div>
             <div class="address-field suburb"><label for="addressSuburb">Suburb</label><input id="addressSuburb" autocomplete="address-level2" required></div>
             <div class="address-field"><label for="addressState">State</label><select id="addressState" autocomplete="address-level1" required><option value="QLD">QLD</option><option value="NSW">NSW</option><option value="VIC">VIC</option><option value="ACT">ACT</option><option value="SA">SA</option><option value="WA">WA</option><option value="TAS">TAS</option><option value="NT">NT</option></select></div>
             <div class="address-field"><label for="addressPostcode">Postcode</label><input id="addressPostcode" inputmode="numeric" autocomplete="postal-code" maxlength="4" pattern="[0-9]{4}" required></div>
