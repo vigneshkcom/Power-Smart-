@@ -98,7 +98,13 @@
   .modal-foot .spacer{flex:1}
   .lead-actions{padding:1rem 1.4rem;border-top:1px solid var(--line);background:#F8FBFB;display:grid;grid-template-columns:1fr auto;gap:.8rem 1rem;align-items:center;flex:none}
   .lead-workflow{grid-column:1/-1;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}.lead-workflow .action-label{margin-right:.2rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.lead-workflow .btn{border-radius:10px;min-height:42px;padding:.6rem .9rem;background:#fff}
-  .lead-workflow .btn:hover{background:var(--teal-soft)}
+  .lead-workflow .btn:hover,.lead-workflow .menu[open]>summary{background:var(--teal-soft)}
+  .menu{position:relative}.menu>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;user-select:none}.menu>summary::-webkit-details-marker{display:none}
+  .menu>summary::after{content:"";width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px)}
+  .menu[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+  .menu-pop{position:absolute;left:0;bottom:calc(100% + 6px);z-index:30;min-width:210px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(20,50,60,.16);padding:.3rem;display:flex;flex-direction:column}
+  .lead-workflow .menu-pop .btn{border:none;border-radius:8px;min-height:38px;justify-content:flex-start;text-align:left;background:transparent;font-weight:600}.lead-workflow .menu-pop .btn:hover{background:var(--teal-soft)}
+  .menu.more:not(:has(.menu-pop>button:not([style*="none"]))){display:none}
   .lead-delete{grid-row:2;justify-self:start;color:var(--red);font-size:.76rem;font-weight:700;padding:.55rem .15rem}
   .lead-save{grid-column:2;grid-row:2;display:flex;gap:.55rem;justify-content:flex-end}.lead-save .btn{border-radius:10px;min-height:42px}
   .addr-search-box{position:relative}
@@ -215,7 +221,7 @@
   .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem}
   .empty-col{font-size:.72rem;color:var(--muted);text-align:center;padding:.9rem .4rem;border:1.5px dashed rgba(11,27,31,.15);border-radius:10px}
   @media (max-width:780px){.filterbar .filter-label{width:100%}.filterbar select{flex:1;width:auto;min-width:145px}.filterbar .spacer{display:none}}
-  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%}.filterbar select{min-width:calc(50% - .3rem)}.fgrid{grid-template-columns:1fr}.field.full,.section-label{grid-column:1}.lead-actions{grid-template-columns:1fr}.lead-workflow,.lead-save{display:grid;grid-template-columns:1fr 1fr;width:100%}.lead-workflow .action-label{grid-column:1/-1}.lead-workflow .btn,.lead-save .btn{justify-content:center}.lead-delete,.lead-save{grid-column:1;grid-row:auto}.lead-delete{order:3}.lead-save{order:4} }
+  @media (max-width:640px){ .tb-search{order:9;max-width:none;flex-basis:100%}.filterbar select{min-width:calc(50% - .3rem)}.fgrid{grid-template-columns:1fr}.field.full,.section-label{grid-column:1}.lead-actions{grid-template-columns:1fr}.lead-workflow,.lead-save{display:grid;grid-template-columns:1fr 1fr;width:100%}.lead-workflow .btn,.lead-save .btn{justify-content:center}.lead-workflow .menu{display:block}.lead-workflow .menu>summary{display:flex;justify-content:center}.menu-pop{min-width:100%}.lead-delete,.lead-save{grid-column:1;grid-row:auto}.lead-delete{order:3}.lead-save{order:4} }
 </style>
 </head>
 <body>
@@ -350,17 +356,20 @@
       </div>
       <div class="lead-actions">
         <div class="lead-workflow" aria-label="Customer actions">
-          <span class="action-label">Customer actions</span>
-          <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
-          <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
-          <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
-          <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
-          <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
-          <button class="btn btn-ghost" id="lm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
-          <button class="btn btn-ghost" id="lm-photos" style="display:none" title="View the photos the electrician uploaded for this customer's job">Job photos</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
           <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
+          <details class="menu"><summary class="btn btn-ghost">Quote &amp; payment</summary><div class="menu-pop">
+            <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
+            <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for the $35 booking fee">Send booking fee</button>
+            <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
+            <button class="btn btn-ghost" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
+          </div></details>
+          <details class="menu more"><summary class="btn btn-ghost">Job &amp; invoice</summary><div class="menu-pop">
+            <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
+            <button class="btn btn-ghost" id="lm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
+            <button class="btn btn-ghost" id="lm-photos" style="display:none" title="View the photos the electrician uploaded for this customer's job">Job photos</button>
+          </div></details>
         </div>
         <button class="lead-delete" id="lm-delete">Delete lead</button>
         <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
@@ -1294,6 +1303,9 @@
       .then(function(){ openLead(currentId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
+  });
+  document.addEventListener("click", function(e){   // close the action menus after a choice or a click elsewhere
+    document.querySelectorAll(".lead-workflow .menu[open]").forEach(function(m){ if (!m.contains(e.target) || e.target.closest(".menu-pop .btn")) m.open = false; });
   });
   $("lm-invoice").addEventListener("click", function(){
     if (!currentId) return;
