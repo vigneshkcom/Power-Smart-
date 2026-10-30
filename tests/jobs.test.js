@@ -242,3 +242,24 @@ test('marking a job completed in the office stamps the completion date', async (
   await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed' } }, r);
   assert(f.calls.find((c) => c.method === 'PATCH' && c.q.startsWith('jobs?')).body.completed_at);
 });
+
+test('the board shows what each customer has paid and how', async () => {
+  const module = { exports: {} };
+  const data = {
+    'leads?': [{ id: 'l1', name: 'Vig', stage: 'scheduled' }, { id: 'l2', name: 'Pete', stage: 'new' }],
+    'payment_requests?payment_type': [],
+    'payment_requests?status=eq.paid': [{ lead_id: 'l1', amount_cents: 3500, amount_paid_cents: 3500 }],
+    'jobs?lead_id=not.is.null': [{ lead_id: 'l1', pay_status: 'paid', paid_cents: 15800, pay_method: 'cash' }, { lead_id: 'l1', pay_status: 'unpaid', prior_paid_cents: 1000, prior_pay_method: 'cash' }],
+  };
+  const SB = { configured: () => true, async sb(q) { const k = Object.keys(data).find((p) => q.startsWith(p)); return k ? data[k] : []; } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
+    module, console: { error() {} }, URL, process: { env: {} },
+    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} } }[k] || require(k)),
+  }, { filename: 'pipeline.js' });
+  const r = res();
+  await module.exports({ method: 'GET', headers: KEY, url: '/api/pipeline' }, r);
+  const l1 = r.body.leads.find((l) => l.id === 'l1'), l2 = r.body.leads.find((l) => l.id === 'l2');
+  assert.equal(l1.paid_total_cents, 3500 + 15800 + 1000);
+  assert.equal(JSON.stringify(l1.paid_methods), JSON.stringify(['Card', 'Cash']));
+  assert.equal(l2.paid_total_cents, 0);
+});

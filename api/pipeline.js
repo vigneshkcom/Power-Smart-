@@ -43,6 +43,25 @@ module.exports = async (req, res) => {
           if (!latestPayments[payment.lead_id] || (payment.status === 'paid' && latestPayments[payment.lead_id].status !== 'paid')) latestPayments[payment.lead_id] = payment;
         });
       } catch (_) { /* payment tracking is optional until its migration is run */ }
+      // Everything received per customer, with how it was paid, for the board card ("Paid $158.00 · Cash").
+      const received = {};
+      const addReceived = (leadId, cents, method) => {
+        if (!leadId || !(cents > 0)) return;
+        const r = received[leadId] || (received[leadId] = { cents: 0, methods: [] });
+        r.cents += cents; if (method && !r.methods.includes(method)) r.methods.push(method);
+      };
+      try {
+        const paidRequests = await sb("payment_requests?status=eq.paid&select=lead_id,amount_cents,amount_paid_cents&limit=10000");
+        (paidRequests || []).forEach((p) => addReceived(p.lead_id, Number(p.amount_paid_cents || p.amount_cents || 0), "Card"));
+      } catch (_) { /* payment tracking is optional until its migration is run */ }
+      const METHOD_NAME = { card: "Card", cash: "Cash", bank_transfer: "Bank transfer" };
+      try {
+        const paidJobs = await sb("jobs?lead_id=not.is.null&or=(pay_status.eq.paid,prior_paid_cents.gt.0)&select=lead_id,pay_status,paid_cents,pay_method,prior_paid_cents,prior_pay_method&limit=10000");
+        (paidJobs || []).forEach((j) => {
+          if (j.pay_status === "paid") addReceived(j.lead_id, Number(j.paid_cents || 0), METHOD_NAME[j.pay_method || "card"]);
+          addReceived(j.lead_id, Number(j.prior_paid_cents || 0), METHOD_NAME[j.prior_pay_method || "card"]);
+        });
+      } catch (_) { /* job payment columns are added by supabase/certificate.sql */ }
       // Comment counts via a plain query, tallied here. (Supabase disables
       // embedded aggregate functions like lead_comments(count) by default.)
       const counts = {};
@@ -62,7 +81,7 @@ module.exports = async (req, res) => {
           if (!cur || (t >= now && (Date.parse(cur) < now || t < Date.parse(cur))) || (t < now && Date.parse(cur) < now && t > Date.parse(cur))) nextJob[j.lead_id] = j.scheduled_start;
         });
       } catch (_) { /* schedule info is cosmetic — don't fail the board over it */ }
-      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null, scheduled_start: nextJob[l.id] || null }));
+      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null, paid_total_cents: received[l.id] ? received[l.id].cents : 0, paid_methods: received[l.id] ? received[l.id].methods : [], scheduled_start: nextJob[l.id] || null }));
       return res.status(200).json({ leads: out, stages: STAGES });
     }
 
