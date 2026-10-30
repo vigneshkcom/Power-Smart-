@@ -125,7 +125,12 @@
   .other input{padding:.7rem .8rem;border:1.5px solid var(--line);border-radius:11px;background:var(--paper);font-size:.95rem;outline:none;width:100%}
   .tot{margin-top:12px;border-top:1.5px solid var(--line);padding-top:10px;font-size:.9rem}
   .tot div{display:flex;justify-content:space-between;padding:3px 0}
-  .tot .due{font-size:1.15rem;font-weight:800}
+  .tot .due{font-size:1rem;font-weight:800;border-top:1px solid var(--line);margin-top:4px;padding-top:7px}
+  .inv-row{display:grid;grid-template-columns:1fr 84px 70px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:.86rem}
+  .inv-row .q{text-align:center;font-weight:600}.inv-row .a{text-align:right;font-weight:700}.inv-row .d{min-width:0}
+  .inv-h{padding:0 0 6px;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}.inv-h .q,.inv-h .a{font-weight:800}
+  .inv-row .step{justify-content:center;gap:4px}.inv-row .step button{width:30px;height:30px;font-size:1rem;border-radius:8px}.inv-row .step span{min-width:18px;font-size:.9rem}
+  .inv-row .del{display:block;color:var(--red);font-weight:700;font-size:.72rem;padding:2px 0}
   .ok-banner{display:flex;align-items:center;gap:8px;background:#E3F5EC;color:#1E6B49;border-radius:12px;padding:10px 12px;font-weight:700;font-size:.88rem;margin-bottom:10px}
   .warn-banner{background:#FFF4E0;color:#8A5A0B;border-radius:12px;padding:10px 12px;font-weight:600;font-size:.84rem;margin-bottom:10px}
   .stack>*+*{margin-top:10px}
@@ -662,30 +667,27 @@
       '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes (optional)</label>' +
       '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
 
-    // 2. invoice: starts empty, shows only what has been recorded
+    // 2. invoice: a plain line-item table; starts empty, shows only what has been recorded
     var extras = cur.catalogue.filter(function(p){ return !isAlarm(p.code); });
+    var short = function(l){ return String(l).replace(/\s*[\u2013-]\s*supplied (&|and) installed/i, ""); };
+    var line = function(desc, qtyCell, amount, extra){ return '<div class="inv-row"><div class="d">' + desc + (extra || "") + '</div><div class="q">' + qtyCell + '</div><div class="a">' + money(amount) + '</div></div>'; };
+    var rowsHtml = cur.items.map(function(it, i){
+      if (isAlarm(it.code)) return line(esc(short(it.label)), it.qty, it.amount_cents);
+      if (it.code === "other") return line(esc(it.label), it.qty, it.amount_cents, paid ? "" : '<button class="del" data-del="' + i + '">Remove</button>');
+      return line(esc(short(it.label)), stepper(it.code, it.qty, paid), it.amount_cents);
+    }).join("");
     html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
-      (cur.booking_fee_cents ? '<div class="item"><div class="lab">Booking fee received<small>Paid earlier, not included below</small></div><b>' + money(cur.booking_fee_cents) + '</b></div>' : '') +
-      cur.items.filter(function(i){ return isAlarm(i.code); }).map(function(it){
-        return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b></div>';
-      }).join("") +
-      extras.filter(function(p){ return itemQty(p.code) > 0; }).map(function(p){
-        return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, itemQty(p.code), paid) + '</div>';
-      }).join("") +
-      cur.items.map(function(it, i){
-        if (it.code !== "other") return "";
-        return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b>' +
-          (paid ? '' : '<button class="del" data-del="' + i + '">Remove</button>') + '</div>';
-      }).join("") +
+      (cur.items.length ? '<div class="inv"><div class="inv-row inv-h"><div class="d">Description</div><div class="q">Qty</div><div class="a">Amount</div></div>' + rowsHtml + '</div>' : '<p class="muted">Alarms and items appear here as you add them.</p>') +
       (paid ? '' : '<details style="margin-top:8px"><summary class="link" style="cursor:pointer">+ Add item</summary>' +
         extras.filter(function(p){ return itemQty(p.code) === 0; }).map(function(p){
-          return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, 0, false) + '</div>';
+          return '<div class="item"><div class="lab">' + esc(short(p.label)) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, 0, false) + '</div>';
         }).join("") +
         '<div class="other"><input id="o-label" placeholder="e.g. Extra callout"><input id="o-price" inputmode="decimal" placeholder="$ each"></div>' +
         '<button class="btn btn-ghost" id="o-add" style="margin-top:8px;min-height:44px">Add item</button></details>') +
-      (cur.items.length ? '<div class="tot"><div><span>Total</span><span>' + money(cur.totals.total) + '</span></div>' +
-      cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>−' + money(cr.cents) + '</span></div>'; }).join("") +
-      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '<p class="muted" style="margin-top:8px">Alarms and items appear here as you add them.</p>') + '</div>';
+      (cur.items.length ? '<div class="tot"><div><span>Total (incl. GST)</span><span>' + money(cur.totals.total) + '</span></div>' +
+      cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>\u2212' + money(cr.cents) + '</span></div>'; }).join("") +
+      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '') +
+      (cur.booking_fee_cents ? '<p class="muted" style="margin-top:8px">Booking fee of ' + money(cur.booking_fee_cents) + ' was paid earlier and is not included above.</p>' : '') + '</div>';
 
     // 3. payment details
     var cardPaid = paid && (!j.pay_method || j.pay_method === "card");
