@@ -147,22 +147,23 @@
   /* comments */
   .cmts{margin-top:1.1rem;border-top:1px solid var(--line);padding-top:.9rem}
   .cmts h4{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.6rem}
-  .cmt{--activity:#85959a;background:#f7fafb;border:1px solid var(--line);border-left:4px solid var(--activity);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem}
-  .cmt.kind-note{--activity:#85959a;background:#f7fafb}
-  .cmt.kind-quote{--activity:#d99b22;background:#fffaf0}
-  .cmt.kind-email{--activity:#398ea0;background:#f2fafb}
-  .cmt.kind-sms{--activity:#7558b7;background:#f8f5ff}
-  .cmt.kind-payment{--activity:#32925d;background:#f2fbf6}
-  .cmt.kind-status{--activity:#3476b9;background:#f3f8fe}
-  .cmt.kind-system{--activity:#52636a;background:#f5f7f8}
-  .cmt-head{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem}
-  .cmt .who{font-size:.68rem;color:var(--muted);margin-left:auto;text-align:right}
-  .cmt .who strong{color:var(--teal-deep)}
-  .cmt-kind{display:inline-flex;align-items:center;border-radius:999px;background:var(--activity);color:#fff;padding:.18rem .48rem;font-size:.6rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase;white-space:nowrap}
-  .cmt p{font-size:.84rem;color:var(--body);line-height:1.5;white-space:pre-wrap;word-break:break-word}
-  .cmt.cmt-email{cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
-  .cmt.cmt-email:hover{border-color:var(--teal);border-left-color:var(--activity);box-shadow:var(--shadow-sm)}
-  .cmt.cmt-email .view-hint{display:inline-block;margin-top:.3rem;font-size:.68rem;font-weight:700;color:var(--teal-deep)}
+  .cmt{--activity:#85959a;padding:.5rem 0;border-bottom:1px solid var(--line)}
+  .cmt:last-child{border-bottom:none}
+  .cmt.kind-quote{--activity:#b07d12}
+  .cmt.kind-email{--activity:#398ea0}
+  .cmt.kind-sms{--activity:#7558b7}
+  .cmt.kind-payment{--activity:#32925d}
+  .cmt.kind-status{--activity:#3476b9}
+  .cmt.kind-system{--activity:#52636a}
+  .cmt-head{display:flex;align-items:baseline;gap:.5rem;margin-bottom:.12rem}
+  .cmt .who{font-size:.68rem;color:var(--muted);margin-left:auto;text-align:right;white-space:nowrap}
+  .cmt .who strong{color:var(--body);font-weight:600}
+  .cmt-kind{color:var(--activity);font-size:.64rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+  .cmt p{font-size:.82rem;color:var(--body);line-height:1.45;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:pre-wrap}
+  .cmt.open p{-webkit-line-clamp:unset;display:block}
+  .cmt{cursor:pointer}
+  .cmt:hover .cmt-kind{text-decoration:underline}
+  .cmt.cmt-email .view-hint{display:inline-block;margin-top:.15rem;font-size:.68rem;font-weight:700;color:var(--teal-deep)}
   /* thread viewer */
   .th-row{border:1px solid var(--line);border-radius:11px;padding:.7rem .9rem;margin-bottom:.6rem;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
   .th-row:hover{border-color:var(--teal);box-shadow:var(--shadow-sm)}
@@ -846,13 +847,15 @@
       var labels = {note:"Staff note",quote:"Email quote",email:"Email",sms:"SMS",payment:"Payment",status:"Status change",system:"System"};
       var isEmail = kind === "email" || kind === "quote";
       var hint = isEmail ? '<span class="view-hint">' + (kind === "quote" ? 'View sent quote' : 'View full email') + '</span>' : '';
-      return '<div class="cmt kind-' + esc(kind) + (isEmail ? ' cmt-email' : '') + '"><div class="cmt-head"><span class="cmt-kind">' + esc(labels[kind] || "Activity") + '</span><div class="who"><strong>' + esc(c.author || "Team") + '</strong> | ' + esc(when) + '</div></div><p>' + esc(body) + '</p>' + hint + '</div>';
+      return '<div class="cmt kind-' + esc(kind) + (isEmail ? ' cmt-email' : '') + '"><div class="cmt-head"><span class="cmt-kind">' + esc(labels[kind] || "Activity") + '</span><div class="who"><strong>' + esc(c.author || "Team") + '</strong> · ' + esc(when) + '</div></div><p>' + esc(body) + '</p>' + hint + '</div>';
     }).join("");
   }
   // clicking an email log entry opens the sent-email thread for this lead
   $("cmt-list").addEventListener("click", function(e){
     var el = e.target.closest(".cmt-email");
-    if (el && currentId) openEmailThread(currentId);
+    if (el && currentId) { openEmailThread(currentId); return; }
+    var row = e.target.closest(".cmt");
+    if (row) row.classList.toggle("open");   // long notes and texts are shortened to two lines until tapped
   });
 
   function openNewLead(){
