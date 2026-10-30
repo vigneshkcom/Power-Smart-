@@ -175,6 +175,22 @@ module.exports = async (req, res) => {
       } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not send booking confirmation" }); }
     }
 
+    // One-time Dropbox connection from /tools/dropbox-setup: no terminal needed.
+    if (action === "dropbox_connect") {
+      const key = process.env.DROPBOX_APP_KEY, secret = process.env.DROPBOX_APP_SECRET;
+      if (!key || !secret) return res.status(400).json({ error: "Add DROPBOX_APP_KEY and DROPBOX_APP_SECRET in Vercel first, then redeploy." });
+      const code = clean(b.code, 200);
+      if (!code) return res.status(200).json({ auth_url: "https://www.dropbox.com/oauth2/authorize?client_id=" + encodeURIComponent(key) + "&response_type=code&token_access_type=offline" });
+      const r = await fetch("https://api.dropboxapi.com/oauth2/token", {
+        method: "POST",
+        headers: { Authorization: "Basic " + Buffer.from(key + ":" + secret).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ code, grant_type: "authorization_code" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.refresh_token) return res.status(400).json({ error: "Dropbox did not accept that code. It works once and expires fast, so click Allow again to get a fresh one." });
+      return res.status(200).json({ refresh_token: d.refresh_token });
+    }
+
     // Job photos from Dropbox for the portal (schedule job window, pipeline lead window).
     if (action === "job_photos" || action === "photo_link") {
       const Dropbox = require("./_dropbox");
