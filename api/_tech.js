@@ -102,6 +102,19 @@ function defaultItems(job, quote) {
   return quote && quote.controller_qty ? [{ code: "controller", qty: quote.controller_qty }] : [];
 }
 
+const UNIT_TYPES = ["battery", "hardwired"];
+// One record per alarm installed: where it went, which kind, and its photo (a Dropbox path).
+function cleanUnits(input) {
+  if (!Array.isArray(input) || input.length > 60) throw fail(400, "Too many alarms in one job.");
+  return input.map((u, n) => {
+    const type = clean(u && u.type, 20).toLowerCase();
+    if (!UNIT_TYPES.includes(type)) throw fail(400, "Choose battery or hardwired for each alarm.");
+    const photo = clean(u && u.photo, 500);
+    if (photo && (!photo.startsWith("/PowerSmart Jobs/") || photo.includes(".."))) throw fail(400, "Invalid alarm photo.");
+    return { id: clean(u && u.id, 30) || `u${n + 1}`, location: clean(u && u.location, 40) || "Other", type, photo };
+  });
+}
+
 async function authTech(req) {
   const code = clean(req.headers["x-tech-code"], 20);
   if (!code) return null;
@@ -241,6 +254,7 @@ async function handler(req, res) {
         f.alarm_type = alarmType(items);
         if (changed) f.approved_at = null;
       }
+      if (b.alarm_units !== undefined) f.alarm_units = cleanUnits(b.alarm_units);
       if (b.approve) {
         const items = f.invoice_items || job.invoice_items;
         if (!items || !items.length) throw fail(400, "Add at least one item before the customer approves.");
@@ -283,28 +297,49 @@ async function handler(req, res) {
       let current = await refreshPayment(job);
       const items = current.invoice_items || [];
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
-      const t = totals(items, await prepaid(current.lead_id));
+      const credits = await prepaid(current.lead_id);
+      const t = totals(items, credits);
 
-      let payStatus, payText;
-      if (t.due <= 0) { payStatus = "none"; payText = "Nothing to pay on site."; }
-      else if (current.pay_status === "paid") { payStatus = "paid"; payText = `Paid on site by card: ${money(current.paid_cents || t.due)}.`; }
-      else if (b.payment === "later") { payStatus = "later"; payText = `Payment to collect: ${money(t.due)} (customer paying later).`; }
-      else throw fail(409, "Payment hasn't come through yet. Take the card payment, or choose \"Customer pays later\".");
+      const signoffName = clean(b.signoff_name, 80), signature = String(b.signature || "");
+      if (!signoffName) throw fail(400, "Type your name to sign off the work.");
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length > 300000) throw fail(400, "Please sign in the signature box.");
 
-      const done = await patchJob(current.id, { status: "completed", completed_at: new Date().toISOString(), pay_status: payStatus, amount_due_cents: t.due });
+      const METHOD_LABEL = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
+      const paidInFull = b.paid_in_full === true;
+      const f = { status: "completed", completed_at: new Date().toISOString(), amount_due_cents: t.due,
+        signoff_name: signoffName, signoff_signature: signature, signoff_at: new Date().toISOString() };
+      let payText;
+      if (t.due <= 0) { f.pay_status = "none"; payText = "Nothing to pay on site."; }
+      else if (current.pay_status === "paid") { f.pay_status = "paid"; f.pay_method = current.pay_method || "card"; payText = `Paid in full by ${METHOD_LABEL[f.pay_method] || "card"}: ${money(current.paid_cents || t.due)}.`; }
+      else if (paidInFull && ["bank_transfer", "cash"].includes(b.method)) {
+        f.pay_status = "paid"; f.pay_method = b.method; f.paid_cents = t.due; f.paid_at = new Date().toISOString();
+        payText = `Paid in full by ${METHOD_LABEL[b.method]}: ${money(t.due)}.`;
+      }
+      else if (paidInFull) throw fail(409, "Choose how the customer paid: card, bank transfer or cash. For card, take the card payment first.");
+      else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }
+
+      const done = await patchJob(current.id, f);
+      const paid = f.pay_status !== "later";
+      const lead = current.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
+      const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, paid, method: f.pay_method, agent: tech.name });
+      if (invoice.status === "sent") await patchJob(current.id, { invoice_emailed_at: new Date().toISOString() }).catch(() => {});
+      const invoiceText = invoice.status === "sent" ? `${paid ? "Tax invoice" : "Pending invoice"} emailed to ${invoice.to}.` : `Invoice email not sent (${invoice.error}).`;
       if (current.lead_id) {
         try {
           await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
         } catch (e) { console.error("tech → lead stage update failed:", e.message); }
         const notes = current.tech_notes ? ` Notes: ${current.tech_notes}` : "";
         await J.leadNote(current.lead_id, tech.name,
-          `✅ Job J${current.job_no} completed by ${tech.name}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText}${notes}`);
+          `✅ Job J${current.job_no} completed and signed off by ${signoffName}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText} ${invoiceText}${notes}`);
       }
-      return res.status(200).json({ ok: true, job: done });
+      return res.status(200).json({ ok: true, job: done, invoice });
     }
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
+    if (/alarm_units|pay_method|signoff_|invoice_emailed_at/.test(String(err.message))) {
+      return res.status(500).json({ error: "Setup needed: run supabase/tech-job-flow.sql in Supabase, then try again." });
+    }
     if (!err.status || err.status >= 500) console.error("tech app error:", err.message);
     return res.status(err.status && err.status < 600 ? err.status : 500).json({ error: err.message || "Electrician app error" });
   }

@@ -166,6 +166,15 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
 
 Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
 
+### Job flow (smoke alarms, payment details, sign off)
+
+Run `supabase/tech-job-flow.sql` once (after `tech-app.sql`). In `/tech` a job is now four steps:
+
+1. **Smoke alarms**: tap *Add smoke alarm* for each one (location, battery/hardwired, photo). The invoice alarm lines follow these records.
+2. **Invoice** and customer approval.
+3. **Payment details**: *Has the customer paid in full?* Yes: card (Stripe), bank transfer or cash. No: a pending invoice is emailed.
+4. **Work sign off**: electrician name and signature, then *Complete job*. The customer is emailed a paid tax invoice, or an invoice showing the amount owing (`api/_job-invoice.js`). Compliance certificates are not generated yet; the pending-invoice email says one is sent once paid.
+
 ### Job photos (Dropbox)
 
 Electricians add photos in `/tech` (Before / After / Alarms / Other). They are shrunk on the

@@ -39,6 +39,14 @@
   .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
   .row{display:flex;gap:10px}.row>*{flex:1}
 
+  .q{font-weight:700;font-size:.9rem;margin:12px 0 6px}
+  .unit .uthumb{width:52px;height:52px;border-radius:10px;border:1px solid var(--line);background:var(--paper);display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;color:var(--muted)}
+  .unit .uthumb img{width:100%;height:100%;object-fit:cover}
+  .draft{border:1.5px solid var(--teal);border-radius:14px;padding:12px;margin-top:10px;background:#F7FCFD}
+  .draft .field{margin-bottom:10px}.draft select,.draft input[type=text]{width:100%;min-height:48px;border:1.5px solid var(--line);border-radius:12px;padding:0 10px;font-size:1rem;background:#fff}
+  .draft .shot{display:flex;align-items:center;gap:10px;margin:10px 0}.draft .shot img{width:64px;height:64px;border-radius:10px;object-fit:cover}
+  #so-sig{width:100%;height:150px;border:1.5px dashed var(--teal);border-radius:12px;background:#fff;touch-action:none}
+  .chk{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.9rem;font-weight:600}.chk input{width:22px;height:22px;accent-color:var(--teal)}
   .ph-row{display:flex;gap:8px;margin-bottom:8px}
   .ph-row select{flex:1;min-height:48px;border:1.5px solid var(--line);border-radius:12px;padding:0 10px;font-size:1rem;background:#fff}
   .ph-row .btn{flex:1;margin:0;cursor:pointer}
@@ -338,6 +346,7 @@
     show("v-job");
     $("j-body").innerHTML = '<div class="loading">Loading…</div>';
     $("j-title").textContent = "Job"; $("j-chip").textContent = "";
+    draft = null; pay = { full: null, method: "" }; soName = ""; soOk = false; sigData = null;
     call("job", { id: id }).then(function(d){ cur = d; delete photoCache[id]; renderJob(); loadPhotos(); if (after) after(); })
       .catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
@@ -345,9 +354,59 @@
 
   function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
   function isAlarm(code){ return cur.alarm_codes.indexOf(code) >= 0; }
-  function alarmsDone(){ return cur.items.length > 0; }
+  function alarmsDone(){ return unitList().length > 0 || cur.alarm_codes.some(function(c){ return itemQty(c) > 0; }); }
   function stepper(code, q, locked){
     return locked ? '<b>× ' + q + '</b>' : '<div class="step" data-code="' + esc(code) + '"><button data-d="-1" aria-label="Less">−</button><span>' + q + '</span><button data-d="1" aria-label="More">+</button></div>';
+  }
+
+  /* ---------- smoke alarms, payment and sign-off state ---------- */
+  var draft = null, pay = { full: null, method: "" }, soName = "", soOk = false, sigData = null, completeState = {};
+  var LOCATIONS = ["Hallway", "Bedroom", "Living room", "Kitchen", "Stairwell", "Study", "Garage", "Other"];
+  function unitList(){ return Array.isArray(cur.job.alarm_units) ? cur.job.alarm_units : []; }
+  function thumbFor(path){
+    var p = path && photoCache[cur.job.id];
+    var hit = p && p.photos && p.photos.find(function(x){ return x.path === path; });
+    return hit ? hit.thumb : "";
+  }
+  function storageOn(){ var p = photoCache[cur.job.id]; return !(p && p.configured === false); }
+  function draftForm(){
+    var d = draft;
+    return '<div class="draft"><div class="field"><label for="d-loc">Where is this alarm?</label><select id="d-loc">' +
+      LOCATIONS.map(function(l){ return '<option' + (d.location === l ? " selected" : "") + '>' + l + '</option>'; }).join("") + '</select></div>' +
+      (d.location === "Other" ? '<div class="field"><input type="text" id="d-other" maxlength="40" placeholder="e.g. Rumpus room" value="' + esc(d.other) + '"></div>' : "") +
+      '<div class="seg" data-seg="dtype"><button data-v="battery" class="' + (d.type === "battery" ? "on" : "") + '">🔋 Battery</button><button data-v="hardwired" class="' + (d.type === "hardwired" ? "on" : "") + '">⚡ Hardwired</button></div>' +
+      '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">📷 ' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div>' +
+      '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
+  }
+  // Alarm invoice lines always follow the alarms recorded one by one.
+  function syncAlarmItems(units){
+    var bat = units.filter(function(u){ return u.type === "battery"; }).length, hw = units.length - bat;
+    var items = cur.items.filter(function(i){ return !isAlarm(i.code); });
+    if (bat) items.push({ code: "alarm_battery", qty: bat, label: "", unit_cents: 0, amount_cents: 0 });
+    if (hw) items.push({ code: "alarm_hardwired", qty: hw, label: "", unit_cents: 0, amount_cents: 0 });
+    cur.job.alarm_units = units;
+    pending = Object.assign(pending || {}, { units: true });
+    setItems(items);
+  }
+  function initSignature(){
+    var c = $("so-sig"); if (!c) return;
+    var ctx = c.getContext("2d"), drawing = false;
+    ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#0B1B1F";
+    if (sigData){ var img = new Image(); img.onload = function(){ ctx.drawImage(img, 0, 0, c.width, c.height); }; img.src = sigData; }
+    function pt(e){ var r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * c.width / r.width, y: (e.clientY - r.top) * c.height / r.height }; }
+    c.addEventListener("pointerdown", function(e){ drawing = true; c.setPointerCapture(e.pointerId); var p = pt(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + .1, p.y + .1); ctx.stroke(); });
+    c.addEventListener("pointermove", function(e){ if (!drawing) return; var p = pt(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+    function end(){ if (!drawing) return; drawing = false; sigData = c.toDataURL("image/png"); updateComplete(); }
+    c.addEventListener("pointerup", end); c.addEventListener("pointercancel", end);
+  }
+  function updateComplete(){
+    var btn = $("complete"); if (!btn) return;
+    var name = ($("so-name") && $("so-name").value.trim()) || "";
+    var missing = !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
+      !completeState.payReady ? "Answer the payment questions above." : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
+    btn.disabled = Boolean(missing);
+    if ($("so-hint")) $("so-hint").textContent = missing;
   }
 
   /* ---------- photos (stored in Dropbox, see api/_dropbox.js) ---------- */
@@ -447,18 +506,25 @@
     if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">🚐 On my way</button>';
     else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">📍 Arrived on site</button>';
 
-    // 1. alarms installed
-    var paid = j.pay_status === "paid";
-    var nAlarms = cur.alarm_codes.reduce(function(n, c){ return n + itemQty(c); }, 0);
+    // 1. smoke alarms, added one at a time with a photo
+    var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
+    var units = unitList();
+    var nBat = units.filter(function(u){ return u.type === "battery"; }).length, nHw = units.length - nBat;
+    var legacy = !units.length && cur.alarm_codes.reduce(function(n, c){ return n + itemQty(c); }, 0);
     var booked = cur.quote && cur.quote.alarm_qty ? "Quote " + esc(cur.quote.ref) + ": " + cur.quote.alarm_qty + " alarms" : j.alarms ? "Booked: " + j.alarms + " alarms" : "";
-    html += '<div class="card"><h2><span class="n' + (nAlarms ? " ok" : "") + '">' + (nAlarms ? "✓" : "1") + '</span>Smoke alarms installed<span class="side">' + booked + '</span></h2>' +
-      '<div class="item"><div class="lab">🔋 Battery alarms<small>10-year lithium</small></div>' + stepper("alarm_battery", itemQty("alarm_battery"), paid) + '</div>' +
-      '<div class="item"><div class="lab">⚡ Hardwired alarms<small>240V</small></div>' + stepper("alarm_hardwired", itemQty("alarm_hardwired"), paid) + '</div>' +
-      '<div class="tot"><div><span>Total installed</span><b id="n-alarms">' + nAlarms + '</b></div></div>' +
+    html += '<div class="card"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Smoke alarms<span class="side">' + booked + '</span></h2>';
+    units.forEach(function(u, i){
+      var th = thumbFor(u.photo);
+      html += '<div class="item unit"><div class="uthumb">' + (th ? '<img src="' + esc(th) + '" alt="Alarm photo">' : (u.photo ? "📷" : "–")) + '</div>' +
+        '<div class="lab">Smoke Alarm ' + (i + 1) + '<small>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + '</small></div>' +
+        (paid ? '' : '<button class="del" data-unit-del="' + i + '">Remove</button>') + '</div>';
+    });
+    if (legacy) html += '<div class="warn-banner">This job already has ' + legacy + ' alarm' + (legacy === 1 ? "" : "s") + ' on the invoice from the old counter. Adding alarms here replaces that count.</div>';
+    if (!paid) html += draft ? draftForm() : '<button class="btn btn-ghost" id="u-add" style="margin-top:10px">＋ Add smoke alarm</button>';
+    html += '<div class="tot"><div><span>Total installed</span><b id="n-alarms">' + units.length + '</b></div>' +
+      (units.length ? '<div class="muted"><span>' + nBat + ' battery · ' + nHw + ' hardwired</span></div>' : '') + '</div>' +
       '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes (optional)</label>' +
       '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
-
-    html += photosCard();
 
     // 2. invoice
     html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
@@ -480,32 +546,52 @@
       cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>−' + money(cr.cents) + '</span></div>'; }).join("") +
       '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div></div>';
 
-    // 3. approval + payment
-    var approved = !!j.approved_at, due = cur.totals.due;
-    html += '<div class="card"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Customer approval &amp; payment</h2>';
-    if (!alarmsDone()) html += '<div class="warn-banner">' + 'Add the alarms installed first.' + '</div>';
+    // 3. payment details
+    var cardPaid = paid && (!j.pay_method || j.pay_method === "card");
+    if (paid){ pay.full = true; pay.method = j.pay_method || "card"; }
+    html += '<div class="card"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Payment details</h2>';
+    if (!alarmsDone()) html += '<div class="warn-banner">Add the smoke alarms first.</div>';
     if (!approved){
       html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
         '<button class="btn btn-primary" id="approve"' + (alarmsDone() ? "" : " disabled") + '>Customer approves ' + money(cur.totals.total) + '</button>';
     } else {
       html += '<div class="ok-banner">✓ Customer approved at ' + timeLabel(new Date(j.approved_at)) + '</div>';
-      if (paid) html += '<div class="ok-banner">💳 Paid ' + money(j.paid_cents || due) + ' by card</div>';
-      else if (due > 0){
-        html += '<div class="stack"><button class="btn btn-dark" id="pay">💳 Take card payment ' + money(due) + '</button>' +
-          (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
-          '<p class="muted">Opens the secure Stripe page — hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
-      } else html += '<div class="ok-banner">Nothing to pay on site</div>';
+      if (due <= 0 && !paid) html += '<div class="ok-banner">Nothing to pay on site</div>';
+      else if (cardPaid) html += '<div class="ok-banner">💳 Paid ' + money(j.paid_cents || due) + ' by card</div>';
+      else {
+        html += '<div class="q">Has the customer paid in full?</div>' +
+          '<div class="seg" data-seg="full"><button data-v="yes" class="' + (pay.full === true ? "on" : "") + '">Yes</button><button data-v="no" class="' + (pay.full === false ? "on" : "") + '">No</button></div>';
+        if (pay.full === true){
+          html += '<div class="q">How did they pay?</div><div class="seg" data-seg="method">' +
+            [["card", "Card (Stripe)"], ["bank_transfer", "Bank transfer"], ["cash", "Cash"]].map(function(m){
+              return '<button data-v="' + m[0] + '" class="' + (pay.method === m[0] ? "on" : "") + '">' + m[1] + '</button>'; }).join("") + '</div>';
+          if (pay.method === "card"){
+            html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">💳 Take card payment ' + money(due) + '</button>' +
+              (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
+              '<p class="muted">Opens the secure Stripe page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
+          } else if (pay.method) html += '<p class="muted" style="margin-top:10px">' + money(due) + ' received by ' + (pay.method === "cash" ? "cash" : "bank transfer") + '. A paid tax invoice is emailed to the customer when you complete the job.</p>';
+        } else if (pay.full === false){
+          html += '<div class="warn-banner" style="margin-top:10px">A pending invoice for ' + money(due) + ' will be emailed to the customer. No compliance certificate goes out until it is paid.</div>';
+        }
+      }
     }
     html += '</div>';
 
-    // 4. complete
-    var canComplete = alarmsDone() && approved;
-    html += '<div class="stack" style="margin-top:6px">' +
-      '<button class="btn btn-green" id="complete"' + (canComplete && (paid || due <= 0) ? "" : " disabled") + '>✓ Complete job</button>' +
-      (canComplete && !paid && due > 0 ? '<button class="btn btn-ghost" id="complete-later">Complete — customer pays later</button>' : '') +
-      '</div>';
+    html += photosCard();
+
+    // 4. work sign off
+    var payReady = due <= 0 || paid || pay.full === false || (pay.full === true && (pay.method === "bank_transfer" || pay.method === "cash"));
+    html += '<div class="card"><h2><span class="n">4</span>Work sign off</h2>' +
+      '<div class="field"><label for="so-name">Electrician name</label><input id="so-name" value="' + esc(soName || (me && me.name) || "") + '" autocomplete="off"></div>' +
+      '<div class="field" style="margin-top:10px"><label>Signature</label><canvas id="so-sig" width="600" height="180"></canvas>' +
+      '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
+      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm the work is complete.</label>' +
+      '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>✓ Complete job &amp; send ' + (due <= 0 || paid || pay.full === true ? "invoice" : "pending invoice") + '</button>' +
+      '<p class="muted" id="so-hint" style="margin-top:8px"></p></div>';
+    completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
 
     $("j-body").innerHTML = html;
+    initSignature(); updateComplete();
   }
 
   // Delegated job-screen interactions
@@ -550,24 +636,58 @@
         .catch(function(err){ t.disabled = false; toast(err.message); });
       return;
     }
-    if (t.id === "complete" || t.id === "complete-later"){
-      var later = t.id === "complete-later";
-      if (later && !confirm("Complete the job with " + money(cur.totals.due) + " still to pay? The office will follow up with the customer.")) return;
-      t.disabled = true;
-      flushSave().then(function(){ return call("complete", { id: cur.job.id, payment: later ? "later" : "card" }); }).then(function(d){
-        $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " — " +
-          ({ paid:"paid by card.", later: money(cur.totals.due) + " to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "");
+    if (t.id === "u-add"){ draft = { location: "Hallway", other: "", type: "battery", photo: "", thumb: "", busy: false }; keepScroll(renderJob); return; }
+    if (t.id === "d-cancel"){ draft = null; keepScroll(renderJob); return; }
+    if (t.id === "d-save"){
+      if (storageOn() && !draft.photo){ toast("Take a photo of the alarm first"); return; }
+      var loc = draft.location === "Other" ? (draft.other.trim() || "Other") : draft.location;
+      var next = unitList().concat([{ id: "u" + Date.now().toString(36), location: loc, type: draft.type, photo: draft.photo }]);
+      draft = null; syncAlarmItems(next); setTimeout(loadPhotos, 600); return;
+    }
+    var ud = t.closest("[data-unit-del]");
+    if (ud){ if (!confirm("Remove this smoke alarm?")) return; var list = unitList().slice(); list.splice(Number(ud.dataset.unitDel), 1); syncAlarmItems(list); return; }
+    var sg = t.closest("[data-seg] button");
+    if (sg){
+      var kind = sg.parentNode.dataset.seg, v = sg.dataset.v;
+      if (kind === "dtype") draft.type = v;
+      else if (kind === "full"){ pay.full = v === "yes"; if (!pay.full) pay.method = ""; }
+      else if (kind === "method") pay.method = v;
+      keepScroll(renderJob); return;
+    }
+    if (t.id === "so-clear"){ sigData = null; keepScroll(renderJob); return; }
+    if (t.id === "complete"){
+      if (!confirm(pay.full === false ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + "?" : "Complete the job and email the invoice to the customer?")) return;
+      t.disabled = true; t.textContent = "Completing…";
+      flushSave().then(function(){ return call("complete", { id: cur.job.id, paid_in_full: pay.full === true, method: pay.method, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
+        var inv = d.invoice || {};
+        $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
+          ({ paid:"paid in full.", later: money(cur.totals.due) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
+          " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.");
         show("v-done");
-      }).catch(function(err){ t.disabled = false; toast(err.message); });
+      }).catch(function(err){ t.disabled = false; t.innerHTML = "✓ Complete job &amp; send invoice"; toast(err.message); });
     }
   });
   $("j-body").addEventListener("input", function(e){
+    if (e.target.id === "d-other" && draft) draft.other = e.target.value;
+    if (e.target.id === "so-name"){ soName = e.target.value; updateComplete(); }
     if (e.target.id === "j-notes"){
       cur.job.tech_notes = e.target.value;
       queueSave({ notes: e.target.value }, true);
     }
   });
-  $("j-body").addEventListener("change", function(e){ if (e.target.id === "j-notes") keepScroll(renderJob); });
+  $("j-body").addEventListener("change", function(e){
+    var id = e.target.id;
+    if (id === "j-notes") keepScroll(renderJob);
+    if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
+    if (id === "so-ok"){ soOk = e.target.checked; updateComplete(); }
+    if (id === "d-file" && e.target.files.length){
+      var file = e.target.files[0]; draft.busy = true; keepScroll(renderJob);
+      var jobId = cur.job.id;
+      shrink(file).then(function(data){
+        return call("photo_upload", { id: jobId, category: "alarms", data: data }).then(function(r){ if (draft){ draft.photo = r.path; draft.thumb = "data:image/jpeg;base64," + data; } });
+      }).catch(function(err){ toast(err.message); }).then(function(){ if (draft){ draft.busy = false; keepScroll(renderJob); } });
+    }
+  });
 
   function keepScroll(fn){ var y = window.scrollY; fn(); window.scrollTo(0, y); }
   function wireItems(){
@@ -605,6 +725,7 @@
     var body = { id: cur.job.id };
     if (pending.notes !== undefined) body.notes = cur.job.tech_notes || "";
     if (pending.items) body.items = wireItems();
+    if (pending.units) body.alarm_units = unitList();
     pending = null;
     saving = saving.then(function(){ return call("save", body); }).then(function(d){
       var notes = cur.job.tech_notes, focused = document.activeElement && document.activeElement.id === "j-notes";
