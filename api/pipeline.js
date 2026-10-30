@@ -191,6 +191,14 @@ module.exports = async (req, res) => {
       return res.status(200).json({ refresh_token: d.refresh_token });
     }
 
+    // Completed jobs for a lead, newest first: the staff "View invoice" button opens /invoice?token=<job id>.
+    if (action === "lead_invoices") {
+      const leadId = clean(b.lead_id, 40);
+      if (!leadId) return res.status(400).json({ error: "lead_id is required" });
+      const rows = await sb(`jobs?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.completed&select=id,job_no,completed_at,pay_status&order=completed_at.desc.nullslast&limit=10`);
+      return res.status(200).json({ jobs: rows || [] });
+    }
+
     // Job photos from Dropbox for the portal (schedule job window, pipeline lead window).
     if (action === "job_photos" || action === "photo_link") {
       const Dropbox = require("./_dropbox");

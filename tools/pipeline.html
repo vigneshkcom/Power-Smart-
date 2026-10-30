@@ -356,6 +356,7 @@
           <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
           <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
           <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
+          <button class="btn btn-ghost" id="lm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
           <button class="btn btn-ghost" id="lm-photos" style="display:none" title="View the photos the electrician uploaded for this customer's job">Job photos</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
@@ -784,6 +785,7 @@
     $("lm-delete").style.display = "";
     $("lm-confirm").style.display = l.stage === "scheduled" ? "" : "none";
     $("lm-photos").style.display = (l.stage === "scheduled" || l.stage === "won") ? "" : "none";
+    $("lm-invoice").style.display = l.stage === "won" ? "" : "none";
     $("lm-cmts").style.display = "";
     $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Loading…</p>';
     $("lead-overlay").classList.add("show");
@@ -871,7 +873,7 @@
     $("lm-payment-row").style.display = "none";
     $("lm-delete").style.display = "none";
     $("lm-confirm").style.display = "none";
-    $("lm-photos").style.display = "none";
+    $("lm-photos").style.display = "none"; $("lm-invoice").style.display = "none";
     $("lm-cmts").style.display = "none";
     $("lead-overlay").classList.add("show");
     $("lm-name").focus();
@@ -1292,6 +1294,18 @@
       .then(function(){ openLead(currentId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
+  });
+  $("lm-invoice").addEventListener("click", function(){
+    if (!currentId) return;
+    var w = window.open("about:blank", "_blank");
+    if (!w){ toast("Allow pop-ups to open the invoice, then try again"); return; }
+    w.opener = null;
+    var btn = this; btn.disabled = true;
+    api("POST", { action:"lead_invoices", lead_id: currentId }).then(function(d){
+      var job = (d.jobs || [])[0];
+      if (!job){ w.close(); toast("No completed job invoice for this customer yet"); return; }
+      w.location.replace("/invoice?token=" + encodeURIComponent(job.id));
+    }).catch(function(err){ w.close(); toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
   $("lm-photos").addEventListener("click", function(){
     if (!currentId) return;
