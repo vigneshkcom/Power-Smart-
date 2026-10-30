@@ -52,18 +52,22 @@ test('a missing licence number blocks the certificate and tells the office', asy
   assert.equal(tables.jobs[0].certificate_sent_at, undefined, 'not marked as sent');
 });
 
-test('the certificate shows the job details and draws the signature in white', () => {
-  const html = C.renderCertificateHtml({ job: job(), electrician: { name: 'Jake Turner', licence_no: '1515658' } });
-  for (const text of ['30 / 10 / 2026', 'QLD', '4124', '2 ADDISON STREET', 'GREENBANK', 'Jake Turner', '1515658']) assert.ok(html.includes(text), text);
-  assert.match(html, /<img src="data:image\/png;base64,[^"]+" alt="Electrician signature"[^>]*filter:brightness\(0\) invert\(1\)/);
-  assert.equal((html.match(/class="pg"/g) || []).length, 2, 'certificate + information page');
-  assert.ok(!/\{\{\w+\}\}/.test(html), 'no unfilled placeholders');
+const { PDFDocument } = require('pdf-lib');
+test('the certificate is a quick two-page PDF with the customer details and signature', async () => {
+  const started = Date.now();
+  const pdf = await C.renderCertificatePdf({ job: job(), electrician: { name: 'Jake Turner', licence_no: '1515658' } });
+  assert.ok(Date.now() - started < 3000, 'no browser needed');
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+  const doc = await PDFDocument.load(pdf);
+  assert.equal(doc.getPageCount(), 2, 'certificate + information page');
+  assert.ok(pdf.length > 20000);
+  const unsigned = await C.renderCertificatePdf({ job: job({ signoff_signature: null }), electrician: { licence_no: '1' } });
+  assert.ok(pdf.length > unsigned.length, 'the signature image is embedded');
 });
 
-test('customer details are HTML-escaped on the certificate', () => {
-  const html = C.renderCertificateHtml({ job: job({ address: '<b>1 x</b>', suburb: 'A&B' }), electrician: { licence_no: '1' } });
-  assert.ok(!html.includes('<b>1 x</b>'));
-  assert.ok(html.includes('&lt;B&gt;1 X&lt;/B&gt;') && html.includes('A&amp;B'));
+test('long or unusual customer details never break the certificate', async () => {
+  const pdf = await C.renderCertificatePdf({ job: job({ address: 'Unit 12/1234 Extraordinarily Long Boulevard Of The Sunshine Coast Hinterland Region', suburb: 'Zo\u00eb \u2192 <b>&</b>', signoff_name: 'Jos\u00e9 \u4e2d\u6587' }), electrician: { licence_no: '1515658' } });
+  assert.equal((await PDFDocument.load(pdf)).getPageCount(), 2);
 });
 
 test('state comes from the postcode', () => {

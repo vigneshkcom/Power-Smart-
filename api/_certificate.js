@@ -1,6 +1,7 @@
 // Smoke alarm compliance certificate: a two-page A4 PDF (certificate + information sheet) emailed to the
 // customer once the job is completed AND paid in full (paid on site, paid later and marked paid, or nothing owing).
-// The layout lives in api/_cert-assets/page1.html + page2.html and is rendered to PDF with headless Chromium.
+// The design is pre-rendered to api/_cert-assets/template.pdf (scripts/build-certificate-template.js); only the customer's
+// details are drawn on top with pdf-lib, so it takes milliseconds and needs no browser.
 const fs = require("fs");
 const path = require("path");
 const { randomUUID } = require("crypto");
@@ -9,10 +10,12 @@ const S = require("./_senders");
 const SB = require("./_supabase");
 const { logEmail } = require("./_maillog");
 
+const { PDFDocument, rgb } = require("pdf-lib");
+const fontkit = require("@pdf-lib/fontkit");
+const { PNG } = require("pngjs");
+
 const DIR = path.join(__dirname, "_cert-assets");
 const esc = Q.escapeHtml;
-const asset = (name) => fs.readFileSync(path.join(DIR, name));
-const dataUri = (name, mime) => `data:${mime};base64,${asset(name).toString("base64")}`;
 
 const STATE_BY_DIGIT = { 0: "NT", 2: "NSW", 3: "VIC", 4: "QLD", 5: "SA", 6: "WA", 7: "TAS" };
 function stateFor(postcode) {
@@ -26,49 +29,59 @@ function dateText(iso) {
   return `${p.day} / ${p.month} / ${p.year}`;
 }
 
-// The signature is dark ink on a transparent canvas; the footer is dark, so it is drawn white.
-function signatureHtml(dataUrl) {
-  if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(dataUrl || ""))) return "";
-  return `<img src="${dataUrl}" alt="Electrician signature" style="display:block;height:48px;width:auto;max-width:100%;object-fit:contain;object-position:left bottom;filter:brightness(0) invert(1)">`;
+let assets;
+function loadAssets() {
+  if (!assets) assets = {
+    template: fs.readFileSync(path.join(DIR, "template.pdf")), font: fs.readFileSync(path.join(DIR, "poppins-600.ttf")),
+    fields: JSON.parse(fs.readFileSync(path.join(DIR, "fields.json"), "utf8")),
+  };
+  return assets;
 }
 
-function fontFaces() {
-  const face = (family, weight, file) => `@font-face{font-family:'${family}';font-style:normal;font-weight:${weight};src:url(${dataUri(file, "font/woff2")}) format('woff2')}`;
-  return [400, 500, 600].map((w) => face("Inter", w, "inter.woff2")).join("") +
-    [500, 600, 700, 800].map((w) => face("Poppins", w, `poppins-${w}.woff2`)).join("");
-}
-
-function renderCertificateHtml({ job, electrician }) {
-  const logo = dataUri("logo.png", "image/png");
-  const fill = (tpl, map) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => (k in map ? map[k] : ""));
-  const page1 = fill(asset("page1.html").toString("utf8"), {
-    LOGO: logo, DATE: dateText(job.signoff_at || job.completed_at), STATE: esc(stateFor(job.postcode)), POSTCODE: esc(job.postcode || ""),
-    ADDRESS: esc(String(job.address || "").toUpperCase()), SUBURB: esc(String(job.suburb || "").toUpperCase()),
-    ELEC_NAME: esc(job.signoff_name || electrician.name || ""), LICENCE: esc(electrician.licence_no || ""), SIGNATURE: signatureHtml(job.signoff_signature),
-  });
-  const page2 = fill(asset("page2.html").toString("utf8"), { LOGO: logo });
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Smoke Alarm Certificate of Compliance J${esc(job.job_no)}</title>
-<style>${fontFaces()}
-@page{size:794px 1123px;margin:0}
-html,body{margin:0;padding:0}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.pg{width:794px;height:1123px;overflow:hidden;page-break-after:always;break-after:page}.pg:last-child{page-break-after:auto;break-after:auto}
-a{color:#8AE8E4}
-</style></head><body><div class="pg">${page1}</div><div class="pg">${page2}</div></body></html>`;
-}
-
-async function renderCertificatePdf(data) {
-  const puppeteer = require("puppeteer-core");
-  const chromium = (await import("@sparticuz/chromium")).default;   // ESM-only package
-  const browser = await puppeteer.launch({
-    args: process.env.CHROME_PATH ? [...chromium.args, "--no-sandbox"] : chromium.args, headless: "shell",
-    executablePath: process.env.CHROME_PATH || (await chromium.executablePath()),
-  });
+// The signature is dark ink on a transparent canvas; the footer is dark, so it is drawn white (colour only, keeping its shape).
+function whiteSignature(dataUrl) {
+  const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ""));
+  if (!m) return null;
   try {
-    const page = await browser.newPage();
-    await page.setContent(renderCertificateHtml(data), { waitUntil: "load" });
-    await page.evaluate(() => document.fonts.ready);
-    return Buffer.from(await page.pdf({ width: "794px", height: "1123px", printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } }));
-  } finally { await browser.close().catch(() => {}); }
+    const png = PNG.sync.read(Buffer.from(m[1], "base64"));
+    for (let i = 0; i < png.data.length; i += 4) { png.data[i] = 255; png.data[i + 1] = 255; png.data[i + 2] = 255; }
+    return PNG.sync.write(png);
+  } catch (_) { return null; }
+}
+
+// Widest each value may be before its type size shrinks (the column widths of the design, in px).
+const MAX_W = { DATE: 219, STATE: 219, POSTCODE: 219, ADDRESS: 462, SUBURB: 219, ELEC_NAME: 202, LICENCE: 202 };
+const WHITE_FIELDS = new Set(["ELEC_NAME", "LICENCE"]);   // printed on the dark footer
+
+async function renderCertificatePdf({ job, electrician }) {
+  const a = loadAssets();
+  const doc = await PDFDocument.load(a.template);
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(a.font, { subset: true });
+  const known = new Set(font.getCharacterSet());
+  const clean = (v) => Array.from(String(v == null ? "" : v)).map((c) => (known.has(c.codePointAt(0)) ? c : "?")).join("");
+  const page = doc.getPage(0), H = page.getHeight(), S = page.getWidth() / 794;
+  const values = {
+    DATE: dateText(job.signoff_at || job.completed_at), STATE: stateFor(job.postcode), POSTCODE: job.postcode || "",
+    ADDRESS: String(job.address || "").toUpperCase(), SUBURB: String(job.suburb || "").toUpperCase(),
+    ELEC_NAME: job.signoff_name || electrician.name || "", LICENCE: electrician.licence_no || "",
+  };
+  for (const [key, raw] of Object.entries(values)) {
+    const f = a.fields[key], text = clean(raw);
+    if (!f || !text) continue;
+    let size = f.size * S;
+    const max = (MAX_W[key] || f.w) * S;
+    while (size > 7 && font.widthOfTextAtSize(text, size) > max) size -= 0.5;
+    page.drawText(text, { x: f.x * S, y: H - f.baseline * S, size, font, color: WHITE_FIELDS.has(key) ? rgb(1, 1, 1) : rgb(0.039, 0.102, 0.122) });
+  }
+  const sig = whiteSignature(job.signoff_signature);
+  if (sig) {
+    const f = a.fields.SIGNATURE, img = await doc.embedPng(sig);
+    const maxH = Math.min(f.h, 48) * S, maxW = f.w * S;
+    const scale = Math.min(maxH / img.height, maxW / img.width);
+    page.drawImage(img, { x: f.x * S, y: H - (f.y + f.h) * S + 2 * S, width: img.width * scale, height: img.height * scale });
+  }
+  return Buffer.from(await doc.save());
 }
 
 function paidInFull(job) { return job.status === "completed" && (job.pay_status === "paid" || job.pay_status === "none"); }
@@ -132,4 +145,4 @@ async function issueCertificate(jobId, { agent, force } = {}) {
   }
 }
 
-module.exports = { renderCertificateHtml, renderCertificatePdf, issueCertificate, paidInFull, stateFor, dateText };
+module.exports = { renderCertificatePdf, issueCertificate, paidInFull, stateFor, dateText };

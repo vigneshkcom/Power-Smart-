@@ -1174,7 +1174,7 @@
     if (!confirm((j.certificate_sent_at ? "Resend" : "Send") + " the compliance certificate PDF for J" + j.job_no + " to " + (j.email || "the customer") + "?")) return;
     var btn = this; btn.disabled = true; btn.textContent = "Sending…";
     jobsApi({ action:"certificate_send", id: j.id, force: !!j.certificate_sent_at }).then(function(){ closeJob(); toast("Certificate emailed"); return reload(); })
-      .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; });
+      .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; btn.textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate"; });
   });
   $("jm-revert").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
