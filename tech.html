@@ -454,7 +454,10 @@
       return recs.reduce(function(chain, rec){
         return chain.then(function(){
           return call("photo_upload", { id: id, category: rec.category, data: rec.data }).then(function(r){
-            if (rec.unitId){ var u = unitList().find(function(x){ return x.id === rec.unitId; }); if (u){ u.photo = r.path; delete u.photoKey; } }
+            if (!r.path) throw new Error("Photo storage isn't set up. Tell the office");
+            // An alarm's photo is queued before the alarm exists, so match it by its key as well as its unit id.
+            var u = unitList().find(function(x){ return (rec.unitId && x.id === rec.unitId) || (x.photoKey && x.photoKey === rec.key); });
+            if (u){ u.photo = r.path; delete u.photoKey; }
             return dropPhoto(rec.key);
           });
         });
