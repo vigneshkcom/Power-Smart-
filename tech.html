@@ -821,7 +821,10 @@
         var inv = d.invoice || {};
         $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
           ({ paid:"paid in full.", later: money(cur.totals.due) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
-          " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.");
+          " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.") +
+          (d.certificate && d.certificate.status === "sent" ? " Compliance certificate emailed." :
+            d.certificate && d.certificate.status === "failed" ? " Compliance certificate NOT sent (" + d.certificate.reason + "). Tell the office." :
+            d.job.pay_status === "later" ? " The compliance certificate is sent once the invoice is paid." : "");
         clearDraft(cur.job.id); dirty = false;
         show("v-done");
       }).catch(function(err){ t.disabled = false; t.innerHTML = "Complete job &amp; send invoice"; toast(err.message); });

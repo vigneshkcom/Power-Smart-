@@ -122,7 +122,14 @@ async function issueCertificate(jobId, { agent, force } = {}) {
       await note(job, `⚠️ Certificate for J${job.job_no} could not be sent (${e.message}). Use Send certificate on the job to retry.`);
       return { status: "failed", reason: e.message };
     }
-  } catch (e) { console.error("certificate failed:", e.message); return { status: "failed", reason: e.message }; }
+  } catch (e) {
+    console.error("certificate failed:", e.message);
+    // Never fail silently: say why on the customer's card (a missing column means supabase/certificate.sql wasn't run).
+    const setup = /certificate_sent_at|licence_no|pay_receipt/.test(String(e.message));
+    const reason = setup ? "Setup needed: run supabase/certificate.sql in Supabase" : e.message;
+    if (job) await note(job, `⚠️ Certificate for J${job.job_no} could not be sent (${reason}). Fix that, then use Send certificate on the job.`);
+    return { status: "failed", reason };
+  }
 }
 
 module.exports = { renderCertificateHtml, renderCertificatePdf, issueCertificate, paidInFull, stateFor, dateText };
