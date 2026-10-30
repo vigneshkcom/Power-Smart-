@@ -98,67 +98,93 @@ PowerSmart Pty Ltd | ABN ${Q.ABN}`;
   return { html, text };
 }
 
-// Sends the confirmation for the lead's next booked visit. Throws errors with .status for the API layer.
-async function sendBookingConfirmation({ leadId, sendAs, agent }) {
+// Sends the confirmation for a booked visit (a specific job, or the lead's next one).
+// `email` / `sms` choose the channels (both by default). Throws errors with .status for the API layer.
+async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = true, sms = true }) {
   const fail = (status, message) => Object.assign(new Error(message), { status });
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
-  const id = encodeURIComponent(leadId);
-  const lead = (await SB.sb(`leads?id=eq.${id}&select=id,name,phone,email,address_line1,address_suburb,address_state,address_postcode,quote_ref,quote_total&limit=1`))?.[0];
-  if (!lead) throw fail(404, "Lead not found");
-  if (!lead.email) throw fail(400, "Add an email address before sending a booking confirmation");
-  const jobs = await SB.sb(`jobs?lead_id=eq.${id}&status=in.(scheduled,en_route,on_site)&scheduled_start=not.is.null&select=job_no,scheduled_start,address,suburb,postcode&order=scheduled_start.asc&limit=20`);
-  const cutoff = Date.now() - 12 * 3600 * 1000;
-  const job = (jobs || []).find((j) => Date.parse(j.scheduled_start) >= cutoff) || (jobs || [])[jobs.length - 1];
-  if (!job) throw fail(400, "No scheduled job found for this customer. Schedule the job first.");
+  if (!email && !sms) throw fail(400, "Choose email, SMS or both");
+  if (email && !process.env.RESEND_API_KEY) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
+  const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode";
+  let job;
+  if (jobId) {
+    job = (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&status=in.(scheduled,en_route,on_site)&select=${jobCols}&limit=1`))?.[0];
+  } else if (leadId) {
+    const jobs = await SB.sb(`jobs?lead_id=eq.${encodeURIComponent(leadId)}&status=in.(scheduled,en_route,on_site)&scheduled_start=not.is.null&select=${jobCols}&order=scheduled_start.asc&limit=20`) || [];
+    const cutoff = Date.now() - 12 * 3600 * 1000;
+    job = jobs.find((j) => Date.parse(j.scheduled_start) >= cutoff) || jobs[jobs.length - 1];
+  }
+  if (!job || !job.scheduled_start) throw fail(400, "No scheduled job found for this customer. Schedule the job first.");
   const slot = bookingSlot(job.scheduled_start);
   if (!slot) throw fail(400, "The scheduled job has an invalid date");
+  leadId = leadId || job.lead_id || "";
+  const lead = leadId ? (await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone,email,address_line1,address_suburb,address_state,address_postcode,quote_ref,quote_total&limit=1`))?.[0] : null;
 
-  const address = lead.address_line1 && lead.address_suburb
-    ? [lead.address_line1, [lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")].join(", ")
-    : [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const name = job.customer_name || (lead && lead.name) || "";
+  const toEmail = String(job.email || (lead && lead.email) || "").trim().toLowerCase();
+  const phone = job.phone || (lead && lead.phone) || "";
+  const jobAddress = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const leadAddress = lead && lead.address_line1 && lead.address_suburb
+    ? [lead.address_line1, [lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")].join(", ") : "";
+  const address = jobAddress || leadAddress;
+  const quoteTotal = lead && lead.quote_total != null ? Number(lead.quote_total) : null;
 
   let feePaid = 0, quoteUrl = "";
-  try {
-    const pay = await SB.sb(`payment_requests?lead_id=eq.${id}&payment_type=eq.booking_fee&status=eq.paid&select=amount_paid_cents&order=created_at.desc&limit=1`);
-    feePaid = pay?.[0]?.amount_paid_cents ? pay[0].amount_paid_cents / 100 : 0;
-  } catch (_) { /* payment tracking is optional */ }
-  try {
-    const ref = lead.quote_ref ? `&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}` : "";
-    const q = await SB.sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${id}${ref}&select=id&order=created_at.desc&limit=1`);
-    if (q?.[0]) quoteUrl = `${Q.SITE}/quote?token=${q[0].id}`;
-  } catch (_) { /* link is optional */ }
-
-  const sender = S.resolveSender(sendAs);
-  const { html, text } = renderBookingEmail({
-    name: lead.name, jobNo: job.job_no, quoteRef: lead.quote_ref,
-    quoteTotal: lead.quote_total != null ? Number(lead.quote_total) : null, feePaid, address, slot, quoteUrl,
-  });
-  const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
-  const { Resend } = require("resend");
-  const { data, error } = await new Resend(apiKey).emails.send({
-    from: S.fromHeader(sender.key), to: lead.email,
-    replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL, bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL,
-    subject, html, text,
-  });
-  if (error) throw fail(502, error.message || "Email provider rejected the request");
-  await logEmail({ id: randomUUID(), kind: "email", sender: sender.key, agent, to_email: lead.email, to_name: lead.name, subject, body_html: html, body_text: text, lead_id: lead.id, provider_id: data && data.id });
-  try {
-    await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: agent || "System", kind: "email", body: `Booking confirmation emailed to ${lead.email}: ${slot.date}, ${slot.slot} slot.` }, prefer: "return=minimal" });
-  } catch (e) { console.error("booking confirmation note failed:", e.message); }
-  // The email has gone, so an SMS problem is reported but never fails the request.
-  let sms = { status: "skipped", error: "No mobile number saved." };
-  if (lead.phone) {
+  if (leadId) {
+    const id = encodeURIComponent(leadId);
     try {
-      const first = String(lead.name || "there").trim().split(/\s+/)[0] || "there";
-      const balance = lead.quote_total != null ? Math.max(0, Number(lead.quote_total) - feePaid) : null;
-      const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call 0401 991 420 or reply to this SMS.`;
-      sms = await Sms.sendLeadSms({ lead, message, key: `booking-${lead.id}-${job.scheduled_start}`, author: agent });
-    } catch (e) {
-      sms = { status: "failed", error: e.message };
+      const pay = await SB.sb(`payment_requests?lead_id=eq.${id}&payment_type=eq.booking_fee&status=eq.paid&select=amount_paid_cents&order=created_at.desc&limit=1`);
+      feePaid = pay?.[0]?.amount_paid_cents ? pay[0].amount_paid_cents / 100 : 0;
+    } catch (_) { /* payment tracking is optional */ }
+    try {
+      const ref = lead && lead.quote_ref ? `&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}` : "";
+      const q = await SB.sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${id}${ref}&select=id&order=created_at.desc&limit=1`);
+      if (q?.[0]) quoteUrl = `${Q.SITE}/quote?token=${q[0].id}`;
+    } catch (_) { /* link is optional */ }
+  }
+
+  const result = { ok: true, date: slot.date, slot: slot.slot, email: { status: "skipped" }, sms: { status: "skipped" } };
+  const sender = S.resolveSender(sendAs);
+
+  if (email) {
+    if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
+    else {
+      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, address, slot, quoteUrl });
+      const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
+      try {
+        const { Resend } = require("resend");
+        const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
+          from: S.fromHeader(sender.key), to: toEmail,
+          replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL, bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL,
+          subject, html, text,
+        });
+        if (error) throw new Error(error.message || "Email provider rejected the request");
+        result.email = { status: "sent", to: toEmail };
+        await logEmail({ id: randomUUID(), kind: "email", sender: sender.key, agent, to_email: toEmail, to_name: name, subject, body_html: html, body_text: text, lead_id: leadId || null, provider_id: data && data.id });
+      } catch (e) { result.email = { status: "failed", error: e.message }; }
     }
   }
-  return { ok: true, to: lead.email, date: slot.date, slot: slot.slot, sms };
+
+  if (sms) {
+    if (!phone) result.sms = { status: "skipped", error: "No mobile number saved." };
+    else {
+      try {
+        const first = String(name || "there").trim().split(/\s+/)[0] || "there";
+        const balance = quoteTotal != null ? Math.max(0, quoteTotal - feePaid) : null;
+        const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call 0401 991 420 or reply to this SMS.`;
+        result.sms = await Sms.sendLeadSms({ lead: { id: leadId || undefined, phone }, message, key: `booking-${job.id}-${job.scheduled_start}`, author: agent });
+      } catch (e) { result.sms = { status: "failed", error: e.message }; }
+    }
+  }
+
+  const sent = [result.email.status === "sent" && "email", result.sms.status === "submitted" && "SMS"].filter(Boolean);
+  if (!sent.length) throw fail(400, [result.email.error && "Email: " + result.email.error, result.sms.error && "SMS: " + result.sms.error].filter(Boolean).join(" ") || "Nothing was sent");
+  if (leadId) {
+    try {
+      await SB.sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: agent || "System", kind: "email", body: `Booking confirmation sent by ${sent.join(" and ")}: ${slot.date}, ${slot.slot} slot.` }, prefer: "return=minimal" });
+    } catch (e) { console.error("booking confirmation note failed:", e.message); }
+  }
+  result.to = result.email.to || "";
+  return result;
 }
 
 module.exports = { bookingSlot, renderBookingEmail, sendBookingConfirmation };

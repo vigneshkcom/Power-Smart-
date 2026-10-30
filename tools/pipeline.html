@@ -1289,7 +1289,7 @@
     if (!confirm("Email" + (lead.phone ? " and text" : "") + " a booking confirmation to " + lead.email + (lead.phone ? " / " + lead.phone : "") + " for " + when.split(" · ")[0] + "?")) return;
     var button = this, original = button.textContent; button.disabled = true; button.textContent = "Sending…";
     api("POST", { action:"booking_confirmation", lead_id:leadId, send_as:AGENT_TO_SENDER[currentAgent()] || "customer_service", agent:currentAgent() })
-      .then(function(d){ toast("Booking confirmation emailed to " + d.to + " (" + d.slot + " slot). " + (d.sms && d.sms.status === "submitted" ? "SMS submitted." : "SMS not sent: " + (d.sms && d.sms.error || "unknown issue"))); return load(); })
+      .then(function(d){ toast("Booking confirmation: " + (d.email && d.email.status === "sent" ? "email sent to " + d.email.to : "email not sent" + (d.email && d.email.error ? " (" + d.email.error + ")" : "")) + ". " + (d.sms && d.sms.status === "submitted" ? "SMS submitted." : "SMS not sent" + (d.sms && d.sms.error ? " (" + d.sms.error + ")" : "") + ".")); return load(); })
       .then(function(){ if (currentId === leadId) openLead(leadId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
