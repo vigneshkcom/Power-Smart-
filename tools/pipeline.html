@@ -100,6 +100,15 @@
   .lead-workflow .btn:hover{background:var(--teal-soft)}
   .lead-delete{grid-row:2;justify-self:start;color:var(--red);font-size:.76rem;font-weight:700;padding:.55rem .15rem}
   .lead-save{grid-column:2;grid-row:2;display:flex;gap:.55rem;justify-content:flex-end}.lead-save .btn{border-radius:10px;min-height:42px}
+  gmp-place-autocomplete{display:block;width:100%;color-scheme:light;--gmp-mat-font-family:inherit;--gmp-mat-color-surface:#fff;--gmp-mat-color-outline-decorative:var(--line);--gmp-mat-color-primary:var(--teal)}
+  #lm-addr-find{gap:.4rem}
+  .addr-card{gap:.5rem}
+  .addr-line{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .75rem;border:1.5px dashed var(--line);border-radius:9px;background:var(--paper);font-size:.86rem}
+  .addr-summary{min-width:0;overflow-wrap:anywhere}
+  .addr-summary.empty{color:var(--muted)}
+  .addr-edit{flex:none;border:0;background:none;color:var(--teal-deep);font-weight:700;font-size:.78rem;cursor:pointer;padding:.2rem .1rem}
+  .addr-edit:hover{text-decoration:underline}
+  .addr-manual{margin-top:.1rem}
   .section-label{grid-column:1/-1;margin-top:.25rem;padding-top:.75rem;border-top:1px solid var(--line);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--teal-deep)}
   .sms-thread{height:min(46vh,420px);overflow-y:auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:1rem;display:flex;flex-direction:column;gap:.45rem}
   .sms-bubble{max-width:78%;padding:.58rem .8rem;border-radius:13px;font-size:.82rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
@@ -296,10 +305,16 @@
           <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
           <div class="field"><label>Agent</label><input id="lm-agent" readonly></div>
           <div class="section-label">Installation address</div>
-          <div class="field full"><label>Street address</label><input id="lm-address-line1" data-address-autofill data-address-suburb="lm-address-suburb" data-address-state="lm-address-state" data-address-postcode="lm-address-postcode" data-address-extra-postcode="lm-postcode" placeholder="Unit and street number"></div>
-          <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
-          <div class="field"><label>State</label><input id="lm-address-state" maxlength="20"></div>
-          <div class="field"><label>Address postcode</label><input id="lm-address-postcode" maxlength="12"></div>
+          <div class="field full" id="lm-addr-find"></div>
+          <div class="field full addr-card">
+            <div class="addr-line"><span id="lm-addr-summary" class="addr-summary"></span><button type="button" class="addr-edit" id="lm-addr-edit" aria-expanded="false" aria-controls="lm-addr-manual">Edit address</button></div>
+            <div class="fgrid addr-manual" id="lm-addr-manual" hidden>
+              <div class="field full"><label>Unit and street</label><input id="lm-address-line1" data-address-autofill data-address-compact data-address-anchor="lm-addr-find" data-address-suburb="lm-address-suburb" data-address-state="lm-address-state" data-address-postcode="lm-address-postcode" data-address-extra-postcode="lm-postcode" placeholder="e.g. 4/112 High Street"></div>
+              <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
+              <div class="field"><label>State</label><input id="lm-address-state" maxlength="20"></div>
+              <div class="field"><label>Postcode</label><input id="lm-address-postcode" maxlength="12"></div>
+            </div>
+          </div>
         </div>
         <div class="fgrid" id="lm-quote-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
@@ -503,6 +518,15 @@
   var selectedAgent = "";
 
   var $ = function(id){ return document.getElementById(id); };
+
+  function renderAddrSummary(){
+    var street=$("lm-address-line1").value.trim(), sub=$("lm-address-suburb").value.trim(), st=$("lm-address-state").value.trim(), pc=$("lm-address-postcode").value.trim();
+    var line=[street, [sub,st,pc].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    var el=$("lm-addr-summary"); el.textContent=line||"No address yet"; el.classList.toggle("empty",!line);
+  }
+  ["lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).addEventListener("input",renderAddrSummary); });
+  $("lm-addr-edit").addEventListener("click",function(){ var m=$("lm-addr-manual"); m.hidden=!m.hidden; this.setAttribute("aria-expanded",String(!m.hidden)); this.textContent=m.hidden?"Edit address":"Done"; });
+  function resetAddrEditor(){ $("lm-addr-manual").hidden=true; $("lm-addr-edit").textContent="Edit address"; $("lm-addr-edit").setAttribute("aria-expanded","false"); renderAddrSummary(); }
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
   var fmt$ = function(n){ return "$" + Number(n).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2}); };
 
@@ -694,6 +718,7 @@
     $("lm-address-suburb").value = l.address_suburb || "";
     $("lm-address-state").value = l.address_state || "";
     $("lm-address-postcode").value = l.address_postcode || l.postcode || "";
+    resetAddrEditor();
     $("lm-source").value = l.source || "";
     $("lm-agent").value = currentAgent();
     stageSel.value = l.stage;
@@ -793,6 +818,7 @@
     $("lm-reminders").hidden=true;
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
+    resetAddrEditor();
     $("lm-source").value = "Phone";
     $("lm-agent").value = currentAgent();
     stageSel.value = "new_lead";
