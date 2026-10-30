@@ -70,6 +70,7 @@
   .chip.src{background:var(--teal-soft);border-color:transparent;color:var(--teal-deep)}
   .chip.quote{background:#FDF3DC;border-color:transparent;color:#8a6a14}
   .cardk .foot{display:flex;align-items:center;gap:.55rem;border-top:1px solid var(--line);padding-top:.45rem}
+  .chip.sched{background:#e8f0fb;color:#2a5f9e;border-color:#cfe0f5}
   .icb{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.7rem;font-weight:600;padding:.15rem .3rem;border-radius:6px;text-decoration:none}
   .icb:hover{background:var(--teal-soft);color:var(--teal-deep)}
   .cardk .age{margin-left:auto;font-size:.66rem;color:var(--muted)}
@@ -535,6 +536,13 @@
 
   var $ = function(id){ return document.getElementById(id); };
 
+  function fmtVisit(iso){
+    var d = new Date(iso); if (isNaN(d)) return "";
+    var o = { timeZone:"Australia/Brisbane" };
+    var day = d.toLocaleDateString("en-AU", Object.assign({ weekday:"short", day:"numeric", month:"short" }, o));
+    var time = d.toLocaleTimeString("en-AU", Object.assign({ hour:"numeric", minute:"2-digit", hour12:true }, o)).replace(/\s/g, "").toLowerCase();
+    return day + " · " + time;
+  }
   function addressForMaps(l){
     if (!l || !l.address_line1 || !l.address_suburb) return "";
     return [l.address_line1, [l.address_suburb, l.address_state, l.address_postcode].filter(Boolean).join(" ")].join(", ") + ", Australia";
@@ -670,6 +678,7 @@
         if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
         if (l.payment) chips += '<span class="chip ' + (l.payment.status === "paid" ? "src" : "quote") + '">' + (l.payment.status === "paid" ? "Paid " : "Booking fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
         else if (l.payment_preference === "phone") chips += '<span class="chip quote">Payment call requested</span>';
+        if (l.scheduled_start) chips += '<span class="chip sched" title="Scheduled visit">&#128197; ' + esc(fmtVisit(l.scheduled_start)) + '</span>';
         var foot = "";
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
         if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';

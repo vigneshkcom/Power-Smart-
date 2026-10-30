@@ -50,7 +50,19 @@ module.exports = async (req, res) => {
         const cmts = await sb("lead_comments?select=lead_id&limit=10000");
         (cmts || []).forEach((c) => { counts[c.lead_id] = (counts[c.lead_id] || 0) + 1; });
       } catch (_) { /* counts are cosmetic — don't fail the board over them */ }
-      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null }));
+      // Next booked visit per lead, shown on the card once a job is scheduled.
+      const nextJob = {};
+      try {
+        const jobs = await sb("jobs?status=in.(scheduled,en_route,on_site)&scheduled_start=not.is.null&lead_id=not.is.null&select=lead_id,scheduled_start&order=scheduled_start.asc&limit=5000");
+        const now = Date.now() - 12 * 3600 * 1000;
+        (jobs || []).forEach((j) => {
+          const t = Date.parse(j.scheduled_start);
+          const cur = nextJob[j.lead_id];
+          // Prefer the soonest upcoming visit; otherwise the most recent past one.
+          if (!cur || (t >= now && (Date.parse(cur) < now || t < Date.parse(cur))) || (t < now && Date.parse(cur) < now && t > Date.parse(cur))) nextJob[j.lead_id] = j.scheduled_start;
+        });
+      } catch (_) { /* schedule info is cosmetic — don't fail the board over it */ }
+      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null, scheduled_start: nextJob[l.id] || null }));
       return res.status(200).json({ leads: out, stages: STAGES });
     }
 
