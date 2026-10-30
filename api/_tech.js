@@ -166,12 +166,25 @@ async function refreshPayment(job) {
   return job;
 }
 
+// Booking fee already paid by the customer: shown on the invoice screen, never deducted (the quote adds it separately).
+async function bookingFeePaid(leadId) {
+  if (!leadId) return 0;
+  try {
+    const rows = await sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&payment_type=eq.booking_fee&status=eq.paid&select=amount_paid_cents,amount_cents&order=created_at.desc&limit=1`);
+    return Number(rows?.[0]?.amount_paid_cents || rows?.[0]?.amount_cents || 0);
+  } catch (_) { return 0; }
+}
+
 async function jobDetail(job) {
   job = withTypedItems(job);
-  const [quote, credits] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id)]);
-  const items = job.invoice_items || priceItems(defaultItems(job, quote), job.alarm_type);
+  const [quote, credits, bookingFee] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id), bookingFeePaid(job.lead_id)]);
+  // The invoice starts empty and only holds what the electrician records. Alarm lines follow the alarms
+  // added one by one, so counts left over from the old counter are not shown on an unfinished job.
+  const hasUnits = Array.isArray(job.alarm_units) && job.alarm_units.length > 0;
+  let items = job.invoice_items || [];
+  if (job.status !== "completed" && !hasUnits) items = items.filter((i) => !ALARM_CODES.includes(i.code));
   return {
-    job, quote, credits, items, totals: totals(items, credits),
+    job, quote, credits, items, booking_fee_cents: bookingFee, totals: totals(items, credits),
     alarm_codes: ALARM_CODES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
   };
 }
@@ -321,7 +334,7 @@ async function handler(req, res) {
       const done = await patchJob(current.id, f);
       const paid = f.pay_status !== "later";
       const lead = current.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
-      const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, paid, method: f.pay_method, agent: tech.name });
+      const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, bookingFee: await bookingFeePaid(current.lead_id), paid, method: f.pay_method, agent: tech.name });
       if (invoice.status === "sent") await patchJob(current.id, { invoice_emailed_at: new Date().toISOString() }).catch(() => {});
       const invoiceText = invoice.status === "sent" ? `${paid ? "Tax invoice" : "Pending invoice"} emailed to ${invoice.to}.` : `Invoice email not sent (${invoice.error}).`;
       if (current.lead_id) {

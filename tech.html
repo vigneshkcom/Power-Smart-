@@ -39,6 +39,9 @@
   .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
   .row{display:flex;gap:10px}.row>*{flex:1}
 
+  .sync{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:14px;padding:10px 12px;margin-bottom:12px;font-weight:700;font-size:.85rem}
+  .sync.warn{background:#FFF4E0;color:#8A5A0B;flex-wrap:wrap}.sync.warn .btn{width:auto;min-height:44px;margin-left:auto}.sync.ok{background:#E3F5EC;color:#1E6B49}
+  .booked{font-size:.88rem;font-weight:600;color:var(--teal-deep);background:var(--teal-soft);border-radius:10px;padding:8px 12px;margin-bottom:6px}
   .q{font-weight:700;font-size:.9rem;margin:12px 0 6px}
   .unit .uthumb{width:52px;height:52px;border-radius:10px;border:1px solid var(--line);background:var(--paper);display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;color:var(--muted)}
   .unit .uthumb img{width:100%;height:100%;object-fit:cover}
@@ -269,7 +272,16 @@
     $("d-today").disabled = +day === +startOfDay(new Date());
     $("jobs").innerHTML = '<div class="loading">Loading…</div>';
     if (!$("cal").hidden) renderCal();
+    var lk = "pslist_" + (+day);
     call("jobs", { from: day.toISOString(), to: addDays(day, 1).toISOString() }).then(function(d){
+      try { localStorage.setItem(lk, JSON.stringify(d)); } catch(e){}
+      return d;
+    }, function(err){
+      var c = null; try { c = JSON.parse(localStorage.getItem(lk) || "null"); } catch(e){}
+      if (!c) throw err;
+      toast("No signal: showing the last saved list");
+      return c;
+    }).then(function(d){
       if (d.tech) me.name = d.tech.name;
       var jobs = d.jobs || [];
       $("jobs").innerHTML = jobs.length ? jobs.map(function(j){
@@ -346,11 +358,25 @@
     show("v-job");
     $("j-body").innerHTML = '<div class="loading">Loading…</div>';
     $("j-title").textContent = "Job"; $("j-chip").textContent = "";
-    draft = null; pay = { full: null, method: "" }; soName = ""; soOk = false; sigData = null;
-    call("job", { id: id }).then(function(d){ cur = d; delete photoCache[id]; renderJob(); loadPhotos(); if (after) after(); })
-      .catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+    draft = null; pay = { full: null, method: "" }; soName = ""; soOk = false; sigData = null; dirty = false; localRecs = [];
+    var offline = false;
+    call("job", { id: id }).then(function(d){ try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){} return d; }, function(err){
+      var cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE_PREFIX + id) || "null"); } catch(e){}
+      if (!cached) throw err;
+      offline = true; return cached;
+    }).then(function(d){
+      cur = d; delete photoCache[id];
+      return loadLocalRecs(id).then(function(){
+        var restored = restoreDraft();
+        renderJob();
+        if (offline) toast("No signal: showing the last saved copy of this job");
+        else if (restored) toast("Restored your unsynchronized changes");
+        if (!offline) loadPhotos();
+        if (after) after();
+      });
+    }).catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
-  $("j-back").addEventListener("click", function(){ flushSave().then(loadList); });
+  $("j-back").addEventListener("click", function(){ if (dirty) toast("Your changes are stored on this phone. Synchronize when you have signal."); loadList(); });
 
   function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
   function isAlarm(code){ return cur.alarm_codes.indexOf(code) >= 0; }
@@ -358,6 +384,89 @@
   function stepper(code, q, locked){
     return locked ? '<b>× ' + q + '</b>' : '<div class="step" data-code="' + esc(code) + '"><button data-d="-1" aria-label="Less">−</button><span>' + q + '</span><button data-d="1" aria-label="More">+</button></div>';
   }
+
+  /* ---------- local-first storage: nothing is sent until the electrician taps Synchronize ---------- */
+  var DRAFT_PREFIX = "psdraft_", CACHE_PREFIX = "pscache_", dirty = false, syncing = false, localRecs = [];
+  function draftKey(){ return DRAFT_PREFIX + cur.job.id; }
+  function persistDraft(){
+    if (!cur) return;
+    try {
+      localStorage.setItem(draftKey(), JSON.stringify({ dirty: dirty, units: unitList(), items: wireItems(), notes: cur.job.tech_notes || "", approved_at: cur.job.approved_at || null,
+        pay: pay, soName: soName, soOk: soOk, sigData: sigData, at: Date.now() }));
+    } catch(e){ toast("This phone is out of storage space. Synchronize now."); }
+  }
+  function markDirty(){ dirty = true; persistDraft(); renderSyncBar(); }
+  function restoreDraft(){
+    var d = null; try { d = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch(e){}
+    if (!d || cur.job.status === "completed") return false;
+    pay = d.pay || pay; soName = d.soName || ""; soOk = !!d.soOk; sigData = d.sigData || null;
+    if (!d.dirty) return false;
+    cur.job.alarm_units = d.units || []; cur.job.tech_notes = d.notes || ""; cur.job.approved_at = d.approved_at || null;
+    applyItems((d.items || []).map(function(i){ return i; }));
+    dirty = true; return true;
+  }
+  function clearDraft(id){ try { localStorage.removeItem(DRAFT_PREFIX + id); localStorage.removeItem(CACHE_PREFIX + id); } catch(e){} }
+
+  // Photos wait in IndexedDB on the phone (too big for localStorage) until they are synchronized.
+  var idbP = null;
+  function idb(){
+    if (!idbP) idbP = new Promise(function(resolve, reject){
+      if (!window.indexedDB){ reject(new Error("This phone can't store photos offline")); return; }
+      var r = indexedDB.open("pstech", 1);
+      r.onupgradeneeded = function(){ r.result.createObjectStore("photos", { keyPath: "key" }); };
+      r.onsuccess = function(){ resolve(r.result); }; r.onerror = function(){ reject(r.error); };
+    });
+    return idbP;
+  }
+  function idbTx(mode, fn){ return idb().then(function(db){ return new Promise(function(resolve, reject){ var tx = db.transaction("photos", mode), out = fn(tx.objectStore("photos")); tx.oncomplete = function(){ resolve(out && out.result); }; tx.onerror = function(){ reject(tx.error); }; }); }); }
+  function idbPut(rec){ return idbTx("readwrite", function(st){ return st.put(rec); }); }
+  function idbDel(key){ return idbTx("readwrite", function(st){ return st.delete(key); }); }
+  function idbForJob(id){ return idbTx("readonly", function(st){ return st.getAll(); }).then(function(all){ return (all || []).filter(function(r){ return r.jobId === id; }); }); }
+  function loadLocalRecs(id){ return idbForJob(id).then(function(r){ localRecs = r; }, function(){ localRecs = []; }); }
+  function localThumb(key){ var r = localRecs.find(function(x){ return x.key === key; }); return r ? "data:image/jpeg;base64," + r.data : ""; }
+  function queuePhoto(category, data, unitId){
+    var rec = { key: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), jobId: cur.job.id, category: category, unitId: unitId || null, data: data };
+    return idbPut(rec).then(function(){ localRecs.push(rec); return rec; });
+  }
+  function dropPhoto(key){ localRecs = localRecs.filter(function(r){ return r.key !== key; }); return idbDel(key).catch(function(){}); }
+
+  function syncBarHtml(){
+    if (syncing) return '<div class="sync warn"><span>⏳ Synchronizing…</span></div>';
+    if (dirty) return '<div class="sync warn"><span>● Not synchronized. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronize</button></div>';
+    return '<div class="sync ok"><span>✓ Synchronized</span></div>';
+  }
+  function renderSyncBar(){
+    var el = $("sync-bar"); if (el) el.innerHTML = syncBarHtml();
+    var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : "";
+    updateComplete();
+  }
+  // Uploads queued photos, then saves the whole job in one go. On any failure everything stays on the phone.
+  function syncJob(){
+    if (syncing) return Promise.reject(new Error("Already synchronizing"));
+    syncing = true; renderSyncBar();
+    var id = cur.job.id;
+    return idbForJob(id).then(function(recs){
+      return recs.reduce(function(chain, rec){
+        return chain.then(function(){
+          return call("photo_upload", { id: id, category: rec.category, data: rec.data }).then(function(r){
+            if (rec.unitId){ var u = unitList().find(function(x){ return x.id === rec.unitId; }); if (u){ u.photo = r.path; delete u.photoKey; } }
+            return dropPhoto(rec.key);
+          });
+        });
+      }, Promise.resolve());
+    }).then(function(){
+      return call("save", { id: id, items: wireItems(), alarm_units: unitList(), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at });
+    }).then(function(d){
+      cur = d; dirty = false; persistDraft();
+      try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){}
+      syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronized ✓");
+    }).catch(function(err){
+      syncing = false; persistDraft(); renderSyncBar();
+      toast("Couldn't synchronize: " + err.message + ". Your work is safe on this phone. Try again with signal.");
+      throw err;
+    });
+  }
+  function ensureSynced(){ return dirty ? syncJob() : Promise.resolve(); }
 
   /* ---------- smoke alarms, payment and sign-off state ---------- */
   var draft = null, pay = { full: null, method: "" }, soName = "", soOk = false, sigData = null, completeState = {};
@@ -374,7 +483,7 @@
     return '<div class="draft"><div class="field"><label for="d-loc">Where is this alarm?</label><select id="d-loc">' +
       LOCATIONS.map(function(l){ return '<option' + (d.location === l ? " selected" : "") + '>' + l + '</option>'; }).join("") + '</select></div>' +
       (d.location === "Other" ? '<div class="field"><input type="text" id="d-other" maxlength="40" placeholder="e.g. Rumpus room" value="' + esc(d.other) + '"></div>' : "") +
-      '<div class="seg" data-seg="dtype"><button data-v="battery" class="' + (d.type === "battery" ? "on" : "") + '">🔋 Battery</button><button data-v="hardwired" class="' + (d.type === "hardwired" ? "on" : "") + '">⚡ Hardwired</button></div>' +
+      '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>🔋 Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>⚡ Hardwired</option></select></div>' +
       '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
         '<label class="btn btn-ghost" style="min-height:46px;margin:0">📷 ' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div>' +
       '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
@@ -386,7 +495,6 @@
     if (bat) items.push({ code: "alarm_battery", qty: bat, label: "", unit_cents: 0, amount_cents: 0 });
     if (hw) items.push({ code: "alarm_hardwired", qty: hw, label: "", unit_cents: 0, amount_cents: 0 });
     cur.job.alarm_units = units;
-    pending = Object.assign(pending || {}, { units: true });
     setItems(items);
   }
   function initSignature(){
@@ -397,13 +505,13 @@
     function pt(e){ var r = c.getBoundingClientRect(); return { x: (e.clientX - r.left) * c.width / r.width, y: (e.clientY - r.top) * c.height / r.height }; }
     c.addEventListener("pointerdown", function(e){ drawing = true; c.setPointerCapture(e.pointerId); var p = pt(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + .1, p.y + .1); ctx.stroke(); });
     c.addEventListener("pointermove", function(e){ if (!drawing) return; var p = pt(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
-    function end(){ if (!drawing) return; drawing = false; sigData = c.toDataURL("image/png"); updateComplete(); }
+    function end(){ if (!drawing) return; drawing = false; sigData = c.toDataURL("image/png"); persistDraft(); updateComplete(); }
     c.addEventListener("pointerup", end); c.addEventListener("pointercancel", end);
   }
   function updateComplete(){
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = dirty || syncing ? "Tap Synchronize first. The job can't be completed until it is synchronized." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? "Answer the payment questions above." : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing;
@@ -413,10 +521,16 @@
   var photoCat = "before", photoCache = {};  // photoCache survives cur being replaced after saves
   function photoGrid(){
     var p = photoCache[cur.job.id];
-    if (!p) return '<div class="muted">Loading photos…</div>';
-    if (p.configured === false) return '<div class="muted">Photo storage is not set up yet. Tell the office.</div>';
-    if (!p.photos || !p.photos.length) return '<div class="muted">No photos yet.</div>';
-    var out = "", last = "";
+    var queued = localRecs.filter(function(r){ return !r.unitId && !(draft && draft.photoKey === r.key); });
+    var out = "";
+    if (queued.length){
+      out += '<div class="ph-cap">Waiting to synchronize (' + queued.length + ')</div>';
+      queued.forEach(function(r){ out += '<button type="button" disabled><img src="data:image/jpeg;base64,' + r.data + '" alt="Waiting photo"></button>'; });
+    }
+    if (!p) return out || '<div class="muted">' + (dirty ? "No photos yet." : "Loading photos…") + '</div>';
+    if (p.configured === false) return out + '<div class="muted">Photo storage is not set up yet. Tell the office.</div>';
+    if (!p.photos || !p.photos.length) return out || '<div class="muted">No photos yet.</div>';
+    var last = "";
     p.photos.slice().sort(function(a, b){ return a.category.localeCompare(b.category); }).forEach(function(ph){
       if (ph.category !== last){ out += '<div class="ph-cap">' + esc(ph.category) + '</div>'; last = ph.category; }
       out += '<button type="button" data-photo="' + esc(ph.path) + '">' + (ph.thumb ? '<img src="' + esc(ph.thumb) + '" alt="Job photo">' : esc(ph.name)) + '</button>';
@@ -451,17 +565,17 @@
     });
   }
   function uploadPhotos(files){
-    var id = cur.job.id, cat = $("ph-cat").value, list = Array.prototype.slice.call(files), done = 0, failed = 0;
-    var status = $("ph-status");
+    var cat = $("ph-cat").value, list = Array.prototype.slice.call(files), saved = 0, status = $("ph-status");
     function next(){
       if (!list.length){
-        status.textContent = failed ? (done + " uploaded, " + failed + " failed. Try the failed ones again.") : (done + " photo" + (done === 1 ? "" : "s") + " uploaded");
-        return loadPhotos();
+        status.textContent = saved + " photo" + (saved === 1 ? "" : "s") + " stored on this phone. Tap Synchronize to upload.";
+        if (saved) markDirty();
+        if ($("ph-grid")) $("ph-grid").innerHTML = photoGrid();
+        return Promise.resolve();
       }
-      status.textContent = "Uploading " + (done + failed + 1) + " of " + (done + failed + list.length) + "…";
-      return shrink(list.shift()).then(function(data){ return call("photo_upload", { id: id, category: cat, data: data }); })
-        .then(function(){ done++; }, function(e){ failed++; toast(e.message); })
-        .then(next);
+      status.textContent = "Saving photo " + (saved + 1) + "…";
+      return shrink(list.shift()).then(function(data){ return queuePhoto(cat, data, null); })
+        .then(function(){ saved++; }, function(e){ toast(e.message); }).then(next);
     }
     return next();
   }
@@ -502,6 +616,8 @@
       $("j-body").innerHTML = html; return;
     }
 
+    html += '<div id="sync-bar">' + syncBarHtml() + '</div>';
+
     // status
     if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">🚐 On my way</button>';
     else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">📍 Arrived on site</button>';
@@ -510,28 +626,32 @@
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
     var units = unitList();
     var nBat = units.filter(function(u){ return u.type === "battery"; }).length, nHw = units.length - nBat;
-    var legacy = !units.length && cur.alarm_codes.reduce(function(n, c){ return n + itemQty(c); }, 0);
-    var booked = cur.quote && cur.quote.alarm_qty ? "Quote " + esc(cur.quote.ref) + ": " + cur.quote.alarm_qty + " alarms" : j.alarms ? "Booked: " + j.alarms + " alarms" : "";
-    html += '<div class="card"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Smoke alarms<span class="side">' + booked + '</span></h2>';
+    var bookedParts = [];
+    if (cur.quote && cur.quote.alarm_qty) bookedParts.push(cur.quote.alarm_qty + " smoke alarm" + (cur.quote.alarm_qty === 1 ? "" : "s"));
+    if (cur.quote && cur.quote.controller_qty) bookedParts.push(cur.quote.controller_qty + " remote controller" + (cur.quote.controller_qty === 1 ? "" : "s"));
+    else if (!bookedParts.length && j.alarms) bookedParts.push(j.alarms + " smoke alarms");
+    html += '<div class="card"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Smoke alarms</h2>' +
+      (bookedParts.length ? '<div class="booked">Booked: ' + esc(bookedParts.join(", ")) + '</div>' : '');
     units.forEach(function(u, i){
-      var th = thumbFor(u.photo);
+      var th = u.photoKey ? localThumb(u.photoKey) : thumbFor(u.photo);
       html += '<div class="item unit"><div class="uthumb">' + (th ? '<img src="' + esc(th) + '" alt="Alarm photo">' : (u.photo ? "📷" : "–")) + '</div>' +
-        '<div class="lab">Smoke Alarm ' + (i + 1) + '<small>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + '</small></div>' +
-        (paid ? '' : '<button class="del" data-unit-del="' + i + '">Remove</button>') + '</div>';
+        '<div class="lab">Smoke Alarm ' + (i + 1) + '<small>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + (u.photoKey ? " · photo waiting to sync" : "") + '</small></div>' +
+        (paid ? '' : '<button class="del" data-unit-del="' + i + '">🗑 Delete</button>') + '</div>';
     });
-    if (legacy) html += '<div class="warn-banner">This job already has ' + legacy + ' alarm' + (legacy === 1 ? "" : "s") + ' on the invoice from the old counter. Adding alarms here replaces that count.</div>';
     if (!paid) html += draft ? draftForm() : '<button class="btn btn-ghost" id="u-add" style="margin-top:10px">＋ Add smoke alarm</button>';
     html += '<div class="tot"><div><span>Total installed</span><b id="n-alarms">' + units.length + '</b></div>' +
       (units.length ? '<div class="muted"><span>' + nBat + ' battery · ' + nHw + ' hardwired</span></div>' : '') + '</div>' +
       '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes (optional)</label>' +
       '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
 
-    // 2. invoice
+    // 2. invoice: starts empty, shows only what has been recorded
+    var extras = cur.catalogue.filter(function(p){ return !isAlarm(p.code); });
     html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
+      (cur.booking_fee_cents ? '<div class="item"><div class="lab">✓ Booking fee received<small>Paid earlier, not included below</small></div><b>' + money(cur.booking_fee_cents) + '</b></div>' : '') +
       cur.items.filter(function(i){ return isAlarm(i.code); }).map(function(it){
         return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b></div>';
       }).join("") +
-      cur.catalogue.filter(function(p){ return !isAlarm(p.code); }).map(function(p){
+      extras.filter(function(p){ return itemQty(p.code) > 0; }).map(function(p){
         return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, itemQty(p.code), paid) + '</div>';
       }).join("") +
       cur.items.map(function(it, i){
@@ -539,12 +659,15 @@
         return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b>' +
           (paid ? '' : '<button class="del" data-del="' + i + '">Remove</button>') + '</div>';
       }).join("") +
-      (paid ? '' : '<details style="margin-top:8px"><summary class="link" style="cursor:pointer">+ Add another item</summary>' +
+      (paid ? '' : '<details style="margin-top:8px"><summary class="link" style="cursor:pointer">+ Add item</summary>' +
+        extras.filter(function(p){ return itemQty(p.code) === 0; }).map(function(p){
+          return '<div class="item"><div class="lab">' + esc(p.label) + '<small>' + money(p.cents) + ' each</small></div>' + stepper(p.code, 0, false) + '</div>';
+        }).join("") +
         '<div class="other"><input id="o-label" placeholder="e.g. Extra callout"><input id="o-price" inputmode="decimal" placeholder="$ each"></div>' +
         '<button class="btn btn-ghost" id="o-add" style="margin-top:8px;min-height:44px">Add item</button></details>') +
-      '<div class="tot"><div><span>Total</span><span>' + money(cur.totals.total) + '</span></div>' +
+      (cur.items.length ? '<div class="tot"><div><span>Total</span><span>' + money(cur.totals.total) + '</span></div>' +
       cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>−' + money(cr.cents) + '</span></div>'; }).join("") +
-      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div></div>';
+      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '<p class="muted" style="margin-top:8px">Alarms and items appear here as you add them.</p>') + '</div>';
 
     // 3. payment details
     var cardPaid = paid && (!j.pay_method || j.pay_method === "card");
@@ -587,6 +710,7 @@
       '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
       '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm the work is complete.</label>' +
       '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>✓ Complete job &amp; send ' + (due <= 0 || paid || pay.full === true ? "invoice" : "pending invoice") + '</button>' +
+      '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
       '<p class="muted" id="so-hint" style="margin-top:8px"></p></div>';
     completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
 
@@ -614,15 +738,12 @@
       setItems(cur.items.concat([{ code:"other", label: label, price: price, qty: 1 }])); return;
     }
     if (t.id === "approve"){
-      t.disabled = true;
-      flushSave().then(function(){ return call("save", { id: cur.job.id, items: wireItems(), approve: true }); })
-        .then(function(d){ cur = d; renderJob(); toast("Customer approved the invoice"); })
-        .catch(function(err){ t.disabled = false; toast(err.message); });
+      cur.job.approved_at = new Date().toISOString(); markDirty(); keepScroll(renderJob); toast("Customer approved the invoice");
       return;
     }
     if (t.id === "pay"){
-      t.disabled = true; t.textContent = "Opening secure payment…";
-      flushSave().then(function(){ return call("pay", { id: cur.job.id }); }).then(function(d){
+      t.disabled = true; t.textContent = dirty ? "Synchronizing…" : "Opening secure payment…";
+      ensureSynced().then(function(){ return call("pay", { id: cur.job.id }); }).then(function(d){
         if (d.paid){ openJob(cur.job.id); return; }
         window.location.href = d.url;
       }).catch(function(err){ toast(err.message); renderJob(); });
@@ -636,55 +757,62 @@
         .catch(function(err){ t.disabled = false; toast(err.message); });
       return;
     }
-    if (t.id === "u-add"){ draft = { location: "Hallway", other: "", type: "battery", photo: "", thumb: "", busy: false }; keepScroll(renderJob); return; }
-    if (t.id === "d-cancel"){ draft = null; keepScroll(renderJob); return; }
+    if (t.id === "u-add"){ draft = { location: "Hallway", other: "", type: "", photoKey: "", thumb: "", busy: false }; keepScroll(renderJob); return; }
+    if (t.id === "d-cancel"){ if (draft && draft.photoKey) dropPhoto(draft.photoKey); draft = null; keepScroll(renderJob); return; }
     if (t.id === "d-save"){
-      if (storageOn() && !draft.photo){ toast("Take a photo of the alarm first"); return; }
+      if (!draft.type){ toast("Choose battery or hardwired"); return; }
+      if (storageOn() && !draft.photoKey){ toast("Take a photo of the alarm first"); return; }
       var loc = draft.location === "Other" ? (draft.other.trim() || "Other") : draft.location;
-      var next = unitList().concat([{ id: "u" + Date.now().toString(36), location: loc, type: draft.type, photo: draft.photo }]);
-      draft = null; syncAlarmItems(next); setTimeout(loadPhotos, 600); return;
+      var unitId = "u" + Date.now().toString(36), key = draft.photoKey;
+      var next = unitList().concat([{ id: unitId, location: loc, type: draft.type, photo: "", photoKey: key }]);
+      draft = null;
+      var rec = key && localRecs.find(function(r){ return r.key === key; });
+      if (rec){ rec.unitId = unitId; idbPut(rec).catch(function(){}); }
+      syncAlarmItems(next); return;
     }
     var ud = t.closest("[data-unit-del]");
-    if (ud){ if (!confirm("Remove this smoke alarm?")) return; var list = unitList().slice(); list.splice(Number(ud.dataset.unitDel), 1); syncAlarmItems(list); return; }
+    if (ud){ if (!confirm("Delete this smoke alarm?")) return; var list = unitList().slice(), gone = list.splice(Number(ud.dataset.unitDel), 1)[0]; if (gone && gone.photoKey) dropPhoto(gone.photoKey); syncAlarmItems(list); return; }
     var sg = t.closest("[data-seg] button");
     if (sg){
       var kind = sg.parentNode.dataset.seg, v = sg.dataset.v;
-      if (kind === "dtype") draft.type = v;
-      else if (kind === "full"){ pay.full = v === "yes"; if (!pay.full) pay.method = ""; }
+      if (kind === "full"){ pay.full = v === "yes"; if (!pay.full) pay.method = ""; }
       else if (kind === "method") pay.method = v;
-      keepScroll(renderJob); return;
+      persistDraft(); keepScroll(renderJob); return;
     }
-    if (t.id === "so-clear"){ sigData = null; keepScroll(renderJob); return; }
+    if (t.id === "so-clear"){ sigData = null; persistDraft(); keepScroll(renderJob); return; }
+    if (t.closest("[data-sync]")){ syncJob().catch(function(){}); return; }
     if (t.id === "complete"){
       if (!confirm(pay.full === false ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + "?" : "Complete the job and email the invoice to the customer?")) return;
       t.disabled = true; t.textContent = "Completing…";
-      flushSave().then(function(){ return call("complete", { id: cur.job.id, paid_in_full: pay.full === true, method: pay.method, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
+      Promise.resolve().then(function(){ if (dirty) throw new Error("Synchronize first"); return call("complete", { id: cur.job.id, paid_in_full: pay.full === true, method: pay.method, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
         var inv = d.invoice || {};
         $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
           ({ paid:"paid in full.", later: money(cur.totals.due) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
           " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.");
+        clearDraft(cur.job.id); dirty = false;
         show("v-done");
       }).catch(function(err){ t.disabled = false; t.innerHTML = "✓ Complete job &amp; send invoice"; toast(err.message); });
     }
   });
   $("j-body").addEventListener("input", function(e){
     if (e.target.id === "d-other" && draft) draft.other = e.target.value;
-    if (e.target.id === "so-name"){ soName = e.target.value; updateComplete(); }
+    if (e.target.id === "so-name"){ soName = e.target.value; persistDraft(); updateComplete(); }
     if (e.target.id === "j-notes"){
       cur.job.tech_notes = e.target.value;
-      queueSave({ notes: e.target.value }, true);
+      markDirty();
     }
   });
   $("j-body").addEventListener("change", function(e){
     var id = e.target.id;
     if (id === "j-notes") keepScroll(renderJob);
     if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
-    if (id === "so-ok"){ soOk = e.target.checked; updateComplete(); }
+    if (id === "d-type"){ draft.type = e.target.value; }
+    if (id === "so-ok"){ soOk = e.target.checked; persistDraft(); updateComplete(); }
     if (id === "d-file" && e.target.files.length){
       var file = e.target.files[0]; draft.busy = true; keepScroll(renderJob);
-      var jobId = cur.job.id;
+      var old = draft.photoKey;
       shrink(file).then(function(data){
-        return call("photo_upload", { id: jobId, category: "alarms", data: data }).then(function(r){ if (draft){ draft.photo = r.path; draft.thumb = "data:image/jpeg;base64," + data; } });
+        return queuePhoto("alarms", data, null).then(function(rec){ if (old) dropPhoto(old); if (draft){ draft.photoKey = rec.key; draft.thumb = "data:image/jpeg;base64," + data; } });
       }).catch(function(err){ toast(err.message); }).then(function(){ if (draft){ draft.busy = false; keepScroll(renderJob); } });
     }
   });
@@ -693,47 +821,27 @@
   function wireItems(){
     return cur.items.map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
   }
-  // Items changed on the phone: re-price on the server (approval resets if the invoice changed).
-  function setItems(items){
-    // price locally for an instant update; the server re-prices on save
+  // Prices items locally for an instant update; the server re-prices when the job is synchronized.
+  function applyItems(items){
     var rank = function(i){ var n = cur.catalogue.map(function(c){ return c.code; }).indexOf(i.code); return n < 0 ? 99 : n; };
     items = items.slice().sort(function(a, b){ return rank(a) - rank(b); });
     cur.items = items.map(function(i){
       var p = cur.catalogue.find(function(c){ return c.code === i.code; });
-      var unit = p ? p.cents : Math.round(Number(i.price || i.unit_cents / 100) * 100);
-      return Object.assign({}, i, { label: p ? p.label : i.label, unit_cents: unit, amount_cents: unit * i.qty });
+      var isA = cur.alarm_codes.indexOf(i.code) >= 0;
+      var unit = isA ? ALARM_CENTS : p ? p.cents : Math.round(Number(i.price || i.unit_cents / 100) * 100);
+      var label = p ? p.label : (isA ? (i.label || ALARM_LABEL[i.code]) : i.label);
+      return Object.assign({}, i, { label: label, unit_cents: unit, amount_cents: unit * i.qty });
     });
     var total = cur.items.reduce(function(s, i){ return s + i.amount_cents; }, 0);
     var credit = Math.min(total, cur.credits.reduce(function(s, c){ return s + c.cents; }, 0));
     cur.totals = { total: total, credit: credit, due: total - credit };
+  }
+  var ALARM_CENTS = 7900, ALARM_LABEL = { alarm_battery: "Photoelectric smoke alarm (10-year battery) – supplied & installed", alarm_hardwired: "Photoelectric smoke alarm (240V hardwired) – supplied & installed" };
+  function setItems(items){
+    applyItems(items);
     cur.job.approved_at = null;
+    markDirty();
     keepScroll(renderJob);
-    pending = Object.assign(pending || {}, { items: true });
-    clearTimeout(saveTimer);
-    flushSave();
-  }
-
-  var pending = null, saving = Promise.resolve();
-  function queueSave(patch, quiet){
-    pending = Object.assign(pending || {}, patch);
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(flushSave, quiet ? 900 : 400);
-  }
-  function flushSave(){
-    clearTimeout(saveTimer);
-    if (!pending || !cur) return saving;
-    var body = { id: cur.job.id };
-    if (pending.notes !== undefined) body.notes = cur.job.tech_notes || "";
-    if (pending.items) body.items = wireItems();
-    if (pending.units) body.alarm_units = unitList();
-    pending = null;
-    saving = saving.then(function(){ return call("save", body); }).then(function(d){
-      var notes = cur.job.tech_notes, focused = document.activeElement && document.activeElement.id === "j-notes";
-      cur = d;
-      if (focused) cur.job.tech_notes = notes;      // don't clobber what they're still typing
-      else keepScroll(renderJob);
-    }).catch(function(err){ toast("Not saved: " + err.message); });
-    return saving;
   }
 
   function checkPayment(){

@@ -9,11 +9,12 @@ const { randomUUID } = require("crypto");
 const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const METHOD = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
 
-function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, date }) {
+function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, date, bookingFee }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const rows = (items || []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
   const creditRows = (credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
   const gst = Math.round(total / 11);
+  const feeRow = bookingFee > 0 ? `<tr><td colspan="3" style="padding:6px 12px;font-size:12px;color:#32925d;">Booking fee of ${fmt(bookingFee)} received earlier (not included in the total above)</td></tr>` : "";
   const title = paid ? "TAX INVOICE (PAID)" : "INVOICE";
   const lead = paid
     ? `Thanks for choosing PowerSmart. Your smoke alarm installation is complete and your invoice is below${method ? ` (paid by ${METHOD[method] || method})` : ""}.`
@@ -35,6 +36,7 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
   <tr><td colspan="2" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">Total (incl. GST)</td><td align="right" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">${fmt(total)}</td></tr>
   <tr><td colspan="2" style="padding:0 12px;font-size:12px;color:#8AA0A5;">Includes GST of ${fmt(gst)}</td><td></td></tr>
   ${creditRows}
+  ${feeRow}
   <tr><td colspan="2" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:8px 0 0 8px;">Balance owing</td><td align="right" style="padding:10px 12px;font-weight:bold;color:${paid ? "#32925d" : "#B3261E"};background:#F4F9FA;border-radius:0 8px 8px 0;">${paid ? "$0.00 (paid in full)" : fmt(due)}</td></tr>
 </table></td></tr>
 <tr><td style="background:#ffffff;padding:18px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">${footerNote}</p></td></tr>
@@ -50,7 +52,7 @@ ${lead.replace(/<[^>]+>/g, "")}
 ${(items || []).map((i) => `- ${i.label} x ${i.qty}: ${fmt(i.amount_cents)}`).join("\n")}
 
 Total (incl. GST): ${fmt(total)} (GST ${fmt(gst)})
-${(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${credits && credits.length ? "\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
+${(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${credits && credits.length ? "\n" : ""}${bookingFee > 0 ? "Booking fee of " + fmt(bookingFee) + " received earlier (not included in the total above)\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
 
 ${footerNote.replace(/<[^>]+>/g, "")}
 
@@ -59,13 +61,13 @@ PowerSmart Pty Ltd | ABN ${Q.ABN}`;
 }
 
 // Emails the invoice. Never throws: returns { status: 'sent' | 'skipped' | 'failed', ... }.
-async function sendJobInvoice({ job, lead, items, totals, credits, paid, method, agent }) {
+async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, paid, method, agent }) {
   const to = String(job.email || (lead && lead.email) || "").trim().toLowerCase();
   if (!to) return { status: "skipped", error: "No customer email saved." };
   if (!process.env.RESEND_API_KEY) return { status: "failed", error: "Email service is not configured." };
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const date = Q.fmtDate(new Date());
-  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, date });
+  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, date, bookingFee });
   const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
   try {
     const { Resend } = require("resend");

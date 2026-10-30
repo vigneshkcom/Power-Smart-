@@ -109,26 +109,27 @@ test("an electrician only sees and edits their own jobs", async () => {
   assert.equal((await t.call({ action: 'save', id: 'j2', items: [] })).code, 404);
 });
 
-test('invoice starts with the quoted controllers; battery and hardwired alarms are separate lines', async () => {
+test('invoice starts empty; battery and hardwired alarms are separate lines', async () => {
   const t = setup();
   const d = (await t.call({ action: 'job', id: 'j1' })).data;
-  assert.equal(JSON.stringify(d.items.map((i) => [i.code, i.qty])), JSON.stringify([['controller', 1]]), 'alarm counts are entered on site');
+  assert.equal(d.items.length, 0, 'nothing is pre-populated: the electrician records what was done');
+  assert.equal(d.booking_fee_cents, 3500, 'the booking fee already received is shown');
   assert.equal(d.quote.alarm_qty, 5);
   assert.equal(d.alarm_codes.join(), 'alarm_battery,alarm_hardwired');
 
-  const saved = (await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2, price: '1.00' }, { code: 'alarm_hardwired', qty: 3 }, { code: 'other', label: 'Extra callout', price: '95', qty: 1 }] })).data;
+  const saved = (await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 2, price: '1.00' }, { code: 'alarm_hardwired', qty: 3 }, { code: 'other', label: 'Extra callout', price: '95', qty: 1 }], alarm_units: [{ location: 'Hallway', type: 'battery' },{ location: 'Hallway', type: 'battery' },{ location: 'Bedroom', type: 'hardwired' },{ location: 'Bedroom', type: 'hardwired' },{ location: 'Bedroom', type: 'hardwired' }] })).data;
   assert.equal(saved.totals.total, 5 * 7900 + 9500, 'client price for catalogue items is ignored');
   assert.equal(t.job('j1').alarms_installed, 5);
   assert.equal(t.job('j1').alarm_type, null, 'mixed job');
   assert.equal(t.job('j1').invoice_items[1].label, 'Photoelectric smoke alarm (240V hardwired) – supplied & installed');
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 2 }] });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ location: 'Bedroom', type: 'hardwired' },{ location: 'Bedroom', type: 'hardwired' }] });
   assert.equal(t.job('j1').alarm_type, 'hardwired');
   assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ code: 'free_money', qty: 1 }] })).code, 400);
 });
 
 test('an older single "alarm" line is read as battery or hardwired', async () => {
   const t = setup();
-  Object.assign(t.job('j1'), { alarm_type: 'hardwired', invoice_items: [{ code: 'alarm', label: 'old', qty: 4, unit_cents: 7900, amount_cents: 31600 }] });
+  Object.assign(t.job('j1'), { status: 'completed', alarm_type: 'hardwired', invoice_items: [{ code: 'alarm', label: 'old', qty: 4, unit_cents: 7900, amount_cents: 31600 }] });
   const d = (await t.call({ action: 'job', id: 'j1' })).data;
   assert.equal(JSON.stringify(d.items.map((i) => [i.code, i.qty])), JSON.stringify([['alarm_hardwired', 4]]));
 });
@@ -136,9 +137,9 @@ test('an older single "alarm" line is read as battery or hardwired', async () =>
 test('payment needs customer approval, then opens Stripe for the amount due', async () => {
   const t = setup();
   t.db.tables.payment_requests.push({ lead_id: 'lead1', status: 'paid', payment_type: 'inspection', description: 'Inspection', amount_cents: 12000, amount_paid_cents: 12000 });
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }] });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ location: 'Hallway', type: 'battery' },{ location: 'Hallway', type: 'battery' },{ location: 'Hallway', type: 'battery' },{ location: 'Bedroom', type: 'hardwired' },{ location: 'Bedroom', type: 'hardwired' }] });
   assert.equal((await t.call({ action: 'pay', id: 'j1' })).code, 409, 'approval first');
-  const approved = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }], approve: true });
+  const approved = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 3 }, { code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ location: 'Hallway', type: 'battery' },{ location: 'Hallway', type: 'battery' },{ location: 'Hallway', type: 'battery' },{ location: 'Bedroom', type: 'hardwired' },{ location: 'Bedroom', type: 'hardwired' }], approve: true });
   assert(approved.data.job.approved_at);
   assert.equal(approved.data.totals.due, 39500 - 12000, 'prepaid inspection fee is deducted');
 
@@ -224,7 +225,7 @@ test('an inspection-only job has no alarms', async () => {
   const t = setup();
   Object.assign(t.job('j1'), { work_type: 'inspection', lead_id: null, email: null });
   const d = (await t.call({ action: 'job', id: 'j1' })).data;
-  assert.equal(d.items[0].code, 'inspection');
+  assert.equal(d.items.length, 0, 'the invoice is not pre-populated');
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'inspection', qty: 1 }], approve: true });
   assert(t.job('j1').approved_at);
   assert.equal(t.job('j1').alarms_installed, 0);

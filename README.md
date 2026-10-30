@@ -170,7 +170,8 @@ Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
 
 Run `supabase/tech-job-flow.sql` once (after `tech-app.sql`). In `/tech` a job is now four steps:
 
-1. **Smoke alarms**: tap *Add smoke alarm* for each one (location, battery/hardwired, photo). The invoice alarm lines follow these records.
+0. **Works offline**: nothing is sent while the electrician works. Alarms, photos, notes, approval, payment answers and signature are stored on the phone (localStorage + IndexedDB for photos) and survive closing the app. The **Synchronize** button uploads the queued photos and saves the job in one go; *Complete job* stays disabled until the job is synchronized. Opening a job or the day list with no signal shows the last saved copy.
+1. **Smoke alarms**: tap *Add smoke alarm* for each one (location, battery/hardwired chosen from a blank dropdown, photo). The invoice starts empty and its alarm lines follow these records; the quote's booked counts show only as a guide. *Delete* removes an alarm.
 2. **Invoice** and customer approval.
 3. **Payment details**: *Has the customer paid in full?* Yes: card (Stripe), bank transfer or cash. No: a pending invoice is emailed.
 4. **Work sign off**: electrician name and signature, then *Complete job*. The customer is emailed a paid tax invoice, or an invoice showing the amount owing (`api/_job-invoice.js`). Compliance certificates are not generated yet; the pending-invoice email says one is sent once paid.
