@@ -8,6 +8,7 @@
   var css = '.psp-job{margin:0 0 14px}.psp-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.78rem;font-weight:800;color:#2f6f7b;margin-bottom:6px}' +
     '.psp-head a{font-weight:700;color:#398ea0;text-decoration:none}.psp-cat{font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#6B8288;margin:8px 0 4px}' +
     '.psp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px}.psp-grid button{border:1px solid #d7e4e6;border-radius:8px;padding:0;background:#f4f9fa;cursor:pointer;overflow:hidden;aspect-ratio:1}' +
+    '.psp-item{display:flex;flex-direction:column;gap:3px;min-width:0}.psp-item button{width:100%}.psp-cap{font-size:.68rem;line-height:1.25;font-weight:700;color:#41585D}' +
     '.psp-grid img{width:100%;height:100%;object-fit:cover;display:block}.psp-note{font-size:.8rem;color:#6B8288}';
   function mount(el, load, link) {
     if (!doc().getElementById('psp-css')) { var st = doc().createElement('style'); st.id = 'psp-css'; st.textContent = css; doc().head.appendChild(st); }
@@ -22,7 +23,7 @@
           (j.folder_url ? '<a href="' + esc(j.folder_url) + '" target="_blank" rel="noopener">Open in Dropbox</a>' : '') + '</div>' +
           Object.keys(cats).map(function (c) {
             return '<div class="psp-cat">' + esc(c) + '</div><div class="psp-grid">' + cats[c].map(function (p) {
-              return '<button type="button" data-path="' + esc(p.path) + '" title="' + esc(p.name) + '">' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="' + esc(c) + ' photo">' : esc(p.name)) + '</button>';
+              return '<div class="psp-item"><button type="button" data-path="' + esc(p.path) + '" title="' + esc(p.label || p.name) + '">' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="' + esc(p.label || c + ' photo') + '">' : esc(p.name)) + '</button>' + (p.label ? '<span class="psp-cap">' + esc(p.label) + '</span>' : '') + '</div>';
             }).join('') + '</div>';
           }).join('') + '</div>';
       }).join('');

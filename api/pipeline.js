@@ -202,10 +202,20 @@ module.exports = async (req, res) => {
         }
         const jobId = clean(b.job_id, 40), leadId = clean(b.lead_id, 40);
         if (!jobId && !leadId) return res.status(400).json({ error: "job_id or lead_id is required" });
-        const cols = "id,job_no,customer_name,address,status";
+        const cols = "id,job_no,customer_name,address,status,alarm_units";
         const rows = await sb(jobId ? `jobs?id=eq.${encodeURIComponent(jobId)}&select=${cols}&limit=1` : `jobs?lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=job_no.desc&limit=5`);
         const jobs = [];
-        for (const j of rows || []) jobs.push({ job_no: j.job_no, customer_name: j.customer_name, ...(await Dropbox.photosForJob(j)) });
+        for (const j of rows || []) {
+          const shots = await Dropbox.photosForJob(j);
+          // Name each alarm photo after its alarm: "Smoke Alarm 2 · Study · Hardwired".
+          const units = Array.isArray(j.alarm_units) ? j.alarm_units : [];
+          for (const p of shots.photos) {
+            const n = units.findIndex((u) => u && u.photo && String(u.photo).toLowerCase() === String(p.path).toLowerCase());
+            if (n >= 0) { const u = units[n]; p.alarm_no = n + 1; p.label = `Smoke Alarm ${n + 1} · ${u.location || "Other"} · ${u.type ? u.type[0].toUpperCase() + u.type.slice(1) : "Unknown type"}`; }
+          }
+          shots.photos.sort((a, b) => (a.alarm_no || 1e6) - (b.alarm_no || 1e6));
+          jobs.push({ job_no: j.job_no, customer_name: j.customer_name, ...shots });
+        }
         return res.status(200).json({ configured: true, jobs });
       } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not load photos" }); }
     }
