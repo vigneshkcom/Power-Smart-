@@ -479,6 +479,14 @@
             </select>
           </div>
         </div>
+        <div id="q-addr-wrap" class="fgrid" style="display:none;margin-top:.9rem">
+          <div class="section-label">Customer address <span style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--muted)">(none on file, optional)</span></div>
+          <div class="field full" id="q-addr-find"></div>
+          <div class="field full"><label>Unit and street</label><input id="q-address-line1" data-address-autofill data-address-compact data-address-anchor="q-addr-find" data-address-suburb="q-address-suburb" data-address-state="q-address-state" data-address-postcode="q-address-postcode" placeholder="e.g. 4/112 High Street"></div>
+          <div class="field"><label>Suburb</label><input id="q-address-suburb"></div>
+          <div class="field"><label>State</label><input id="q-address-state" maxlength="20"></div>
+          <div class="field"><label>Postcode</label><input id="q-address-postcode" maxlength="12"></div>
+        </div>
         <p class="qnote">Emails the branded PowerSmart quotation and texts a link to the customer's saved mobile number, moves this lead to <strong>Quote Sent</strong> and logs both messages in the comments.</p>
       </div>
       <div class="modal-foot">
@@ -527,6 +535,10 @@
 
   var $ = function(id){ return document.getElementById(id); };
 
+  function addressForMaps(l){
+    if (!l || !l.address_line1 || !l.address_suburb) return "";
+    return [l.address_line1, [l.address_suburb, l.address_state, l.address_postcode].filter(Boolean).join(" ")].join(", ") + ", Australia";
+  }
   function renderAddrSummary(){
     var street=$("lm-address-line1").value.trim(), sub=$("lm-address-suburb").value.trim(), st=$("lm-address-state").value.trim(), pc=$("lm-address-postcode").value.trim();
     var line=[street, [sub,st,pc].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -662,6 +674,8 @@
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
         if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';
         foot += '<span class="icb" title="Comments"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> ' + (l.comment_count || 0) + '</span>';
+        var dest = addressForMaps(l);
+        if (dest) foot += '<a class="icb" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Driving directions to ' + esc(dest) + '" aria-label="Driving directions"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></a>';
         foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
 
         card.innerHTML = '<h3>' + esc(l.name) + '</h3><div class="meta">' + chips + '</div><div class="foot">' + foot + '</div>';
@@ -1231,6 +1245,9 @@
     document.querySelector('input[name="q-ctrl"][value="no"]').checked = true;
     $("q-ctrlqty").value = 1;
     $("q-sendas").value = AGENT_TO_SENDER[currentAgent()] || "customer_service";
+    $("q-addr-wrap").style.display = addressForMaps(l) ? "none" : "";
+    ["q-address-line1","q-address-suburb","q-address-state"].forEach(function(i){ $(i).value = ""; });
+    $("q-address-postcode").value = l.address_postcode || l.postcode || "";
     setQuoteMode("install");
     $("quote-overlay").classList.add("show");
     $("q-bed").focus();
@@ -1284,8 +1301,14 @@
     if (!to){ toast("Enter the customer's email address"); $("q-to").focus(); return; }
     var c = quoteCalc();
     if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first. The quote needs at least 1 alarm."); $("q-bed").focus(); return; }
+    var addr = $("q-addr-wrap").style.display === "none" ? null : {
+      address_line1: $("q-address-line1").value.trim(), address_suburb: $("q-address-suburb").value.trim(),
+      address_state: $("q-address-state").value.trim(), address_postcode: $("q-address-postcode").value.trim()
+    };
+    if (addr && !addr.address_line1 && !addr.address_suburb) addr = null;
+    if (addr && (!addr.address_line1 || !addr.address_suburb)){ toast("Enter both the street and suburb, or clear the address"); return; }
     var btn = this; btn.disabled = true; var orig = btn.textContent; btn.textContent = "Sending…";
-    fetch("/api/send-quote", {
+    (addr ? api("POST", Object.assign({ action:"update", id:quoteLeadId }, addr)) : Promise.resolve()).then(function(){ return fetch("/api/send-quote", {
       method: "POST",
       headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
       body: JSON.stringify({
@@ -1294,7 +1317,7 @@
         alarmQty: quoteMode === "install" ? c.alarms : 0, controllerQty: quoteMode === "install" ? c.ctrl : 0,
         leadId: quoteLeadId
       })
-    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){
+    }); }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){
         if (!r.ok) throw new Error(d.error || ("Error " + r.status));
         return d;
       }); })
