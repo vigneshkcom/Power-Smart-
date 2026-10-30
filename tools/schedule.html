@@ -451,9 +451,16 @@
     scheduled: { label:"Scheduled", bg:"#3E9DAA" },
     en_route:  { label:"En route",  bg:"#4F86E8" },
     on_site:   { label:"On site",   bg:"#8B68D6" },
+    partial:   { label:"Partial",   bg:"#F2B01E" },
     completed: { label:"Completed", bg:"#E39A55" },
     cancelled: { label:"Cancelled", bg:"#A3B0B3" }
   };
+  // A tech sync saves alarms/invoice lines on a job before sign-off: show those open jobs as Partial.
+  function statusKey(j){
+    if (j.status === "completed" || j.status === "cancelled") return j.status;
+    var synced = (Array.isArray(j.alarm_units) && j.alarm_units.length) || (Array.isArray(j.invoice_items) && j.invoice_items.length);
+    return synced ? "partial" : j.status;
+  }
   var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
   var BLOCK_H = 80, GAP = 6, ROW_MIN = 96;
   var MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
@@ -666,7 +673,7 @@
       for (var d2 = 0; d2 < c.days; d2++){
         var dayJobs = mine.filter(function(j){ return dayIndex(new Date(j.scheduled_start)) === d2; });
         html += '<div class="acell' + (t.active ? '' : ' inactive') + '" data-tech="' + esc(t.id) + '" data-day="' + d2 + '">' + dayJobs.map(function(j){
-          var st = STATUS[j.status] || STATUS.scheduled;
+          var st = STATUS[statusKey(j)] || STATUS.scheduled;
           return '<div class="achip' + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" style="background:' + st.bg + '" title="' + esc(st.label + " · " + (addressLine(j) || "No address")) + '">' +
             '<div class="a1">' + esc(timeText(j.scheduled_start)) + ' · J' + esc(j.job_no) + '</div>' +
             '<div class="a2">' + esc(j.customer_name) + '</div>' +
@@ -1051,7 +1058,7 @@
     if (!j) return;
     state.editing = j;
     $("jm-title").textContent = "Job J" + j.job_no + " · " + j.customer_name;
-    setPill(j.status);
+    setPill(statusKey(j));
     fillForm(j);
     if (j.lead_id || j.email) loadJobPayments(j);
     techOptions(j.electrician_id || "");
