@@ -89,6 +89,10 @@ async function prepaid(leadId) {
     return (rows || []).map((p) => ({ label: p.description || p.payment_type, cents: Number(p.amount_paid_cents || p.amount_cents || 0) }));
   } catch (_) { return []; }   // payment tracking not set up yet
 }
+// Money received before the job was reverted to assigned counts against the new invoice.
+function priorCredit(job) {
+  return job && job.prior_paid_cents > 0 ? [{ label: `Paid earlier (${({ cash: "cash", bank_transfer: "bank transfer", card: "card" })[job.prior_pay_method] || "payment"})`, cents: job.prior_paid_cents }] : [];
+}
 function totals(items, credits) {
   const total = (items || []).reduce((s, i) => s + i.amount_cents, 0);
   const credit = Math.min(total, (credits || []).reduce((s, c) => s + c.cents, 0));
@@ -179,7 +183,7 @@ async function bookingFeePaid(leadId) {
 
 async function jobDetail(job) {
   job = withTypedItems(job);
-  const [quote, credits, bookingFee] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id), bookingFeePaid(job.lead_id)]);
+  const [quote, credits, bookingFee] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
   // The invoice starts empty and only holds what the electrician records. Alarm lines follow the alarms
   // added one by one, so counts left over from the old counter are not shown on an unfinished job.
   const hasUnits = Array.isArray(job.alarm_units) && job.alarm_units.length > 0;
@@ -290,7 +294,7 @@ async function handler(req, res) {
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
 
       if (!current.invoice_items || !current.invoice_items.length || !current.approved_at) throw fail(409, "Get the customer to approve the invoice first.");
-      const t = totals(current.invoice_items, await prepaid(current.lead_id));
+      const t = totals(current.invoice_items, [...(await prepaid(current.lead_id)), ...priorCredit(current)]);
       if (t.due <= 0) throw fail(409, "Nothing to pay — this invoice is already covered.");
 
       if (current.pay_session_id) {
@@ -317,7 +321,7 @@ async function handler(req, res) {
       let current = await refreshPayment(job);
       const items = current.invoice_items || [];
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
-      const credits = await prepaid(current.lead_id);
+      const credits = [...(await prepaid(current.lead_id)), ...priorCredit(current)];
       const t = totals(items, credits);
 
       const signoffName = clean(b.signoff_name, 80), signature = String(b.signature || "");

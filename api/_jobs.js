@@ -182,6 +182,16 @@ async function reportData(from, to, techId) {
     for (const f2 of ["battery", "hardwired", "untyped", "alarms", "controllers", "inspections", "paid_card", "paid_cash", "paid_other", "to_collect"]) s[f2] += r[f2];
     s.invoice += r.invoice || 0;
   }
+  // Cash taken before a job was reverted to assigned still belongs to the electrician who took it, whoever finishes the job.
+  try {
+    const earlier = await sb(`jobs?prior_pay_method=eq.cash&prior_receipt=not.is.null&prior_paid_at=gte.${f}&prior_paid_at=lt.${t}${techId ? `&prior_paid_by=eq.${encodeURIComponent(techId)}` : ""}&select=id,prior_paid_cents,prior_paid_by,prior_pay_method,prior_receipt&limit=5000`);
+    for (const j of earlier || []) {
+      if (j.prior_pay_method !== "cash" || !j.prior_receipt || !(j.prior_paid_cents > 0)) continue;
+      const tech = techById[j.prior_paid_by] || {}, k = j.prior_paid_by || "none";
+      const s = by[k] || (by[k] = { electrician: tech.name || "Unassigned", electrician_code: tech.code || "", jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid_card: 0, paid_cash: 0, paid_other: 0, to_collect: 0 });
+      s.paid_cash += j.prior_paid_cents / 100;
+    }
+  } catch (_) { /* reassignment columns not set up yet */ }
   const summary = Object.values(by).sort((a, b) => a.electrician.localeCompare(b.electrician));
   const totals = summary.reduce((acc, s) => { for (const k of Object.keys(acc)) acc[k] += s[k]; return acc; },
     { jobs: 0, battery: 0, hardwired: 0, untyped: 0, alarms: 0, controllers: 0, inspections: 0, invoice: 0, paid_card: 0, paid_cash: 0, paid_other: 0, to_collect: 0 });
@@ -342,7 +352,14 @@ module.exports = async (req, res) => {
         invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
         approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null, certificate_sent_at: null,
       };
-      if (prev.pay_status !== "paid" && prev.pay_status !== "pending") f.pay_status = "unpaid";
+      // Money already received is kept as a credit against the next invoice (and stays on the electrician who took it,
+      // so cash is still deducted from their pay). The job itself goes back to unpaid so it can be redone and edited.
+      f.pay_status = "unpaid"; f.pay_session_id = null; f.paid_cents = null; f.paid_at = null; f.pay_method = null; f.pay_receipt = null;
+      if (prev.pay_status === "paid" && prev.paid_cents > 0) {
+        f.prior_paid_cents = (prev.prior_paid_cents || 0) + prev.paid_cents;
+        f.prior_pay_method = prev.pay_method || "card"; f.prior_paid_by = prev.electrician_id || null;
+        f.prior_paid_at = prev.paid_at || new Date().toISOString(); f.prior_receipt = prev.pay_receipt || prev.prior_receipt || null;
+      }
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
       const job = rows && rows[0];
       if (job && job.lead_id) {
@@ -352,7 +369,7 @@ module.exports = async (req, res) => {
             if (!others || !others.length) await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&stage=eq.won`, { method: "PATCH", body: { stage: "scheduled" }, prefer: "return=minimal" });
           } catch (e) { console.error("jobs → lead stage revert failed:", e.message); }
         }
-        await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} reverted to Assigned — electrician's work cleared; payments and photos kept.`);
+        await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} reverted to Assigned — electrician's work cleared; payments and photos kept${f.prior_paid_cents ? ` ($${(f.prior_paid_cents / 100).toFixed(2)} received stays as credit)` : ""}.`);
       }
       return res.status(200).json({ ok: true, job });
     }

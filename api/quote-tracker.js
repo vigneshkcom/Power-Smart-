@@ -74,7 +74,7 @@ module.exports = async (req, res) => {
 
     const [requests, paidJobs] = await Promise.all([
       sb(`payment_requests?select=${PaymentSummary.requestFields}&order=created_at.desc&limit=10000`),
-      sb(`jobs?pay_status=eq.paid&select=${PaymentSummary.jobFields}&limit=10000`),
+      sb(`jobs?${PaymentSummary.jobFilter}&select=${PaymentSummary.jobFields}&limit=10000`),
     ]);
     const payments = [...requests || [], ...PaymentSummary.jobPayments(paidJobs)];
 

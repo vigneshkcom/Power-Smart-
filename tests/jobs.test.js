@@ -185,6 +185,7 @@ test('report totals what each electrician installed and builds an Excel file', a
     { id: 'b', job_no: 1002, status: 'completed', electrician_id: 't1', completed_at: '2026-10-21T01:00:00Z', customer_name: 'B', pay_status: 'later', amount_due_cents: 15300, invoice_total_cents: 15300,
       invoice_items: [{ code: 'alarm', qty: 1, label: 'old' }, { code: 'controller', qty: 1 }, { code: 'other', qty: 1, label: 'Extra callout' }], alarm_type: 'hardwired' },
     { id: 'c', job_no: 1003, status: 'completed', electrician_id: 't2', completed_at: null, scheduled_start: '2026-10-22T01:00:00Z', customer_name: '=cmd', alarms: 3 },
+    { id: 'g', job_no: 1007, status: 'on_site', electrician_id: 't2', prior_pay_method: 'cash', prior_receipt: '/PowerSmart Jobs/J1007/Receipts/r.jpg', prior_paid_cents: 15800, prior_paid_by: 't1', prior_paid_at: '2026-10-20T01:00:00Z' },
     { id: 'd', job_no: 1004, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T02:00:00Z', customer_name: 'D', pay_status: 'paid', pay_method: 'cash', paid_cents: 20000, pay_receipt: '/PowerSmart Jobs/J1004/Receipts/r.jpg', invoice_total_cents: 20000, invoice_items: [] },
     { id: 'e', job_no: 1005, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T03:00:00Z', customer_name: 'E', pay_status: 'paid', pay_method: 'cash', paid_cents: 5000, invoice_total_cents: 5000, invoice_items: [] },
     { id: 'f', job_no: 1006, status: 'completed', electrician_id: 't2', completed_at: '2026-10-21T04:00:00Z', customer_name: 'F', pay_status: 'paid', pay_method: 'bank_transfer', paid_cents: 7000, invoice_total_cents: 7000, invoice_items: [] },
@@ -208,6 +209,7 @@ test('report totals what each electrician installed and builds an Excel file', a
   assert.equal(liam.paid_cash, 200, 'cash the electrician collected (with receipt) is deducted from pay');
   assert.equal(liam.paid_other, 120, 'office-recorded cash and bank transfers went to the company');
   assert.equal(liam.paid_card, 0);
+  assert.equal(jake.paid_cash, 158, 'cash taken before the job was reassigned stays with the electrician who took it');
   assert.equal(r.body.rows.find((x) => x.job_no === 1004).payment, 'Paid by cash');
   assert.equal(liam.untyped, 3, 'office-completed job without an invoice still counts booked alarms');
   assert.equal(r.body.totals.alarms, 10);

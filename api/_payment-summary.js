@@ -1,15 +1,27 @@
 const SB = require('./_supabase');
 
 const requestFields = 'id,lead_id,quote_ref,payment_type,description,status,amount_cents,amount_paid_cents,paid_at,sent_at,stripe_session_id';
-const jobFields = 'id,job_no,lead_id,quote_ref,pay_status,paid_cents,paid_at,pay_session_id';
+const jobFields = 'id,job_no,lead_id,quote_ref,pay_status,paid_cents,paid_at,pay_session_id,prior_paid_cents,prior_paid_at';
+// Paid jobs, plus reverted jobs that still carry money received before the revert.
+const jobFilter = 'or=(pay_status.eq.paid,prior_paid_cents.gt.0)';
 
 function jobPayments(jobs) {
-  return (jobs || []).filter(j => j.pay_status === 'paid').map(j => ({
-    id: `job:${j.id}`, lead_id: j.lead_id, quote_ref: j.quote_ref,
-    payment_type: 'installation_balance', description: `Job J${j.job_no} payment`,
-    status: 'paid', amount_paid_cents: j.paid_cents, paid_at: j.paid_at,
-    stripe_session_id: j.pay_session_id, source: 'job',
-  }));
+  const out = [];
+  for (const j of jobs || []) {
+    if (j.pay_status === 'paid') out.push({
+      id: `job:${j.id}`, lead_id: j.lead_id, quote_ref: j.quote_ref,
+      payment_type: 'installation_balance', description: `Job J${j.job_no} payment`,
+      status: 'paid', amount_paid_cents: j.paid_cents, paid_at: j.paid_at,
+      stripe_session_id: j.pay_session_id, source: 'job',
+    });
+    if (j.prior_paid_cents > 0) out.push({
+      id: `job-prior:${j.id}`, lead_id: j.lead_id, quote_ref: j.quote_ref,
+      payment_type: 'installation_balance', description: `Job J${j.job_no} payment received before reassignment`,
+      status: 'paid', amount_paid_cents: j.prior_paid_cents, paid_at: j.prior_paid_at,
+      stripe_session_id: null, source: 'job',
+    });
+  }
+  return out;
 }
 
 function summarize(quote, records) {
@@ -40,9 +52,9 @@ async function read(quote) {
   const filter = `lead_id=eq.${encodeURIComponent(quote.lead_id)}&quote_ref=eq.${encodeURIComponent(quote.quote_ref)}`;
   const [requests, jobs] = await Promise.all([
     SB.sb(`payment_requests?${filter}&select=${requestFields}&order=created_at.desc&limit=1000`),
-    SB.sb(`jobs?${filter}&pay_status=eq.paid&select=${jobFields}&limit=1000`),
+    SB.sb(`jobs?${filter}&${jobFilter}&select=${jobFields}&limit=1000`),
   ]);
   return summarize(quote, [...requests || [], ...jobPayments(jobs)]);
 }
 
-module.exports = { requestFields, jobFields, jobPayments, summarize, read };
+module.exports = { requestFields, jobFields, jobFilter, jobPayments, summarize, read };

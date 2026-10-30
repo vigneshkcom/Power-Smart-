@@ -27,7 +27,7 @@ async function refreshPending(rows) {
 async function quotePayments(quote, refresh = false) {
   if (!quote.lead_id || !quote.quote_ref) return [];
   const rows = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(quote.lead_id)}&quote_ref=eq.${encodeURIComponent(quote.quote_ref)}&select=*&order=created_at.desc&limit=200`);
-  const jobs = await SB.sb(`jobs?lead_id=eq.${encodeURIComponent(quote.lead_id)}&quote_ref=eq.${encodeURIComponent(quote.quote_ref)}&pay_status=eq.paid&select=${Summary.jobFields}&limit=1000`);
+  const jobs = await SB.sb(`jobs?lead_id=eq.${encodeURIComponent(quote.lead_id)}&quote_ref=eq.${encodeURIComponent(quote.quote_ref)}&${Summary.jobFilter}&select=${Summary.jobFields}&limit=1000`);
   return [...(refresh ? await refreshPending(rows) : rows || []), ...Summary.jobPayments(jobs)];
 }
 

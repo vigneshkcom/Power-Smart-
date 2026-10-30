@@ -313,3 +313,15 @@ test('a card payment after sign-off releases the paid invoice and certificate; a
   assert.equal(afterPayCalls.length, 1, 'webhook/app hook runs on payment (it skips jobs that are not completed yet)');
   assert.equal(afterPayCalls[0].id, 'j1');
 });
+
+test('a job reverted to assigned can be redone: money already received counts against the new invoice', async () => {
+  const t = setup();
+  Object.assign(t.job('j1'), { pay_status: 'unpaid', prior_paid_cents: 15800, prior_pay_method: 'cash', prior_paid_by: 't1' });
+  const saved = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ id: 'u1', location: 'Hall', type: 'hardwired' }, { id: 'u2', location: 'Study', type: 'hardwired' }], approve: true });
+  assert.equal(saved.code, 200, 'the invoice is editable again');
+  assert.equal(saved.data.totals.total, 15800);
+  assert.equal(saved.data.totals.due, 0, 'the earlier cash covers it');
+  assert.equal(JSON.stringify(saved.data.credits.map((c) => c.label)), JSON.stringify(['Paid earlier (cash)']));
+  const more = await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], alarm_units: [{ id: 'u1', location: 'Hall', type: 'hardwired' }, { id: 'u2', location: 'Study', type: 'hardwired' }, { id: 'u3', location: 'Bedroom', type: 'hardwired' }], approve: true });
+  assert.equal(more.data.totals.due, 7900, 'only the extra alarm is still owing');
+});
