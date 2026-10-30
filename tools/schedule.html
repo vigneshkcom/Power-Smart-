@@ -362,6 +362,7 @@
             </div>
             <small id="jm-confirm-hint" class="hint"></small>
           </div>
+          <div class="field full" id="jm-photos-wrap" style="display:none"><label>Job photos</label><div id="jm-photos"></div></div>
           <div class="field full"><label for="jm-notes">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
         </div>
       </div>
@@ -946,6 +947,7 @@
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none";
+    $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
     $("jm-report").style.display = "none";
     $("job-overlay").classList.add("show");
@@ -1061,6 +1063,10 @@
     $("jm-lead-chip").style.display = j.lead_id ? "" : "none";
     $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
     $("jm-delete").style.display = "";
+    $("jm-photos-wrap").style.display = "";
+    window.PSPhotos.mount($("jm-photos"),
+      function(){ return call("/api/pipeline", "POST", { action:"job_photos", job_id: j.id }); },
+      function(path){ return call("/api/pipeline", "POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
     renderReport(j);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
@@ -1303,6 +1309,7 @@
   }
 })();
 </script>
+<script src="/assets/job-photos.js"></script>
 <script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>

@@ -175,6 +175,25 @@ module.exports = async (req, res) => {
       } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not send booking confirmation" }); }
     }
 
+    // Job photos from Dropbox for the portal (schedule job window, pipeline lead window).
+    if (action === "job_photos" || action === "photo_link") {
+      const Dropbox = require("./_dropbox");
+      if (!Dropbox.configured()) return res.status(200).json({ configured: false, jobs: [] });
+      try {
+        if (action === "photo_link") {
+          const path = clean(b.path, 500);
+          return res.status(200).json({ link: await Dropbox.temporaryLink(Dropbox.assertInside(Dropbox.ROOT, path)) });
+        }
+        const jobId = clean(b.job_id, 40), leadId = clean(b.lead_id, 40);
+        if (!jobId && !leadId) return res.status(400).json({ error: "job_id or lead_id is required" });
+        const cols = "id,job_no,customer_name,address,status";
+        const rows = await sb(jobId ? `jobs?id=eq.${encodeURIComponent(jobId)}&select=${cols}&limit=1` : `jobs?lead_id=eq.${encodeURIComponent(leadId)}&select=${cols}&order=job_no.desc&limit=5`);
+        const jobs = [];
+        for (const j of rows || []) jobs.push({ job_no: j.job_no, customer_name: j.customer_name, ...(await Dropbox.photosForJob(j)) });
+        return res.status(200).json({ configured: true, jobs });
+      } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not load photos" }); }
+    }
+
     if (action === "delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });

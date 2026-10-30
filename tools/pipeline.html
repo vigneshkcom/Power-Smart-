@@ -355,6 +355,7 @@
           <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for the $35 booking fee">Open Stripe checkout</button>
           <button class="btn btn-primary" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
           <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
+          <button class="btn btn-ghost" id="lm-photos" style="display:none" title="View the photos the electrician uploaded for this customer's job">Job photos</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
           <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
@@ -362,6 +363,13 @@
         <button class="lead-delete" id="lm-delete">Delete lead</button>
         <div class="lead-save"><button class="btn btn-ghost" id="lm-cancel">Close</button><button class="btn btn-primary" id="lm-save">Save changes</button></div>
       </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="photos-overlay">
+    <div class="modal" style="width:min(640px,100%)">
+      <div class="modal-head"><h3 id="photos-title">Job photos</h3><button class="x" id="photos-close" aria-label="Close photos">&times;</button></div>
+      <div class="modal-body"><div id="photos-body"></div></div>
     </div>
   </div>
 
@@ -774,6 +782,7 @@
     }
     $("lm-delete").style.display = "";
     $("lm-confirm").style.display = l.stage === "scheduled" ? "" : "none";
+    $("lm-photos").style.display = (l.stage === "scheduled" || l.stage === "won") ? "" : "none";
     $("lm-cmts").style.display = "";
     $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Loading…</p>';
     $("lead-overlay").classList.add("show");
@@ -859,6 +868,7 @@
     $("lm-payment-row").style.display = "none";
     $("lm-delete").style.display = "none";
     $("lm-confirm").style.display = "none";
+    $("lm-photos").style.display = "none";
     $("lm-cmts").style.display = "none";
     $("lead-overlay").classList.add("show");
     $("lm-name").focus();
@@ -1280,6 +1290,17 @@
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });
   });
+  $("lm-photos").addEventListener("click", function(){
+    if (!currentId) return;
+    var leadId = currentId, lead = leads.find(function(x){ return x.id === leadId; });
+    $("photos-title").textContent = "Job photos" + (lead ? " - " + lead.name : "");
+    $("photos-overlay").classList.add("show");
+    window.PSPhotos.mount($("photos-body"),
+      function(){ return api("POST", { action:"job_photos", lead_id: leadId }); },
+      function(path){ return api("POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
+  });
+  $("photos-close").addEventListener("click", function(){ $("photos-overlay").classList.remove("show"); });
+  $("photos-overlay").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("show"); });
   $("lm-confirm").addEventListener("click", function(){
     if (!currentId) return;
     var leadId = currentId, lead = leads.find(function(x){ return x.id === leadId; });
@@ -1484,6 +1505,7 @@
   }
 })();
 </script>
+<script src="/assets/job-photos.js"></script>
 <script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>

@@ -36,6 +36,7 @@ api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accept
 api/lead.js           POST /api/lead         — emails staff a new website lead
 api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
 api/_jobs.js          Job schedule + electricians CRUD, served via /api/pipeline?resource=jobs
+api/_dropbox.js       Dropbox job photo storage (folders, upload, thumbnails, links)
 api/_tech.js          Electrician app API (code sign-in), served via /api/pipeline?resource=tech
 api/sms.js            GET/POST /api/sms — two-way SMS portal API
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
@@ -164,6 +165,24 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   completed again (logged on the lead). A card-paid invoice stays locked.
 
 Setup: run `supabase/tech-app.sql` once, then give each electrician their code.
+
+### Job photos (Dropbox)
+
+Electricians add photos in `/tech` (Before / After / Alarms / Other). They are shrunk on the
+phone (about 1600px, ~0.5 MB) and stored in Dropbox as
+`/PowerSmart Jobs/J1013 - Customer - Address/<Category>/...jpg` (inside the app folder, so the
+real path is `Apps/<app name>/PowerSmart Jobs/...`). A job's folder is found again by its
+`J<number> - ` prefix, so edits to the customer name or address don't split photos.
+
+- **Gallery**: the *Job photos* section in the /tools/schedule job window, and the *Job photos*
+  button on Scheduled/Won leads in the pipeline. Photos are private: the API returns
+  thumbnails and 4-hour links, only to people with the portal key (or an electrician's own job).
+- **Setup**: create a Dropbox app (Scoped access, App folder, permissions `files.metadata.read`,
+  `files.metadata.write`, `files.content.read`, `files.content.write`), run
+  `node scripts/dropbox-refresh-token.js <APP_KEY> <APP_SECRET>`, then add
+  `DROPBOX_APP_KEY`, `DROPBOX_APP_SECRET` and `DROPBOX_REFRESH_TOKEN` in Vercel and redeploy.
+  Without them the photo sections say storage isn't set up and everything else works.
+- **Free plan**: 2 GB (a few thousand shrunk photos). Upgrade to Plus when it fills.
 
 ## Senders, composer & email log
 

@@ -189,6 +189,24 @@ async function handler(req, res) {
       return res.status(200).json(await jobDetail(job));
     }
 
+    // Job photos live in Dropbox (api/_dropbox.js). Allowed on completed jobs too.
+    if (b.action === "photos" || b.action === "photo_upload" || b.action === "photo_link") {
+      const Dropbox = require("./_dropbox");
+      if (!Dropbox.configured()) return res.status(200).json({ configured: false, photos: [] });
+      const own = await ownJob(tech, b.id);
+      if (b.action === "photos") return res.status(200).json({ configured: true, ...(await Dropbox.photosForJob(own)) });
+      if (b.action === "photo_link") {
+        const folder = await Dropbox.findJobFolder(own);
+        return res.status(200).json({ link: await Dropbox.temporaryLink(Dropbox.assertInside(folder, b.path)) });
+      }
+      const data = String(b.data || "").replace(/^data:image\/\w+;base64,/, "");
+      if (!data || data.length > 4000000) throw fail(413, "Photo is too large. Try again.");
+      const bytes = Buffer.from(data, "base64");
+      if (bytes.length < 1000 || bytes[0] !== 0xff || bytes[1] !== 0xd8) throw fail(400, "That doesn't look like a JPEG photo.");
+      const saved = await Dropbox.uploadPhoto(own, clean(b.category, 20).toLowerCase(), bytes);
+      return res.status(200).json({ ok: true, path: saved.path });
+    }
+
     const job = await ownJob(tech, b.id);
 
     // Reopen a completed job to correct it; a card-paid invoice stays locked (see "save").
