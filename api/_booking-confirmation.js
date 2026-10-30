@@ -152,7 +152,7 @@ async function sendBookingConfirmation({ leadId, sendAs, agent }) {
     try {
       const first = String(lead.name || "there").trim().split(/\s+/)[0] || "there";
       const balance = lead.quote_total != null ? Math.max(0, Number(lead.quote_total) - feePaid) : null;
-      const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY}.`;
+      const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call 0401 991 420 or reply to this SMS.`;
       sms = await Sms.sendLeadSms({ lead, message, key: `booking-${lead.id}-${job.scheduled_start}`, author: agent });
     } catch (e) {
       sms = { status: "failed", error: e.message };
