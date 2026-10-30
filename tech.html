@@ -438,6 +438,11 @@
   function renderSyncBar(){
     var el = $("sync-bar"); if (el) el.innerHTML = syncBarHtml();
     var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : "";
+    var lock = $("so-lock"), form = $("so-form");
+    if (lock && form){
+      lock.hidden = !(dirty || syncing); form.hidden = dirty || syncing;
+      var ob = $("so-open"); if (ob){ ob.disabled = syncing; ob.textContent = syncing ? "Synchronizing…" : "Open work sign off"; }
+    }
     updateComplete();
   }
   // Uploads queued photos, then saves the whole job in one go. On any failure everything stays on the phone.
@@ -705,13 +710,16 @@
     // 4. work sign off
     var payReady = due <= 0 || paid || pay.full === false || (pay.full === true && (pay.method === "bank_transfer" || pay.method === "cash"));
     html += '<div class="card"><h2><span class="n">4</span>Work sign off</h2>' +
+      '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronized.</p>' +
+        '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronizing…" : "Open work sign off") + '</button></div>' +
+      '<div id="so-form"' + (dirty || syncing ? " hidden" : "") + '>' +
       '<div class="field"><label for="so-name">Electrician name</label><input id="so-name" value="' + esc(soName || (me && me.name) || "") + '" autocomplete="off"></div>' +
       '<div class="field" style="margin-top:10px"><label>Signature</label><canvas id="so-sig" width="600" height="180"></canvas>' +
       '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
       '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm the work is complete.</label>' +
       '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true ? "invoice" : "pending invoice") + '</button>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
-      '<p class="muted" id="so-hint" style="margin-top:8px"></p></div>';
+      '<p class="muted" id="so-hint" style="margin-top:8px"></p></div></div>';
     completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
 
     $("j-body").innerHTML = html;
@@ -778,6 +786,11 @@
       if (kind === "full"){ pay.full = v === "yes"; if (!pay.full) pay.method = ""; }
       else if (kind === "method") pay.method = v;
       persistDraft(); keepScroll(renderJob); return;
+    }
+    if (t.id === "so-open"){
+      if (!confirm("This job isn't synchronized yet. Synchronize now to open work sign off?")) return;
+      syncJob().catch(function(){});
+      return;
     }
     if (t.id === "so-clear"){ sigData = null; persistDraft(); keepScroll(renderJob); return; }
     if (t.closest("[data-sync]")){ syncJob().catch(function(){}); return; }
