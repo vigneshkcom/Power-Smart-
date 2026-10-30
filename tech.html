@@ -648,8 +648,7 @@
     html += '<div id="sync-bar">' + syncBarHtml() + '</div>';
 
     // status
-    if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">On my way</button>';
-    else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">Arrived on site</button>';
+    if (j.status === "scheduled" || j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">Arrived on site</button>';
 
     // 1. smoke alarms, added one at a time with a photo
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
