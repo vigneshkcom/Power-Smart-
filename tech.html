@@ -612,7 +612,7 @@
         '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>' +
         (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
         (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
-        photosCard() + '<button class="btn btn-ghost" id="reopen">✏️ Edit job</button>';
+        '<button class="btn btn-ghost" id="reopen">✏️ Edit job</button>';
       $("j-body").innerHTML = html; return;
     }
 
@@ -699,8 +699,6 @@
       }
     }
     html += '</div>';
-
-    html += photosCard();
 
     // 4. work sign off
     var payReady = due <= 0 || paid || pay.full === false || (pay.full === true && (pay.method === "bank_transfer" || pay.method === "cash"));
