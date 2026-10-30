@@ -165,7 +165,7 @@
       <button id="d-next" aria-label="Next day">›</button>
     </div>
     <div class="row" style="margin-bottom:12px">
-      <button class="btn btn-ghost" id="cal-btn" aria-expanded="false">📅 Calendar</button>
+      <button class="btn btn-ghost" id="cal-btn" aria-expanded="false">Calendar</button>
       <button class="btn btn-ghost" id="d-today">Today</button>
     </div>
     <div class="card cal" id="cal" hidden>
@@ -337,7 +337,7 @@
   }
   function toggleCal(open){
     $("cal").hidden = !open; $("cal-btn").setAttribute("aria-expanded", String(open));
-    $("cal-btn").textContent = open ? "Hide calendar" : "📅 Calendar";
+    $("cal-btn").textContent = open ? "Hide calendar" : "Calendar";
     if (open){ calMonth = null; renderCal(); }
   }
   $("cal-btn").addEventListener("click", function(){ toggleCal($("cal").hidden); });
@@ -432,8 +432,8 @@
 
   function syncBarHtml(){
     if (syncing) return '<div class="sync warn"><span>⏳ Synchronizing…</span></div>';
-    if (dirty) return '<div class="sync warn"><span>● Not synchronized. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronize</button></div>';
-    return '<div class="sync ok"><span>✓ Synchronized</span></div>';
+    if (dirty) return '<div class="sync warn"><span>Not synchronized. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronize</button></div>';
+    return '<div class="sync ok"><span>Synchronized</span></div>';
   }
   function renderSyncBar(){
     var el = $("sync-bar"); if (el) el.innerHTML = syncBarHtml();
@@ -459,7 +459,7 @@
     }).then(function(d){
       cur = d; dirty = false; persistDraft();
       try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){}
-      syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronized ✓");
+      syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronized");
     }).catch(function(err){
       syncing = false; persistDraft(); renderSyncBar();
       toast("Couldn't synchronize: " + err.message + ". Your work is safe on this phone. Try again with signal.");
@@ -483,9 +483,9 @@
     return '<div class="draft"><div class="field"><label for="d-loc">Where is this alarm?</label><select id="d-loc">' +
       LOCATIONS.map(function(l){ return '<option' + (d.location === l ? " selected" : "") + '>' + l + '</option>'; }).join("") + '</select></div>' +
       (d.location === "Other" ? '<div class="field"><input type="text" id="d-other" maxlength="40" placeholder="e.g. Rumpus room" value="' + esc(d.other) + '"></div>' : "") +
-      '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>🔋 Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>⚡ Hardwired</option></select></div>' +
+      '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>Hardwired</option></select></div>' +
       '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
-        '<label class="btn btn-ghost" style="min-height:46px;margin:0">📷 ' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div>' +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div>' +
       '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
   }
   // Alarm invoice lines always follow the alarms recorded one by one.
@@ -541,7 +541,7 @@
     var opts = [["before", "Before"], ["after", "After"], ["alarms", "Alarms"], ["other", "Other"]].map(function(o){
       return '<option value="' + o[0] + '"' + (o[0] === photoCat ? " selected" : "") + '>' + o[1] + '</option>';
     }).join("");
-    return '<div class="card" id="ph-card"><h2>📷 Photos</h2>' +
+    return '<div class="card" id="ph-card"><h2>Photos</h2>' +
       '<div class="ph-row"><select id="ph-cat" aria-label="Photo type">' + opts + '</select>' +
       '<label class="btn btn-primary">Add photo<input id="ph-file" type="file" accept="image/*" multiple hidden></label></div>' +
       '<div class="muted" id="ph-status"></div><div class="ph-grid" id="ph-grid">' + photoGrid() + '</div></div>';
@@ -608,19 +608,19 @@
       '</div>' + (j.notes ? '<div class="notes"><b>Office notes</b>\n' + esc(j.notes) + '</div>' : '') + '</div>';
 
     if (done){
-      html += '<div class="card"><div class="ok-banner">✓ Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
+      html += '<div class="card"><div class="ok-banner">Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
         '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>' +
         (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
         (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
-        '<button class="btn btn-ghost" id="reopen">✏️ Edit job</button>';
+        '<button class="btn btn-ghost" id="reopen">Edit job</button>';
       $("j-body").innerHTML = html; return;
     }
 
     html += '<div id="sync-bar">' + syncBarHtml() + '</div>';
 
     // status
-    if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">🚐 On my way</button>';
-    else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">📍 Arrived on site</button>';
+    if (j.status === "scheduled") html += '<button class="btn btn-primary" data-status="en_route" style="margin-bottom:12px">On my way</button>';
+    else if (j.status === "en_route") html += '<button class="btn btn-primary" data-status="on_site" style="margin-bottom:12px">Arrived on site</button>';
 
     // 1. smoke alarms, added one at a time with a photo
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
@@ -634,9 +634,9 @@
       (bookedParts.length ? '<div class="booked">Booked: ' + esc(bookedParts.join(", ")) + '</div>' : '');
     units.forEach(function(u, i){
       var th = u.photoKey ? localThumb(u.photoKey) : thumbFor(u.photo);
-      html += '<div class="item unit"><div class="uthumb">' + (th ? '<img src="' + esc(th) + '" alt="Alarm photo">' : (u.photo ? "📷" : "–")) + '</div>' +
+      html += '<div class="item unit"><div class="uthumb">' + (th ? '<img src="' + esc(th) + '" alt="Alarm photo">' : (u.photo ? "Photo" : "–")) + '</div>' +
         '<div class="lab">Smoke Alarm ' + (i + 1) + '<small>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + (u.photoKey ? " · photo waiting to sync" : "") + '</small></div>' +
-        (paid ? '' : '<button class="del" data-unit-del="' + i + '">🗑 Delete</button>') + '</div>';
+        (paid ? '' : '<button class="del" data-unit-del="' + i + '">Delete</button>') + '</div>';
     });
     if (!paid) html += draft ? draftForm() : '<button class="btn btn-ghost" id="u-add" style="margin-top:10px">＋ Add smoke alarm</button>';
     html += '<div class="tot"><div><span>Total installed</span><b id="n-alarms">' + units.length + '</b></div>' +
@@ -647,7 +647,7 @@
     // 2. invoice: starts empty, shows only what has been recorded
     var extras = cur.catalogue.filter(function(p){ return !isAlarm(p.code); });
     html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
-      (cur.booking_fee_cents ? '<div class="item"><div class="lab">✓ Booking fee received<small>Paid earlier, not included below</small></div><b>' + money(cur.booking_fee_cents) + '</b></div>' : '') +
+      (cur.booking_fee_cents ? '<div class="item"><div class="lab">Booking fee received<small>Paid earlier, not included below</small></div><b>' + money(cur.booking_fee_cents) + '</b></div>' : '') +
       cur.items.filter(function(i){ return isAlarm(i.code); }).map(function(it){
         return '<div class="item"><div class="lab">' + esc(it.label) + '<small>' + money(it.unit_cents) + ' × ' + it.qty + '</small></div><b>' + money(it.amount_cents) + '</b></div>';
       }).join("") +
@@ -678,9 +678,9 @@
       html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
         '<button class="btn btn-primary" id="approve"' + (alarmsDone() ? "" : " disabled") + '>Customer approves ' + money(cur.totals.total) + '</button>';
     } else {
-      html += '<div class="ok-banner">✓ Customer approved at ' + timeLabel(new Date(j.approved_at)) + '</div>';
+      html += '<div class="ok-banner">Customer approved at ' + timeLabel(new Date(j.approved_at)) + '</div>';
       if (due <= 0 && !paid) html += '<div class="ok-banner">Nothing to pay on site</div>';
-      else if (cardPaid) html += '<div class="ok-banner">💳 Paid ' + money(j.paid_cents || due) + ' by card</div>';
+      else if (cardPaid) html += '<div class="ok-banner">Paid ' + money(j.paid_cents || due) + ' by card</div>';
       else {
         html += '<div class="q">Has the customer paid in full?</div>' +
           '<div class="seg" data-seg="full"><button data-v="yes" class="' + (pay.full === true ? "on" : "") + '">Yes</button><button data-v="no" class="' + (pay.full === false ? "on" : "") + '">No</button></div>';
@@ -689,7 +689,7 @@
             [["card", "Card (Stripe)"], ["bank_transfer", "Bank transfer"], ["cash", "Cash"]].map(function(m){
               return '<button data-v="' + m[0] + '" class="' + (pay.method === m[0] ? "on" : "") + '">' + m[1] + '</button>'; }).join("") + '</div>';
           if (pay.method === "card"){
-            html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">💳 Take card payment ' + money(due) + '</button>' +
+            html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">Take card payment ' + money(due) + '</button>' +
               (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
               '<p class="muted">Opens the secure Stripe page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
           } else if (pay.method) html += '<p class="muted" style="margin-top:10px">' + money(due) + ' received by ' + (pay.method === "cash" ? "cash" : "bank transfer") + '. A paid tax invoice is emailed to the customer when you complete the job.</p>';
@@ -707,7 +707,7 @@
       '<div class="field" style="margin-top:10px"><label>Signature</label><canvas id="so-sig" width="600" height="180"></canvas>' +
       '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
       '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm the work is complete.</label>' +
-      '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>✓ Complete job &amp; send ' + (due <= 0 || paid || pay.full === true ? "invoice" : "pending invoice") + '</button>' +
+      '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true ? "invoice" : "pending invoice") + '</button>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
       '<p class="muted" id="so-hint" style="margin-top:8px"></p></div>';
     completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
@@ -789,7 +789,7 @@
           " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.");
         clearDraft(cur.job.id); dirty = false;
         show("v-done");
-      }).catch(function(err){ t.disabled = false; t.innerHTML = "✓ Complete job &amp; send invoice"; toast(err.message); });
+      }).catch(function(err){ t.disabled = false; t.innerHTML = "Complete job &amp; send invoice"; toast(err.message); });
     }
   });
   $("j-body").addEventListener("input", function(e){
@@ -844,7 +844,7 @@
 
   function checkPayment(){
     return call("pay_check", { id: cur.job.id }).then(function(d){
-      if (d.paid){ toast("Payment received ✓"); openJob(cur.job.id); }
+      if (d.paid){ toast("Payment received"); openJob(cur.job.id); }
       else toast("Payment not received yet");
     }).catch(function(err){ toast(err.message); });
   }
@@ -857,7 +857,7 @@
     if (job){
       history.replaceState(null, "", location.pathname);
       openJob(job, paidBack ? function(){
-        if (cur.job.pay_status === "paid") toast("Payment received ✓");
+        if (cur.job.pay_status === "paid") toast("Payment received");
         else checkPayment();
       } : null);
     } else loadList();
