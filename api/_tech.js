@@ -31,7 +31,7 @@ const CATALOGUE = {
   inspection: { label: "Smoke alarm compliance inspection", short: "compliance inspection", cents: FEE_INSPECT * 100 },
 };
 
-const JOB_LIST_COLS = "id,job_no,scheduled_start,duration_min,status,work_type,customer_name,phone,address,suburb,postcode,alarms,pay_status";
+const JOB_LIST_COLS = "id,job_no,scheduled_start,duration_min,status,work_type,customer_name,phone,address,suburb,postcode,alarms,pay_status,alarm_units,invoice_items";
 const { clean } = J;
 function fail(status, msg) { const e = new Error(msg); e.status = status; return e; }
 const money = (cents) => "$" + (cents / 100).toFixed(2);

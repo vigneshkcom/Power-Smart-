@@ -88,6 +88,7 @@
   .chip{display:inline-block;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep)}
   .st-en_route{border-left-color:#4F86E8}.chip.st-en_route{background:#E4EDFC;color:#2B5DB8}
   .st-on_site{border-left-color:#8B68D6}.chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
+  .st-partial{border-left-color:#F2B01E}.chip.st-partial{background:#FDF1CF;color:#8A6200}
   .st-completed{border-left-color:#E39A55}.chip.st-completed{background:#FBEBDC;color:#9A5A1C}
   .empty{text-align:center;padding:40px 10px;color:var(--muted)}
   .next{display:block;width:100%;text-align:left;background:var(--teal-soft);border-radius:14px;padding:12px 14px;margin-top:-20px;font-size:.88rem;color:var(--teal-deep)}
@@ -202,7 +203,12 @@
   var API = "/api/pipeline?resource=tech";
   var LS = "powersmart_tech";
   var $ = function(id){ return document.getElementById(id); };
-  var STATUS = { scheduled:"Scheduled", en_route:"On the way", on_site:"On site", completed:"Completed", cancelled:"Cancelled" };
+  // Open jobs with synchronized alarms or invoice lines show as Partial (same rule as the office schedule).
+  function statusKey(j){
+    if (j.status === "completed" || j.status === "cancelled") return j.status;
+    return (Array.isArray(j.alarm_units) && j.alarm_units.length) || (Array.isArray(j.invoice_items) && j.invoice_items.length) ? "partial" : j.status;
+  }
+  var STATUS = { partial:"Partial", scheduled:"Scheduled", en_route:"On the way", on_site:"On site", completed:"Completed", cancelled:"Cancelled" };
   var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
 
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]; }); }
@@ -286,8 +292,9 @@
       var jobs = d.jobs || [];
       $("jobs").innerHTML = jobs.length ? jobs.map(function(j){
         var s = new Date(j.scheduled_start), e = new Date(+s + (j.duration_min || 60) * 6e4);
-        return '<button class="jcard st-' + esc(j.status) + '" data-job="' + esc(j.id) + '">' +
-          '<div class="top"><span>' + timeLabel(s) + ' – ' + timeLabel(e) + ' · J' + esc(j.job_no) + '</span><span class="chip st-' + esc(j.status) + '">' + esc(STATUS[j.status] || j.status) + '</span></div>' +
+        var sk = statusKey(j);
+        return '<button class="jcard st-' + esc(sk) + '" data-job="' + esc(j.id) + '">' +
+          '<div class="top"><span>' + timeLabel(s) + ' – ' + timeLabel(e) + ' · J' + esc(j.job_no) + '</span><span class="chip st-' + esc(sk) + '">' + esc(STATUS[sk] || sk) + '</span></div>' +
           '<div class="name">' + esc(j.customer_name) + '</div>' +
           '<div class="addr">' + esc([j.address, j.suburb, j.postcode].filter(Boolean).join(", ") || "No address") + '</div>' +
           '<div class="meta">' + esc(TYPES[j.work_type] || "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div></button>';
@@ -602,7 +609,7 @@
   function renderJob(){
     var j = cur.job, done = j.status === "completed";
     $("j-title").textContent = "J" + j.job_no + " · " + j.customer_name;
-    $("j-chip").className = "chip st-" + j.status; $("j-chip").textContent = STATUS[j.status] || j.status;
+    var sk = statusKey(j); $("j-chip").className = "chip st-" + sk; $("j-chip").textContent = STATUS[sk] || sk;
     var addr = [j.address, j.suburb, j.postcode].filter(Boolean).join(", ");
     var s = new Date(j.scheduled_start);
     var html = '';
