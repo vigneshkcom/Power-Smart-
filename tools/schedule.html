@@ -369,6 +369,7 @@
       <div class="modal-foot">
         <button class="del" id="jm-delete">Delete job</button>
         <span class="spacer"></span>
+        <button class="btn btn-ghost" id="jm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
         <button class="btn btn-ghost" id="jm-markpaid" style="display:none" title="Record that the balance owing on this completed job has been received. This sends the compliance certificate.">Mark paid in full</button>
         <button class="btn btn-ghost" id="jm-sendcert" style="display:none">Send certificate</button>
         <button class="btn btn-ghost" id="jm-revert" title="Clear the electrician's work (alarms, invoice, notes, sign-off). Payments and photos are kept.">Revert to assigned</button>
@@ -957,7 +958,7 @@
     updateConfirmUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
-    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-sendcert").style.display = "none";
+    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
     $("jm-report").style.display = "none";
@@ -1075,6 +1076,7 @@
     $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
     $("jm-delete").style.display = "";
     $("jm-revert").style.display = j.status === "cancelled" ? "none" : "";
+    $("jm-invoice").style.display = j.status === "completed" ? "" : "none";
     $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none");
     $("jm-sendcert").style.display = certReady ? "" : "none";
@@ -1150,6 +1152,10 @@
     var j = state.editing; if (!j) return;
     closeJob();
     moveJob(j, { electrician_id: null, scheduled_start: null }, "J" + j.job_no + " moved to waiting list");
+  });
+  $("jm-invoice").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    window.open("/invoice?token=" + encodeURIComponent(j.id), "_blank", "noopener");
   });
   $("jm-markpaid").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
