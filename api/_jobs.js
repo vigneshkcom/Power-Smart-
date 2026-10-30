@@ -359,8 +359,8 @@ module.exports = async (req, res) => {
       const job = rows && rows[0];
       if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
       await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} balance of $${((prev.amount_due_cents || 0) / 100).toFixed(2)} received (${method.replace("_", " ")}) and marked paid.`, "payment");
-      const certificate = await require("./_certificate").issueCertificate(job.id, { agent: actor });
-      return res.status(200).json({ ok: true, job, certificate });
+      const { invoice, certificate } = await require("./_after-payment").releaseAfterPayment(job.id, { agent: actor });
+      return res.status(200).json({ ok: true, job, invoice, certificate });
     }
 
     // (Re)send the compliance certificate PDF for a completed, fully paid job.

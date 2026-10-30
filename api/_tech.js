@@ -155,8 +155,8 @@ async function reconcileJobPayment(session) {
   if (updated && updated.length) {
     await J.leadNote(job.lead_id, "Stripe", `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. Stripe checkout: ${session.id}.`, "payment");
   }
-  // A card payment received after sign-off (pay-later invoice) releases the certificate; it checks the job is completed.
-  if (updated && updated.length) await require("./_certificate").issueCertificate(jobId, { agent: "Stripe" });
+  // A card payment received after sign-off (pay-later invoice) sends the paid tax invoice and the certificate; both check the job is completed.
+  if (updated && updated.length) await require("./_after-payment").releaseAfterPayment(jobId, { agent: "Stripe" });
   return (updated && updated[0]) || { ...job, pay_status: "paid" };
 }
 

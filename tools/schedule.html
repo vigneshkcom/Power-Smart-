@@ -1156,10 +1156,10 @@
     var m = (prompt("How was the balance for J" + j.job_no + " received?\nType: bank transfer, cash or card", "bank transfer") || "").trim().toLowerCase().replace(" ", "_");
     if (!m) return;
     if (["bank_transfer", "cash", "card"].indexOf(m) < 0){ toast("Type bank transfer, cash or card"); return; }
-    if (!confirm("Mark J" + j.job_no + " as paid in full?\n\nThe compliance certificate PDF will be emailed to " + (j.email || "the customer") + " now.")) return;
+    if (!confirm("Mark J" + j.job_no + " as paid in full?\n\nThe paid tax invoice and compliance certificate PDF will be emailed to " + (j.email || "the customer") + " now.")) return;
     jobsApi({ action:"job_mark_paid", id: j.id, method: m }).then(function(r){
       var c = r.certificate || {}; closeJob();
-      toast(c.status === "sent" ? "Marked paid. Certificate emailed." : "Marked paid. Certificate not sent: " + (c.reason || "see the lead notes"));
+      toast(c.status === "sent" ? "Marked paid. Tax invoice and certificate emailed." : "Marked paid. Certificate not sent: " + (c.reason || "see the lead notes"));
       return reload();
     }).catch(function(err){ toast(err.message); });
   });

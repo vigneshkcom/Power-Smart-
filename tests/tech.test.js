@@ -57,9 +57,9 @@ function vmLoad(file, mocks) {
 }
 const QUOTE_TEXT = '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00\n- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00';
 
-const invoiceCalls = [], certCalls = [];
+const invoiceCalls = [], certCalls = [], afterPayCalls = [];
 function setup() {
-  invoiceCalls.length = 0; certCalls.length = 0;
+  invoiceCalls.length = 0; certCalls.length = 0; afterPayCalls.length = 0;
   const db = fakeDb({
     electricians: [
       { id: 't1', code: '1011', name: 'Jake Turner', phone: '0411 111 111', active: true },
@@ -77,7 +77,7 @@ function setup() {
   });
   const Stripe = fakeStripe();
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; } } };
+  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
@@ -302,4 +302,14 @@ test('the compliance certificate is only released when the job is paid in full',
   assert.equal((await paid.call({ action: 'complete', id: 'j1', paid_in_full: true, method: 'cash', signoff_name: 'Jake Turner', signature: sig })).code, 200);
   assert.equal(certCalls.length, 1, 'paid in full on site: certificate released');
   assert.equal(certCalls[0].id, 'j1');
+});
+
+test('a card payment after sign-off releases the paid invoice and certificate; a card payment before sign-off does not', async () => {
+  const t = setup();
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  await t.call({ action: 'pay', id: 'j1' });
+  const s = t.Stripe.sessions.get(t.job('j1').pay_session_id); s.payment_status = 'paid'; s.status = 'complete';
+  await t.call({ action: 'pay_check', id: 'j1' });
+  assert.equal(afterPayCalls.length, 1, 'webhook/app hook runs on payment (it skips jobs that are not completed yet)');
+  assert.equal(afterPayCalls[0].id, 'j1');
 });
