@@ -3,8 +3,8 @@
 // always computed here so it can't be tampered with.
 
 const SITE = "https://smokealarms.powersmartco.com.au";
-const PHONE_DISPLAY = "(07) 2141 7792";
-const PHONE_TEL = "+61721417792";
+const PHONE_DISPLAY = "0401 991 420";
+const PHONE_TEL = "+61401991420";
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const ABN = "41 669 943 720";
 const QUOTE_VALID_DAYS = 30;

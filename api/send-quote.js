@@ -142,7 +142,7 @@ module.exports = async (req, res) => {
         if(!leadId)throw new Error('Quote email was sent, but the customer record could not be saved.');
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         const first=String(lead?.name || customerName || 'there').trim().split(/\s+/)[0];
-        const message=`Hi ${first}, your PowerSmart smoke alarm quote ${ref} is ready. View your quote here: ${quoteUrl} Call (07) 2141 7792 with any questions.`;
+        const message=`Hi ${first}, your PowerSmart smoke alarm quote ${ref} is ready. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
         sms=await Sms.sendLeadSms({lead,message,key:`quote-${emailId}`,author:agentName});
       } catch(e) {
         sms={status:'failed',error:e.message};

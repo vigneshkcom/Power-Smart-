@@ -127,7 +127,7 @@
           </button>
           <button class="btn secondary" id="phoneBtn">Accept quote and request a call</button>
         </div>
-        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the booking fee. You can also call <a href="tel:+61721417792">(07)&nbsp;2141&nbsp;7792</a>.</p>
+        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the booking fee. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
         <div class="err" id="err"></div>
 
         <ul class="included">
@@ -247,7 +247,7 @@
       .catch(function(error){
         setBusy(false);
         document.getElementById("btnLabel").textContent = "Accept quote and pay online";
-        errBox.textContent = error.message || "We could not save your address. Please call (07) 2141 7792.";
+        errBox.textContent = error.message || "We could not save your address. Please call 0401 991 420.";
         errBox.classList.add("show");
       });
   });
@@ -260,7 +260,7 @@
     postAcceptance("phone").then(showPhoneSuccess).catch(function(error){
       setBusy(false);
       phoneBtn.textContent = "Accept quote and request a call";
-      errBox.textContent = error.message || "We could not record your acceptance. Please call (07) 2141 7792.";
+      errBox.textContent = error.message || "We could not record your acceptance. Please call 0401 991 420.";
       errBox.classList.add("show");
     });
   });

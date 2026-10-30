@@ -12,5 +12,5 @@ module.exports = async (req,res) => {
     res.setHeader('Content-Security-Policy',"default-src 'none'; img-src https://smokealarms.powersmartco.com.au https://portal.powersmartco.com.au data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
     const payments = await QP.quotePayments(rows[0], true);
     return res.status(200).send(QP.renderPaidQuote(rows[0], payments));
-  }catch(e){return res.status(503).send('Your quote is temporarily unavailable. Please try again or call PowerSmart on (07) 2141 7792.');}
+  }catch(e){return res.status(503).send('Your quote is temporarily unavailable. Please try again or call PowerSmart on 0401 991 420.');}
 };

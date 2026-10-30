@@ -11,7 +11,7 @@ const QP = require('./_quote-payments');
 
 async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address }) {
   if (!SB.configured()) throw new Error("The customer record service is not configured");
-  if (!lead) throw new Error("We could not find this quote. Please call (07) 2141 7792.");
+  if (!lead) throw new Error("We could not find this quote. Please call 0401 991 420.");
   await SB.sb(`leads?id=eq.${encodeURIComponent(lead.id)}`, {
     method: "PATCH",
     body: {
