@@ -259,12 +259,17 @@ test('electrician codes must be unique', async () => {
   assert.equal(code, 400);
 });
 
-test('completing needs a signature, and cash or bank transfer counts as paid in full', async () => {
+test('completing needs a signature, and cash with a receipt photo counts as paid in full', async () => {
   const t = setup();
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
   assert.equal((await t.call({ action: 'complete', id: 'j1', paid_in_full: false })).code, 400, 'name and signature are required');
   assert.equal((await t.call({ action: 'complete', id: 'j1', paid_in_full: true, signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' })).code, 409, 'paid in full needs a method');
-  const done = await t.call({ action: 'complete', id: 'j1', paid_in_full: true, method: 'cash', signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' });
+  const cashArgs = { action: 'complete', id: 'j1', paid_in_full: true, method: 'cash', signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' };
+  assert.equal((await t.call(cashArgs)).code, 409, 'cash needs a receipt photo');
+  assert.equal((await t.call({ action: 'save', id: 'j1', pay_receipt: '../etc/passwd' })).code, 400, 'receipt path must be inside the job photos');
+  assert.equal((await t.call({ action: 'save', id: 'j1', pay_receipt: '/PowerSmart Jobs/J1001 - Kath/Receipts/receipts-1.jpg' })).code, 200);
+  assert.equal((await t.call({ ...cashArgs, method: 'bank_transfer' })).code, 409, 'bank transfers are confirmed by the office, not on site');
+  const done = await t.call(cashArgs);
   assert.equal(done.code, 200);
   assert.equal(t.job('j1').pay_status, 'paid');
   assert.equal(t.job('j1').pay_method, 'cash');
@@ -293,7 +298,7 @@ test('the compliance certificate is only released when the job is paid in full',
   assert.equal(certCalls.length, 0, 'invoice still owing: no certificate');
 
   const paid = setup();
-  await paid.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  await paid.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true, pay_receipt: '/PowerSmart Jobs/J1001 - Kath/Receipts/receipts-1.jpg' });
   assert.equal((await paid.call({ action: 'complete', id: 'j1', paid_in_full: true, method: 'cash', signoff_name: 'Jake Turner', signature: sig })).code, 200);
   assert.equal(certCalls.length, 1, 'paid in full on site: certificate released');
   assert.equal(certCalls[0].id, 'j1');

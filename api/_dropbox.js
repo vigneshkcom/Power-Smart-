@@ -8,7 +8,7 @@
 // The folder is found again by its "J1013 - " prefix, so renaming the customer never splits a job's photos.
 
 const ROOT = "/PowerSmart Jobs";
-const CATEGORIES = { before: "Before", after: "After", alarms: "Alarms", other: "Other" };
+const CATEGORIES = { before: "Before", after: "After", alarms: "Alarms", receipt: "Receipts", other: "Other" };
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic)$/i;
 
 function configured() {

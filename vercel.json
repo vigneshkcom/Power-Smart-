@@ -9,6 +9,7 @@
   "rewrites": [
     { "source": "/quote", "destination": "/api/customer-link?kind=quote" },
     { "source": "/pay", "destination": "/api/customer-link?kind=payment" },
+    { "source": "/invoice", "destination": "/api/customer-link?kind=invoice" },
     {
       "source": "/",
       "has": [

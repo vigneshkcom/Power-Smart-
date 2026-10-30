@@ -150,7 +150,7 @@ async function reconcileJobPayment(session) {
   const job = rows && rows[0];
   if (!job) throw new Error("Job for this Stripe payment was not found");
   const updated = await sb(`jobs?id=eq.${encodeURIComponent(jobId)}&pay_status=neq.paid`, { method: "PATCH", body: {
-    pay_status: "paid", paid_cents: session.amount_total, paid_at: new Date().toISOString(), pay_session_id: session.id,
+    pay_status: "paid", pay_method: "card", paid_cents: session.amount_total, paid_at: new Date().toISOString(), pay_session_id: session.id,
   } });
   if (updated && updated.length) {
     await J.leadNote(job.lead_id, "Stripe", `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. Stripe checkout: ${session.id}.`, "payment");
@@ -270,6 +270,11 @@ async function handler(req, res) {
         if (changed) f.approved_at = null;
       }
       if (b.alarm_units !== undefined) f.alarm_units = cleanUnits(b.alarm_units);
+      if (b.pay_receipt !== undefined) {
+        const receipt = clean(b.pay_receipt, 500);
+        if (receipt && (!receipt.startsWith("/PowerSmart Jobs/") || receipt.includes(".."))) throw fail(400, "Invalid receipt photo.");
+        f.pay_receipt = receipt || null;
+      }
       if (b.approve) {
         const items = f.invoice_items || job.invoice_items;
         if (!items || !items.length) throw fail(400, "Add at least one item before the customer approves.");
@@ -326,11 +331,12 @@ async function handler(req, res) {
       let payText;
       if (t.due <= 0) { f.pay_status = "none"; payText = "Nothing to pay on site."; }
       else if (current.pay_status === "paid") { f.pay_status = "paid"; f.pay_method = current.pay_method || "card"; payText = `Paid in full by ${METHOD_LABEL[f.pay_method] || "card"}: ${money(current.paid_cents || t.due)}.`; }
-      else if (paidInFull && ["bank_transfer", "cash"].includes(b.method)) {
-        f.pay_status = "paid"; f.pay_method = b.method; f.paid_cents = t.due; f.paid_at = new Date().toISOString();
-        payText = `Paid in full by ${METHOD_LABEL[b.method]}: ${money(t.due)}.`;
+      else if (paidInFull && b.method === "cash") {
+        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronize first.");
+        f.pay_status = "paid"; f.pay_method = "cash"; f.paid_cents = t.due; f.paid_at = new Date().toISOString();
+        payText = `Paid in full by cash: ${money(t.due)}. Receipt photo saved.`;
       }
-      else if (paidInFull) throw fail(409, "Choose how the customer paid: card, bank transfer or cash. For card, take the card payment first.");
+      else if (paidInFull) throw fail(409, "Choose how the customer paid: card or cash. For card, take the card payment first. For a bank transfer, choose No and the office confirms it once it arrives.");
       else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }
 
       const done = await patchJob(current.id, f);
@@ -354,8 +360,8 @@ async function handler(req, res) {
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
-    if (/alarm_units|pay_method|signoff_|invoice_emailed_at/.test(String(err.message))) {
-      return res.status(500).json({ error: "Setup needed: run supabase/tech-job-flow.sql in Supabase, then try again." });
+    if (/alarm_units|pay_method|pay_receipt|signoff_|invoice_emailed_at/.test(String(err.message))) {
+      return res.status(500).json({ error: "Setup needed: run supabase/tech-job-flow.sql and supabase/certificate.sql in Supabase, then try again." });
     }
     if (!err.status || err.status >= 500) console.error("tech app error:", err.message);
     return res.status(err.status && err.status < 600 ? err.status : 500).json({ error: err.message || "Electrician app error" });

@@ -456,13 +456,14 @@
   function syncJob(){
     if (syncing) return Promise.reject(new Error("Already synchronizing"));
     syncing = true; renderSyncBar();
-    var id = cur.job.id;
+    var id = cur.job.id, receiptPath = null;
     return idbForJob(id).then(function(recs){
       return recs.reduce(function(chain, rec){
         return chain.then(function(){
           return call("photo_upload", { id: id, category: rec.category, data: rec.data }).then(function(r){
             if (!r.path) throw new Error("Photo storage isn't set up. Tell the office");
             // An alarm's photo is queued before the alarm exists, so match it by its key as well as its unit id.
+            if (rec.category === "receipt") receiptPath = r.path;
             var u = unitList().find(function(x){ return (rec.unitId && x.id === rec.unitId) || (x.photoKey && x.photoKey === rec.key); });
             if (u){ u.photo = r.path; delete u.photoKey; }
             return dropPhoto(rec.key);
@@ -470,9 +471,9 @@
         });
       }, Promise.resolve());
     }).then(function(){
-      return call("save", { id: id, items: wireItems(), alarm_units: unitList(), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at });
+      return call("save", { id: id, items: wireItems(), alarm_units: unitList(), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, pay_receipt: receiptPath || undefined });
     }).then(function(d){
-      cur = d; dirty = false; persistDraft();
+      cur = d; dirty = false; if (receiptPath) delete pay.receiptKey; persistDraft();
       try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){}
       syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronized");
     }).catch(function(err){
@@ -529,7 +530,7 @@
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
     var missing = dirty || syncing ? "Tap Synchronize first. The job can't be completed until it is synchronized." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
-      !completeState.payReady ? "Answer the payment questions above." : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
+      !completeState.payReady ? (pay.full === true && pay.method === "cash" ? "Take a photo of the cash receipt." : "Answer the payment questions above.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing;
   }
@@ -703,13 +704,20 @@
           '<div class="seg" data-seg="full"><button data-v="yes" class="' + (pay.full === true ? "on" : "") + '">Yes</button><button data-v="no" class="' + (pay.full === false ? "on" : "") + '">No</button></div>';
         if (pay.full === true){
           html += '<div class="q">How did they pay?</div><div class="seg" data-seg="method">' +
-            [["card", "Card (Stripe)"], ["bank_transfer", "Bank transfer"], ["cash", "Cash"]].map(function(m){
+            [["card", "Card (Stripe)"], ["cash", "Cash"]].map(function(m){
               return '<button data-v="' + m[0] + '" class="' + (pay.method === m[0] ? "on" : "") + '">' + m[1] + '</button>'; }).join("") + '</div>';
           if (pay.method === "card"){
             html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">Take card payment ' + money(due) + '</button>' +
               (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
               '<p class="muted">Opens the secure Stripe page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
-          } else if (pay.method) html += '<p class="muted" style="margin-top:10px">' + money(due) + ' received by ' + (pay.method === "cash" ? "cash" : "bank transfer") + '. A paid tax invoice is emailed to the customer when you complete the job.</p>';
+          } else if (pay.method === "cash"){
+            var rth = pay.receiptKey ? localThumb(pay.receiptKey) : "";
+            var haveReceipt = !!(pay.receiptKey || j.pay_receipt);
+            html += '<div class="shot" style="margin-top:10px">' + (rth ? '<img src="' + esc(rth) + '" alt="Cash receipt">' : "") +
+              '<label class="btn ' + (haveReceipt ? "btn-ghost" : "btn-primary") + '" style="min-height:46px;margin:0">' + (haveReceipt ? "Retake receipt photo" : "Take photo of the cash receipt") +
+              '<input id="rc-file" type="file" accept="image/*" capture="environment" hidden></label></div>' +
+              '<p class="muted" style="margin-top:8px">' + money(due) + ' received in cash. A photo of the receipt is required' + (j.pay_receipt && !pay.receiptKey ? " (saved)" : "") + '. The paid tax invoice and compliance certificate are emailed when you complete the job.</p>';
+          }
         } else if (pay.full === false){
           html += '<div class="warn-banner" style="margin-top:10px">A pending invoice for ' + money(due) + ' will be emailed to the customer. No compliance certificate goes out until it is paid.</div>';
         }
@@ -718,7 +726,7 @@
     html += '</div>';
 
     // 4. work sign off
-    var payReady = due <= 0 || paid || pay.full === false || (pay.full === true && (pay.method === "bank_transfer" || pay.method === "cash"));
+    var payReady = due <= 0 || paid || pay.full === false || (pay.full === true && pay.method === "cash" && !!(pay.receiptKey || j.pay_receipt));
     html += '<div class="card"><h2><span class="n">4</span>Work sign off</h2>' +
       '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronized.</p>' +
         '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronizing…" : "Open work sign off") + '</button></div>' +
@@ -831,6 +839,12 @@
     if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
     if (id === "d-type"){ draft.type = e.target.value; }
     if (id === "so-ok"){ soOk = e.target.checked; persistDraft(); updateComplete(); }
+    if (id === "rc-file" && e.target.files.length){
+      var rf = e.target.files[0], oldKey = pay.receiptKey;
+      shrink(rf).then(function(data){
+        return queuePhoto("receipt", data, null).then(function(rec){ if (oldKey) dropPhoto(oldKey); pay.receiptKey = rec.key; markDirty(); });
+      }).catch(function(err){ toast(err.message); }).then(function(){ keepScroll(renderJob); });
+    }
     if ((id === "d-file" || id === "d-file-lib") && e.target.files.length){
       var file = e.target.files[0]; draft.busy = true; keepScroll(renderJob);
       var old = draft.photoKey;
