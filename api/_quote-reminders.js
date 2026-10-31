@@ -117,7 +117,7 @@ async function toggle(leadId,enabled,actor) {
   return summary(leadId);
 }
 async function patchRun(id,body) { await SB.sb(`quote_reminder_runs?id=eq.${id}`,{method:'PATCH',body,prefer:'return=minimal'}); }
-async function processRun(run,c) {
+async function processRun(run,c,{manual=false}={}) {
   if(c.q?.id!==run.quote_id) {
     await patchRun(run.id,{sms_status:'skipped',email_status:'skipped',error:'Quote changed before reminder preparation',finished_at:new Date().toISOString()});
     return {run_id:run.id,review_required:true};
@@ -127,7 +127,7 @@ async function processRun(run,c) {
   let issue=null;
   for(const channel of ['sms','email']) {
     const fresh=await context(run.lead_id);
-    const reason=await eligibility(fresh,new Date(),{refreshPayment:true});
+    const reason=await eligibility(fresh,new Date(),{refreshPayment:true,ignorePaused:manual});
     if(reason || fresh.s?.quote_id!==run.quote_id || Date.parse(fresh.s?.reply_baseline)>Date.parse(run.created_at) || fresh.lead?.phone!==c.lead.phone || fresh.lead?.email!==c.lead.email) {
       issue=reason || 'Customer or quote changed during sending';
       await patchRun(run.id,{[`${channel}_status`]:'skipped',error:issue});continue;
@@ -160,6 +160,34 @@ async function processRun(run,c) {
   await patchRun(run.id,{finished_at:new Date().toISOString()});
   if(issue)await pause(run.lead_id,'Reminder needs review: '+issue,run.quote_id);
   return {run_id:run.id,review_required:Boolean(issue)};
+}
+// Staff tap "Send reminder now": the same SMS + email as the automatic follow-ups, sent immediately. It uses up one of
+// the three follow-ups (so a customer can't be over-messaged), ignores the 9-5 window and a staff pause, but never
+// overrides STOP / opt-out, a payment, an expired quote or a changed recipient.
+async function sendNow(leadId,actor) {
+  if(!process.env.RESEND_API_KEY || !process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)throw new Error('Both email and SMS services must be configured');
+  const c=await context(leadId);
+  if(!c.lead)throw new Error('Customer not found');
+  if(c.lead.stage!=='quote_sent' || !hasCurrentSentQuote(c))throw new Error('Send a quote and keep the lead in Quote Sent before sending a reminder');
+  if(c.s.reminder_count>=3)throw new Error('Three follow-ups have already been sent for this quote. Send a new quote to start a new sequence.');
+  const pending=await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&quote_id=eq.${c.s.quote_id}&or=(sms_status.in.(pending,sending,unknown),email_status.in.(pending,sending,unknown))&select=id&limit=1`);
+  if(pending?.length)throw new Error('A previous reminder is still processing or uncertain. Review its history first.');
+  const now=new Date().toISOString();
+  c.s.reply_baseline=now;   // a staff send acknowledges earlier replies
+  const reason=await eligibility(c,new Date(),{ignorePaused:true,refreshPayment:true});
+  if(reason)throw new Error(reason);
+  const sequence=c.s.reminder_count+1;
+  const claimed=await SB.sb(`quote_reminder_settings?lead_id=eq.${leadId}&reminder_count=eq.${c.s.reminder_count}`,{method:'PATCH',body:{
+    reminder_count:sequence,reply_baseline:now,updated_at:now,
+    next_at:c.s.enabled && sequence<3?nextWindow(Date.now()+3*DAY):null,
+    reason:sequence===3?'Three-reminder limit reached':c.s.enabled?null:c.s.reason}});
+  if(!claimed?.length)throw new Error('Another reminder is being sent. Refresh and try again.');
+  let run;
+  try { run=first(await SB.sb('quote_reminder_runs',{method:'POST',body:{lead_id:leadId,quote_id:c.s.quote_id,sequence}})); }
+  catch(e) { await SB.sb(`quote_reminder_settings?lead_id=eq.${leadId}`,{method:'PATCH',body:{reminder_count:c.s.reminder_count,next_at:c.s.next_at,reason:c.s.reason,updated_at:new Date().toISOString()},prefer:'return=minimal'}); throw new Error('That reminder was already sent. Refresh and check the history.'); }
+  if(!run)throw new Error('The reminder could not be started. Refresh and try again.');
+  const result=await processRun(run,await context(leadId),{manual:true});
+  return {...await summary(leadId),manual:result,actor};
 }
 async function work({dryRun=false,now=new Date()}={}) {
   if(!process.env.RESEND_API_KEY || !process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)throw new Error('Both email and SMS services must be configured');
@@ -200,6 +228,7 @@ async function handler(req,res) {
     const id=req.method==='GET'?req.query.lead_id:req.body?.lead_id;
     if(!uuid(id))return res.status(400).json({error:'A valid customer is required'});
     if(req.method==='GET')return res.status(200).json(await summary(id));
+    if(req.method==='POST' && req.body.action==='send_now')return res.status(200).json(await sendNow(id,String(req.body.actor || 'staff').slice(0,120)));
     if(req.method==='POST' && req.body.action==='set' && typeof req.body.enabled==='boolean')return res.status(200).json(await toggle(id,req.body.enabled,String(req.body.actor || 'staff').slice(0,120)));
     return res.status(400).json({error:'Unknown reminder action'});
   } catch(e) { console.error('Quote reminders:',e.message);return res.status(503).json({error:e.message || 'Reminders unavailable'}); }
@@ -218,4 +247,4 @@ async function unsubscribe(req,res) {
   res.setHeader('Content-Type','text/html; charset=utf-8');
   return res.status(200).send('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>PowerSmart reminder preferences</title><main style="font:18px Arial;max-width:540px;margin:70px auto;padding:24px"><h1>Stop quote reminders?</h1><p>This stops automatic SMS and email reminders for your PowerSmart quote.</p><form method="post"><button style="padding:14px 24px;font-size:18px">Stop reminders</button></form></main>');
 }
-module.exports={handler,unsubscribe,businessHours,nextWindow,expiresAt,messages,eligibility,summary,toggle,work,processRun};
+module.exports={sendNow,handler,unsubscribe,businessHours,nextWindow,expiresAt,messages,eligibility,summary,toggle,work,processRun};

@@ -343,6 +343,7 @@
         <section id="lm-reminders" class="reminder-card" hidden aria-labelledby="lm-reminder-title">
           <div class="reminder-head"><div><h4 id="lm-reminder-title">Quote reminders</h4><p>SMS + email · every 3 days · up to 3 follow-ups</p></div><div class="field reminder-control"><select id="lm-reminder-state" aria-label="Automatic quote reminders"><option value="on">On</option><option value="paused">Paused</option></select></div></div>
           <div id="lm-reminder-summary" aria-live="polite"></div>
+          <div style="padding:.6rem 1rem 0"><button class="btn btn-ghost" id="lm-reminder-now" type="button" title="Send the next follow-up by SMS and email right now">Send reminder now</button></div>
           <details id="lm-reminder-details" class="reminder-details"><summary>History &amp; sending details</summary><p class="reminder-help">Weekdays, 9am–5pm Queensland time. SMS replies pause reminders. Pause here when handling an email reply. Submitted means accepted by the sending service.</p><div id="lm-reminder-history"></div></details>
         </section>
         <div class="cmts" id="lm-cmts">
@@ -816,6 +817,9 @@
     if(!d.available)return;
     $('lm-reminder-state').value=d.enabled?'on':'paused';
     $('lm-reminder-state').disabled=Boolean(d.unsubscribed);
+    var rn=$('lm-reminder-now'),used=Number(d.rounds_attempted||0);
+    rn.disabled=Boolean(d.unsubscribed)||used>=3;rn.textContent=used>=3?'All 3 follow-ups sent':'Send reminder now ('+(used+1)+' of 3)';
+    rn.title=d.unsubscribed?'Customer stopped reminders':used>=3?'Send a new quote to start a new sequence':'Send follow-up '+(used+1)+' of 3 by SMS and email right now';
     $('lm-reminder-summary').innerHTML='<div class="reminder-stats"><div class="reminder-stat"><small>Next follow-up</small><strong>'+esc(reminderDate(d.next_at))+'</strong></div><div class="reminder-stat"><small>Follow-ups submitted</small><strong>'+Number(d.reminders_sent || 0)+' of 3</strong></div></div>'+(d.reason?'<p class="reminder-note">'+esc(d.reason)+'</p>':'');
     var labels={pending:'Not yet submitted',sending:'Processing / verify if interrupted',submitted:'Submitted',failed:'Failed',unknown:'Needs review',skipped:'Not sent'};
     $('lm-reminder-history').innerHTML='<p class="reminder-help">SMS submitted: '+Number(d.sms_sent || 0)+' · Emails submitted: '+Number(d.email_sent || 0)+'</p>'+(d.history.length?d.history.map(function(r){return '<div class="reminder-history-item"><strong>Follow-up '+r.sequence+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p class="reminder-help">No follow-ups sent yet.</p>');
@@ -833,6 +837,18 @@
       .catch(function(e){toast(e.message);if(currentId===id)loadReminders(id);});
   });
 
+  $('lm-reminder-now').addEventListener('click',function(){
+    var id=currentId;if(!id)return;
+    var lead=leads.find(function(l){return l.id===id;})||{},btn=this,label=btn.textContent;
+    if(!confirm('Send a reminder to '+(lead.name||'this customer')+' now by SMS and email?\n\nThis uses one of the 3 follow-ups.'))return;
+    btn.disabled=true;btn.textContent='Sending…';
+    reminderApi(id,{action:'send_now'}).then(function(d){
+      if(currentId!==id)return;
+      renderReminders(d);
+      toast(d.manual&&d.manual.review_required?'Reminder needs review. Open History & sending details.':'Reminder sent by SMS and email.');
+      return api('POST',{action:'comments',lead_id:id}).then(function(c){if(currentId===id)renderComments(c.comments||[]);});
+    }).catch(function(e){toast(e.message);btn.textContent=label;btn.disabled=false;if(currentId===id)loadReminders(id);});
+  });
   function activityKind(c, body){
     var saved = String(c.kind || "").toLowerCase();
     if (saved && saved !== "note") return saved;

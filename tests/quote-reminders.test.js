@@ -27,7 +27,7 @@ function fixture(options={}) {
       db.quote_reminder_runs.push(r);return [{...r}];
     }
     const [table,qs='']=query.split('?'),params=new URLSearchParams(qs),rows=(db[table]||[]).filter(r=>matches(r,params));
-    if(opt.method){writes.push({query,...opt});if(opt.method==='PATCH'){rows.forEach(r=>Object.assign(r,opt.body));return rows.map(r=>({...r}));}if(opt.method==='POST'){(db[table]||=[]).push({...opt.body});return [{...opt.body}];}}
+    if(opt.method){writes.push({query,...opt});if(opt.method==='PATCH'){rows.forEach(r=>Object.assign(r,opt.body));return rows.map(r=>({...r}));}if(opt.method==='POST'){const row=table==='quote_reminder_runs'?{id:'50000000-0000-4000-8000-00000000000'+((db[table]||[]).length+1),created_at:new Date().toISOString(),sms_status:'pending',email_status:'pending',...opt.body}:{...opt.body};(db[table]||=[]).push(row);return [{...row}];}}
     let sorted=rows.slice();if(params.get('order')?.includes('created_at.desc'))sorted.sort((a,b)=>b.created_at.localeCompare(a.created_at));
     return sorted.slice(0,Number(params.get('limit')||1000)).map(r=>({...r}));
   }};
@@ -131,4 +131,23 @@ test('email scanners cannot unsubscribe with GET; customer confirmation stops bo
   const f=fixture(),query={token:f.c().s.unsubscribe_token};const viewed=await response(f.R.unsubscribe,{method:'GET',query});assert.equal(viewed.code,200);assert.match(viewed.data,/Stop reminders/);assert.equal(f.writes.length,0);
   await response(f.R.unsubscribe,{method:'POST',query});assert.equal(f.db.quote_reminder_settings[0].unsubscribed,true);assert.equal(f.db.quote_reminder_settings[0].enabled,false);
   await assert.rejects(()=>f.R.toggle(leadId,true,'Sunny'),/Customer stopped/);
+});
+test('Send reminder now submits SMS and email immediately, even when not yet due or paused, and uses up one follow-up',async()=>{
+  const f=fixture();f.db.quote_reminder_settings[0].next_at=new Date(Date.now()+2*86400000).toISOString();f.db.quote_reminder_settings[0].enabled=false;f.db.quote_reminder_settings[0].reason='Paused by staff';
+  const d=await f.R.sendNow(leadId,'Mani');
+  assert.equal(f.sms.length,1);assert.equal(f.emails.length,1);
+  assert.equal(f.db.quote_reminder_settings[0].reminder_count,1);assert.equal(f.db.quote_reminder_runs[0].sequence,1);
+  assert.equal(f.db.quote_reminder_settings[0].enabled,false,'a staff send does not switch automatic reminders back on');
+  assert.equal(d.manual.review_required,false);
+  const again=await f.R.sendNow(leadId,'Mani');assert.equal(f.db.quote_reminder_runs[1].sequence,2);assert.equal(f.sms.length,2);assert(again);
+});
+test('Send reminder now stops at three follow-ups and never overrides opt-out, payment or a replaced quote',async()=>{
+  let f=fixture();f.db.quote_reminder_settings[0].reminder_count=3;
+  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/Three follow-ups/);assert.equal(f.sms.length,0);
+  f=fixture();f.db.leads[0].quote_ref='9999';
+  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'));assert.equal(f.sms.length+f.emails.length,0);
+  f=fixture();f.db.payment_requests.push({lead_id:leadId,quote_ref:'7011',status:'paid',amount_paid_cents:3500});
+  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/Payment received/);assert.equal(f.sms.length,0);
+  f=fixture();f.db.sms_messages.push({phone_number:'+61412345678',status:'optout',direction:'inbound',created_at:new Date().toISOString()});
+  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/opted out/);assert.equal(f.sms.length,0);
 });
