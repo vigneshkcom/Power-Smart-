@@ -338,20 +338,36 @@ async function checkSmsService() {
   btn.disabled = true; notice.hidden = false; notice.textContent = 'Checking SMS service...';
   try {
     const r = await api('/api/sms?action=diagnostics', { headers: { 'x-portal-key': '2026' } });
-    notice.textContent = r.gatewayReachable
-      ? (r.inboundConnected === false ? 'Replies are NOT connected (SMS Gate is not sending received texts to this portal). Tap Sync inbox to connect them.' + (r.webhookUrls && r.webhookUrls.length ? ' Currently sending to: ' + r.webhookUrls.join(', ') : '') : r.deviceCount === 0 ? 'SMS Gate is connected, but no sending phone is registered. Open SMS Gate on the sending phone and check its connection.' : 'SMS Gate connection is working. This checks the service connection; it does not confirm delivery of previous messages.')
-      : [r.error, r.detail].filter(Boolean).join(' ') + ' No test message was sent.';
+    const when = v => v ? new Date(v).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+    if (!r.gatewayReachable) notice.textContent = [r.error, r.detail].filter(Boolean).join(' ') + ' No test message was sent.';
+    else if (r.deviceCount === 0) notice.textContent = 'SMS Gate is connected, but no sending phone is registered. Open SMS Gate on the sending phone and check its connection.';
+    else if (r.deviceIdMatches === false) notice.textContent = 'The phone ID saved in Vercel (SMSGATE_DEVICE_ID) does not match the phone registered with SMS Gate, so replies are tied to the wrong phone. Copy the Device ID from the SMS Gate app into Vercel, or delete that variable, then redeploy.';
+    else if (r.inboundConnected === false) notice.textContent = 'Replies are NOT connected (SMS Gate is not sending received texts to this portal). Tap Sync inbox to connect them.' + (r.webhookUrls && r.webhookUrls.length ? ' Currently sending to: ' + r.webhookUrls.join(', ') : '');
+    else if (r.inboundConnected && !r.lastInboundAt) notice.textContent = 'Replies are connected, but no reply has arrived yet. On the sending phone: Settings > Apps > SMS Gateway > Permissions > SMS = Allow (needs Receive SMS), Battery = Unrestricted, and keep the app running. Then text the sending number from another phone to test.';
+    else notice.textContent = 'SMS Gate connection is working and replies are connected. Last reply received ' + when(r.lastInboundAt) + '.' + (r.deviceLastSeen ? ' Phone last seen ' + when(r.deviceLastSeen) + '.' : '') + ' This check does not send a text.';
   } catch (e) { notice.textContent = showError(e); }
   finally { btn.disabled = false; }
 }
 async function syncInbox() {
-  const btn = $('sync'); btn.disabled = true;
+  const btn = $('sync'), notice = $('service-status');
+  btn.disabled = true; notice.hidden = false; notice.textContent = 'Connecting replies and requesting the last 7 days of texts...';
+  const step = (label, ok, detail) => (ok ? 'OK  ' : 'FAIL') + '  ' + label + (detail ? ' - ' + detail : '');
   try {
     const r = await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync' }) });
-    toast(r.webhook === 'registered' ? 'Replies are now connected. Fetching the last 7 days of texts...' : String(r.webhook || '').startsWith('failed') ? 'Could not connect replies (' + r.webhook.slice(8) + '). Sync requested anyway.' : 'Inbox sync requested. New replies will appear shortly.');
-    setTimeout(load, 3000);
-  } catch (e) { toast(showError(e)); }
-  finally { btn.disabled = false; }
+    const hookFailed = String(r.webhook || '').startsWith('failed');
+    notice.style.whiteSpace = 'pre-line';
+    notice.textContent = [
+      step('Replies connected to this portal', !hookFailed, hookFailed ? r.webhook.slice(8) : r.webhook === 'registered' ? 'newly registered with SMS Gate' : 'already registered'),
+      step('Asked the phone to resend the last 7 days of received texts', true, 'requested'),
+      'New replies should appear within a minute. If none do, tap Check connection.',
+    ].join('\n');
+    toast(hookFailed ? 'Could not connect replies. See the details above the list.' : 'Inbox sync requested. New replies will appear shortly.');
+    setTimeout(load, 4000); setTimeout(load, 15000);
+  } catch (e) {
+    notice.style.whiteSpace = 'pre-line';
+    notice.textContent = [step('Inbox sync', false, showError(e))].join('\n');
+    toast(showError(e));
+  } finally { btn.disabled = false; }
 }
 
 function updateCount() {
