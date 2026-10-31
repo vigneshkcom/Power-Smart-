@@ -40,6 +40,28 @@ async function gateway(path, options = {}) {
   } finally { clearTimeout(timer); }
 }
 
+// Customer replies reach the portal only through a webhook that SMS Gate calls when the sending phone receives a text.
+// The portal registers it itself (idempotent), so inbound messages never depend on someone setting it up by hand.
+const WEBHOOK_URL = 'https://portal.powersmartco.com.au/api/sms';
+const WEBHOOK_ID = 'powersmart-sms-received';
+async function listWebhooks() {
+  const response = await gateway('/webhooks', { headers: headers() });
+  const result = await readGatewayResponse(response);
+  if (!response.ok) { const e = new Error(gatewayError(response.status, result).error); e.info = gatewayError(response.status, result); throw e; }
+  return Array.isArray(result) ? result : [];
+}
+async function ensureWebhook() {
+  const existing = await listWebhooks();
+  if (existing.some((w) => w.event === 'sms:received' && w.url === WEBHOOK_URL)) return 'already';
+  const response = await gateway('/webhooks', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ id: WEBHOOK_ID, url: WEBHOOK_URL, event: 'sms:received', ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
+  });
+  const result = await readGatewayResponse(response);
+  if (!response.ok) { const e = new Error(gatewayError(response.status, result).error); e.info = gatewayError(response.status, result); throw e; }
+  return 'registered';
+}
+
 async function insertMessage(row) {
   const rows = await sb('sms_messages', { method: 'POST', body: row });
   return Array.isArray(rows) ? rows[0] : rows;
@@ -80,7 +102,9 @@ module.exports = async (req, res) => {
             const info = gatewayError(response.status, result);
             return res.status(200).json({ gatewayReachable: false, httpStatus: response.status, error: response.status >= 500 ? 'SMS Gate is temporarily unavailable.' : info.error, detail: info.detail });
           }
-          return res.status(200).json({ gatewayReachable: true, httpStatus: response.status, deviceCount: Array.isArray(result) ? result.length : null });
+          let inboundConnected = null, webhookUrls = [];
+          try { const hooks = await listWebhooks(); webhookUrls = hooks.filter((w) => w.event === 'sms:received').map((w) => w.url); inboundConnected = webhookUrls.includes(WEBHOOK_URL); } catch (_) { /* reported as unknown */ }
+          return res.status(200).json({ gatewayReachable: true, httpStatus: response.status, deviceCount: Array.isArray(result) ? result.length : null, inboundConnected, webhookUrls });
         } catch (_) {
           return res.status(200).json({ gatewayReachable: false, error: 'SMS Gate is not responding. SMS sending may be unavailable.', detail: 'Connection check failed or timed out.' });
         }
@@ -129,11 +153,21 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, message: saved });
     }
 
+    if (body.action === 'connect') {
+      if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
+      try { return res.status(200).json({ ok: true, webhook: await ensureWebhook() }); }
+      catch (e) { return res.status(502).json({ error: e.info?.error || e.message, detail: e.info?.detail || '' }); }
+    }
+
     if (body.action === 'sync') {
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
-      const response = await gateway('/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify({ ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }) });
-      if (!response.ok) return res.status(502).json({ error: 'Could not request inbox sync.' });
-      return res.status(200).json({ ok: true });
+      // Make sure replies are wired up, then ask the phone to re-send the last week of received texts through the webhook.
+      let webhook = 'unknown';
+      try { webhook = await ensureWebhook(); } catch (e) { webhook = 'failed: ' + (e.info?.detail || e.message); }
+      const until = new Date(), since = new Date(until.getTime() - 7 * 86400000);
+      const response = await gateway('/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify({ since: since.toISOString(), until: until.toISOString(), ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }) });
+      if (!response.ok) { const info = gatewayError(response.status, await readGatewayResponse(response)); return res.status(502).json({ error: 'Could not request an inbox sync. ' + info.error, detail: info.detail, webhook }); }
+      return res.status(200).json({ ok: true, webhook });
     }
     return res.status(400).json({ error: 'Unknown SMS action.' });
   } catch (error) {

@@ -339,7 +339,7 @@ async function checkSmsService() {
   try {
     const r = await api('/api/sms?action=diagnostics', { headers: { 'x-portal-key': '2026' } });
     notice.textContent = r.gatewayReachable
-      ? (r.deviceCount === 0 ? 'SMS Gate is connected, but no sending phone is registered. Open SMS Gate on the sending phone and check its connection.' : 'SMS Gate connection is working. This checks the service connection; it does not confirm delivery of previous messages.')
+      ? (r.inboundConnected === false ? 'Replies are NOT connected (SMS Gate is not sending received texts to this portal). Tap Sync inbox to connect them.' + (r.webhookUrls && r.webhookUrls.length ? ' Currently sending to: ' + r.webhookUrls.join(', ') : '') : r.deviceCount === 0 ? 'SMS Gate is connected, but no sending phone is registered. Open SMS Gate on the sending phone and check its connection.' : 'SMS Gate connection is working. This checks the service connection; it does not confirm delivery of previous messages.')
       : [r.error, r.detail].filter(Boolean).join(' ') + ' No test message was sent.';
   } catch (e) { notice.textContent = showError(e); }
   finally { btn.disabled = false; }
@@ -347,8 +347,8 @@ async function checkSmsService() {
 async function syncInbox() {
   const btn = $('sync'); btn.disabled = true;
   try {
-    await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync' }) });
-    toast('Inbox sync requested. New replies will appear shortly.');
+    const r = await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sync' }) });
+    toast(r.webhook === 'registered' ? 'Replies are now connected. Fetching the last 7 days of texts...' : String(r.webhook || '').startsWith('failed') ? 'Could not connect replies (' + r.webhook.slice(8) + '). Sync requested anyway.' : 'Inbox sync requested. New replies will appear shortly.');
     setTimeout(load, 3000);
   } catch (e) { toast(showError(e)); }
   finally { btn.disabled = false; }
@@ -369,6 +369,17 @@ $('new-close').onclick = closeNew; $('new-cancel').onclick = closeNew; $('new-go
 $('new-overlay').addEventListener('click', e => { if (e.target === $('new-overlay')) closeNew(); });
 $('newPhone').addEventListener('keydown', e => { if (e.key === 'Enter') startConversation(); });
 $('sync').onclick = syncInbox;
+// Once per browser session, quietly make sure customer replies are wired up (safe to repeat).
+try {
+  if (!sessionStorage.getItem('sms-connected')) {
+    fetch('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connect' }) })
+      .then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
+        if (!ok) return;
+        sessionStorage.setItem('sms-connected', '1');
+        if (j.webhook === 'registered') { toast('Replies are now connected. Fetching recent texts...'); syncInbox(); }
+      }).catch(() => {});
+  }
+} catch (_) { /* private mode */ }
 $('service-check').onclick = checkSmsService;
 $('back').onclick = closeThread;
 $('compose').addEventListener('submit', sendMessage);

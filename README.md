@@ -269,3 +269,7 @@ changed automatically. The landing-page enquiry asks only for a postcode.
 
 Apply `supabase/remove-shopping-stage.sql` when upgrading an existing database.
 It moves any legacy Shopping Around leads to Follow-Up before removing that stage.
+
+### Customer replies (inbound SMS)
+
+Replies arrive through an SMS Gate webhook (`sms:received` -> `https://portal.powersmartco.com.au/api/sms`). The portal registers it itself: opening `/sms` connects it once per browser session, and *Sync inbox* connects it and re-fetches the last 7 days. *Check connection* says whether replies are connected. The sending phone must be online with the SMS Gate app running for replies to be forwarded.
