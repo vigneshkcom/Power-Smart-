@@ -165,7 +165,7 @@ module.exports = async (req, res) => {
       let webhook = 'unknown';
       try { webhook = await ensureWebhook(); } catch (e) { webhook = 'failed: ' + (e.info?.detail || e.message); }
       const until = new Date(), since = new Date(until.getTime() - 7 * 86400000);
-      const response = await gateway('/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify({ since: since.toISOString(), until: until.toISOString(), ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }) });
+      const response = await gateway('/messages/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify({ since: since.toISOString(), until: until.toISOString(), ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }) });
       if (!response.ok) { const info = gatewayError(response.status, await readGatewayResponse(response)); return res.status(502).json({ error: 'Could not request an inbox sync. ' + info.error, detail: info.detail, webhook }); }
       return res.status(200).json({ ok: true, webhook });
     }

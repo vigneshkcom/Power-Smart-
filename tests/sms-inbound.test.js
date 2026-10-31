@@ -54,7 +54,7 @@ test('Sync inbox connects replies first, then asks the phone to resend the last 
   const f = fixture(); const r = f.res();
   await f.handler({ method: 'POST', query: {}, headers: {}, body: { action: 'sync' } }, r);
   assert.equal(r.code, 200); assert.equal(r.body.webhook, 'registered');
-  const exp = f.calls.find((c) => c.url.endsWith('/inbox/export'));
+  const exp = f.calls.find((c) => c.url.endsWith('/3rdparty/v1/messages/inbox/export'));
   const days = (Date.parse(exp.body.until) - Date.parse(exp.body.since)) / 86400000;
   assert.ok(exp.body.since && exp.body.until && Math.round(days) === 7, 'SMS Gate needs a date range');
   const bad = fixture({ exportOk: false }), r2 = bad.res();
