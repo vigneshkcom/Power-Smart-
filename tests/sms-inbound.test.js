@@ -59,7 +59,7 @@ test('Sync inbox connects replies first, then asks the phone to resend the last 
   assert.ok(exp.body.since && exp.body.until && Math.round(days) === 7, 'SMS Gate needs a date range');
   const bad = fixture({ exportOk: false }), r2 = bad.res();
   await bad.handler({ method: 'POST', query: {}, headers: {}, body: { action: 'sync' } }, r2);
-  assert.equal(r2.code, 502); assert.match(r2.body.error, /Could not request an inbox sync/);
+  assert.equal(r2.code, 502); assert.match(r2.body.error, /Could not request an older-texts sync/); assert.match(r2.body.error, /Replies connected: yes/);
 });
 
 test('the connection check says whether replies are connected', async () => {
