@@ -87,7 +87,7 @@ async function summary(leadId) {
   const runs=available ? await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&select=*&order=created_at.desc&limit=30`) : [];
   const reason=await eligibility(c);
   const s=c.s;
-  const activeRuns=(runs || []).filter(r=>r.quote_id===s?.quote_id);
+  const activeRuns=(runs || []).filter(r=>r.quote_id===s?.quote_id && !r.manual);
   return {available,enabled:available && Boolean(s?.enabled),unsubscribed:s?.unsubscribed || false,
     eligible:!reason,reason:reason || (s?.reminder_count>=3?'Three-reminder limit reached':null),
     next_at:!reason && s?.next_at && s.reminder_count<3?nextWindow(s.next_at):null,
@@ -122,7 +122,8 @@ async function processRun(run,c,{manual=false}={}) {
     await patchRun(run.id,{sms_status:'skipped',email_status:'skipped',error:'Quote changed before reminder preparation',finished_at:new Date().toISOString()});
     return {run_id:run.id,review_required:true};
   }
-  const content=messages(c.lead,c.q,run.sequence,c.s.unsubscribe_token);
+  // A manual reminder reads like the next automatic one (it never changes the automatic schedule).
+  const content=messages(c.lead,c.q,run.manual?Math.min((c.s.reminder_count||0)+1,3):run.sequence,c.s.unsubscribe_token);
   await patchRun(run.id,{sms_to:Sms.cleanPhone(c.lead.phone),email_to:c.lead.email,sms_body:content.sms,email_subject:content.subject,email_body:content.email});
   let issue=null;
   for(const channel of ['sms','email']) {
@@ -161,30 +162,24 @@ async function processRun(run,c,{manual=false}={}) {
   if(issue)await pause(run.lead_id,'Reminder needs review: '+issue,run.quote_id);
   return {run_id:run.id,review_required:Boolean(issue)};
 }
-// Staff tap "Send reminder now": the same SMS + email as the automatic follow-ups, sent immediately. It uses up one of
-// the three follow-ups (so a customer can't be over-messaged), ignores the 9-5 window and a staff pause, but never
-// overrides STOP / opt-out, a payment, an expired quote or a changed recipient.
+// Staff tap "Send reminder now": an EXTRA SMS + email sent immediately. It never uses up one of the three automatic
+// follow-ups and never moves the automatic schedule. It ignores the 9-5 window and a staff pause, but never overrides
+// STOP / opt-out, a payment, an expired quote or a changed recipient.
 async function sendNow(leadId,actor) {
   if(!process.env.RESEND_API_KEY || !process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)throw new Error('Both email and SMS services must be configured');
   const c=await context(leadId);
   if(!c.lead)throw new Error('Customer not found');
   if(c.lead.stage!=='quote_sent' || !hasCurrentSentQuote(c))throw new Error('Send a quote and keep the lead in Quote Sent before sending a reminder');
-  if(c.s.reminder_count>=3)throw new Error('Three follow-ups have already been sent for this quote. Send a new quote to start a new sequence.');
   const pending=await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&quote_id=eq.${c.s.quote_id}&or=(sms_status.in.(pending,sending,unknown),email_status.in.(pending,sending,unknown))&select=id&limit=1`);
   if(pending?.length)throw new Error('A previous reminder is still processing or uncertain. Review its history first.');
+  const recent=await SB.sb(`quote_reminder_runs?lead_id=eq.${leadId}&manual=eq.true&created_at=gt.${enc(new Date(Date.now()-5*60000).toISOString())}&select=id&limit=1`);
+  if(recent?.length)throw new Error('A reminder was just sent. Wait a few minutes before sending another.');
   const now=new Date().toISOString();
   c.s.reply_baseline=now;   // a staff send acknowledges earlier replies
   const reason=await eligibility(c,new Date(),{ignorePaused:true,refreshPayment:true});
   if(reason)throw new Error(reason);
-  const sequence=c.s.reminder_count+1;
-  const claimed=await SB.sb(`quote_reminder_settings?lead_id=eq.${leadId}&reminder_count=eq.${c.s.reminder_count}`,{method:'PATCH',body:{
-    reminder_count:sequence,reply_baseline:now,updated_at:now,
-    next_at:c.s.enabled && sequence<3?nextWindow(Date.now()+3*DAY):null,
-    reason:sequence===3?'Three-reminder limit reached':c.s.enabled?null:c.s.reason}});
-  if(!claimed?.length)throw new Error('Another reminder is being sent. Refresh and try again.');
-  let run;
-  try { run=first(await SB.sb('quote_reminder_runs',{method:'POST',body:{lead_id:leadId,quote_id:c.s.quote_id,sequence}})); }
-  catch(e) { await SB.sb(`quote_reminder_settings?lead_id=eq.${leadId}`,{method:'PATCH',body:{reminder_count:c.s.reminder_count,next_at:c.s.next_at,reason:c.s.reason,updated_at:new Date().toISOString()},prefer:'return=minimal'}); throw new Error('That reminder was already sent. Refresh and check the history.'); }
+  await SB.sb(`quote_reminder_settings?lead_id=eq.${leadId}`,{method:'PATCH',body:{reply_baseline:now,updated_at:now},prefer:'return=minimal'});
+  const run=first(await SB.sb('quote_reminder_runs',{method:'POST',body:{lead_id:leadId,quote_id:c.s.quote_id,sequence:0,manual:true}}));
   if(!run)throw new Error('The reminder could not be started. Refresh and try again.');
   const result=await processRun(run,await context(leadId),{manual:true});
   return {...await summary(leadId),manual:result,actor};

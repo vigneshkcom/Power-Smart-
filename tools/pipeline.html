@@ -818,11 +818,11 @@
     $('lm-reminder-state').value=d.enabled?'on':'paused';
     $('lm-reminder-state').disabled=Boolean(d.unsubscribed);
     var rn=$('lm-reminder-now'),used=Number(d.rounds_attempted||0);
-    rn.disabled=Boolean(d.unsubscribed)||used>=3;rn.textContent=used>=3?'All 3 follow-ups sent':'Send reminder now ('+(used+1)+' of 3)';
-    rn.title=d.unsubscribed?'Customer stopped reminders':used>=3?'Send a new quote to start a new sequence':'Send follow-up '+(used+1)+' of 3 by SMS and email right now';
+    rn.disabled=Boolean(d.unsubscribed);rn.textContent='Send reminder now';
+    rn.title=d.unsubscribed?'Customer stopped reminders':'Send an extra reminder by SMS and email right now. It does not use up one of the 3 automatic follow-ups.';
     $('lm-reminder-summary').innerHTML='<div class="reminder-stats"><div class="reminder-stat"><small>Next follow-up</small><strong>'+esc(reminderDate(d.next_at))+'</strong></div><div class="reminder-stat"><small>Follow-ups submitted</small><strong>'+Number(d.reminders_sent || 0)+' of 3</strong></div></div>'+(d.reason?'<p class="reminder-note">'+esc(d.reason)+'</p>':'');
     var labels={pending:'Not yet submitted',sending:'Processing / verify if interrupted',submitted:'Submitted',failed:'Failed',unknown:'Needs review',skipped:'Not sent'};
-    $('lm-reminder-history').innerHTML='<p class="reminder-help">SMS submitted: '+Number(d.sms_sent || 0)+' · Emails submitted: '+Number(d.email_sent || 0)+'</p>'+(d.history.length?d.history.map(function(r){return '<div class="reminder-history-item"><strong>Follow-up '+r.sequence+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p class="reminder-help">No follow-ups sent yet.</p>');
+    $('lm-reminder-history').innerHTML='<p class="reminder-help">SMS submitted: '+Number(d.sms_sent || 0)+' · Emails submitted: '+Number(d.email_sent || 0)+'</p>'+(d.history.length?d.history.map(function(r){return '<div class="reminder-history-item"><strong>'+(r.manual?'Manual reminder':'Follow-up '+r.sequence)+' · '+esc(reminderDate(r.created_at))+'</strong><p>SMS: '+esc(labels[r.sms_status]||r.sms_status)+' · Email: '+esc(labels[r.email_status]||r.email_status)+'</p>'+(r.error?'<p style="color:var(--red)">'+esc(r.error)+'</p>':'')+'<details><summary>View messages</summary><strong>SMS to '+esc(r.sms_to||'—')+'</strong><p style="white-space:pre-wrap">'+esc(r.sms_body||'Not prepared')+'</p><strong>Email to '+esc(r.email_to||'—')+'</strong><p>'+esc(r.email_subject||'')+'</p><p style="white-space:pre-wrap">'+esc(r.email_body||'Not prepared')+'</p></details></div>';}).join(''):'<p class="reminder-help">No follow-ups sent yet.</p>');
   }
   function loadReminders(id){
     $('lm-reminders').hidden=true;$('lm-reminder-state').disabled=true;
@@ -840,7 +840,7 @@
   $('lm-reminder-now').addEventListener('click',function(){
     var id=currentId;if(!id)return;
     var lead=leads.find(function(l){return l.id===id;})||{},btn=this,label=btn.textContent;
-    if(!confirm('Send a reminder to '+(lead.name||'this customer')+' now by SMS and email?\n\nThis uses one of the 3 follow-ups.'))return;
+    if(!confirm('Send a reminder to '+(lead.name||'this customer')+' now by SMS and email?\n\nThis is an extra reminder. It does not use up one of the 3 automatic follow-ups.'))return;
     btn.disabled=true;btn.textContent='Sending…';
     reminderApi(id,{action:'send_now'}).then(function(d){
       if(currentId!==id)return;
