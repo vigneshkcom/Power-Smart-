@@ -183,7 +183,7 @@ function renderQuoteEmail(opts) {
         <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#43A8B6" style="border-radius:999px;">
           <a href="${accept}" target="_blank" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:bold;color:#0B1B1F;text-decoration:none;">Accept this quote &rarr;</a>
         </td></tr></table>
-        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection" : "booking"} fee.<br>Prefer to talk first? Call <a href="tel:${PHONE_TEL}" style="color:#2E8494;font-weight:bold;text-decoration:none;">${PHONE_DISPLAY}</a> or just reply to this email.</p>
+        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection" : "booking"} fee.<br>Prefer to talk first? Reply to this email with your preferred time and we will call you to book it in.</p>
       </td></tr>
 
       <!-- Included -->
@@ -213,7 +213,7 @@ function renderQuoteEmail(opts) {
       <!-- Footer -->
       <tr><td align="center" style="padding:20px 12px 6px;">
         <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${ABN}</p>
-        <p style="margin:0;font-size:11px;color:#8AA0A5;">${PHONE_DISPLAY} &middot; ${SUPPORT_EMAIL} &middot; <a href="${SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a>${agentName ? ` &middot; Prepared by ${escapeHtml(agentName)}` : ""}</p>
+        <p style="margin:0;font-size:11px;color:#8AA0A5;">${SUPPORT_EMAIL} &middot; <a href="${SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a>${agentName ? ` &middot; Prepared by ${escapeHtml(agentName)}` : ""}</p>
         <p style="margin:8px 0 0;font-size:10px;color:#A5B8BC;line-height:1.6;max-width:500px;">This quotation is an estimate based on the property details discussed and is valid until ${escapeHtml(validUntil)}. Final compliance requirements are confirmed on-site by a licensed electrician. All prices in AUD and inclusive of GST.</p>
       </td></tr>
 
@@ -239,7 +239,7 @@ Accept this quote: ${accept}
 
 Included: licensed & insured electricians, same-day compliance certificate, AS 3786-2014/2023 certified alarms, 10-year manufacturer warranty.
 
-Questions? Reply to this email or call ${PHONE_DISPLAY}.
+Questions? Reply to this email with your preferred time and we will call you to book it in.
 PowerSmart Pty Ltd | ABN ${ABN}${agentName ? ` | Prepared by ${agentName}` : ""}
 ${SITE}`;
 
