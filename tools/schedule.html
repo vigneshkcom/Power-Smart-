@@ -220,7 +220,7 @@
       <div class="modal-body">
         <p style="font-size:.86rem;color:var(--body);margin-bottom:1rem">Choose your name for this session. Jobs you create, move or close will be logged against this person on the customer's lead.</p>
         <div style="display:flex;gap:.8rem">
-          <button class="btn btn-primary" id="choose-mani" style="flex:1;justify-content:center;min-height:52px">Mani</button>
+          <button class="btn btn-primary" id="choose-sam" style="flex:1;justify-content:center;min-height:52px">Sam</button>
           <button class="btn btn-primary" id="choose-sunny" style="flex:1;justify-content:center;min-height:52px">Sunny</button>
         </div>
       </div>
@@ -542,12 +542,12 @@
     $("dispatcher").textContent = "Dispatching as: " + name + " · Change";
     $("agent-overlay").classList.remove("show");
   }
-  $("choose-mani").addEventListener("click", function(){ chooseAgent("Mani"); });
+  $("choose-sam").addEventListener("click", function(){ chooseAgent("Sam"); });
   $("choose-sunny").addEventListener("click", function(){ chooseAgent("Sunny"); });
   $("dispatcher").addEventListener("click", function(){ $("agent-overlay").classList.add("show"); });
   // Ask once per device (shared with the pipeline + quote tool); "Change" re-opens it.
-  if (state.agent === "Mani" || state.agent === "Sunny") chooseAgent(state.agent);
-  else $("choose-mani").focus();
+  if (state.agent === "Sam" || state.agent === "Sunny") chooseAgent(state.agent);
+  else $("choose-sam").focus();
 
   /* ---------- load ---------- */
   function load(){
@@ -1136,7 +1136,7 @@
       var after = reload();
       if (!(wantEmail || wantSms) || !job.id) return after;
       return call("/api/pipeline", "POST", { action:"booking_confirmation", job_id: job.id, email: wantEmail, sms: wantSms,
-          send_as: state.agent === "Mani" ? "mani" : state.agent === "Sunny" ? "sunny" : "customer_service", agent: state.agent || "Office" })
+          send_as: state.agent === "Sam" ? "sam" : state.agent === "Sunny" ? "sunny" : "customer_service", agent: state.agent || "Office" })
         .then(function(r){
           var parts = [];
           if (wantEmail) parts.push(r.email && r.email.status === "sent" ? "email sent" : "email not sent" + (r.email && r.email.error ? " (" + r.email.error + ")" : ""));

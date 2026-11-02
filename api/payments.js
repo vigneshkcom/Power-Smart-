@@ -65,7 +65,7 @@ module.exports = async (req, res) => {
         if(!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone)))return res.status(400).json({error:'Add a valid customer mobile number before sending SMS.'});
         if(b.action === 'preview_sms')return res.status(200).json({phone,message,payment:updated});
         if(b.expected_phone !== phone || b.expected_message !== message)return res.status(409).json({error:'The customer or payment details changed. Preview the SMS again before sending.'});
-        const sms=await Sms.sendLeadSms({lead,message,key:`payment-${payment.id}`,author:['Mani','Sunny'].includes(agent) ? agent : 'Team'});
+        const sms=await Sms.sendLeadSms({lead,message,key:`payment-${payment.id}`,author:['Sam','Sunny'].includes(agent) ? agent : 'Team'});
         return res.status(200).json({ok:true,sms,payment:updated});
       }
       return res.status(200).json({ payment: updated, checkout_url: session.status === 'open' && session.url ? P.checkoutUrl(session.url) : null });
@@ -82,7 +82,7 @@ module.exports = async (req, res) => {
     if (prior?.[0]) {
       const payment = await P.reconcile(prior[0], await Stripe.request(`/checkout/sessions/${encodeURIComponent(prior[0].stripe_session_id)}`));
       if (payment.status !== 'sent') return res.status(409).json({ error: `This request is ${payment.status}. Review payment history before creating another payment.` });
-      await P.note(leadId, ['Mani', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
+      await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
       return res.status(200).json({ payment, checkout_url: P.checkoutUrl(payment.checkout_url) });
     }
     const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,email,quote_ref&limit=1`), lead = leads?.[0];
@@ -98,7 +98,7 @@ module.exports = async (req, res) => {
       if (updated.status === 'paid' && b.payment_type === 'booking_fee') return res.status(409).json({ error: 'This booking fee has already been paid. Choose another payment type.' });
       if (existing.status === 'open' && existing.url) {
         if (payment.amount_cents !== amount || payment.description !== description) return res.status(409).json({ error: 'A booking fee request already exists. Use its link in payment history.' });
-        await P.note(leadId, ['Mani', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
+        await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
         return res.status(200).json({ payment: updated, checkout_url: P.checkoutUrl(existing.url) });
       }
     }
@@ -121,7 +121,7 @@ module.exports = async (req, res) => {
     }, prefer: 'resolution=ignore-duplicates,return=representation' });
     const payment = rows?.[0] || (await SB.sb(`payment_requests?stripe_session_id=eq.${encodeURIComponent(session.id)}&select=${fields}&limit=1`))?.[0];
     if (!payment) throw new Error('Could not save the payment request. Please retry.');
-    await P.note(leadId, ['Mani', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[b.payment_type]} checkout created: $${(amount / 100).toFixed(2)} AUD. ${description}. Payment pending. Stripe checkout: ${session.id}.`);
+    await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[b.payment_type]} checkout created: $${(amount / 100).toFixed(2)} AUD. ${description}. Payment pending. Stripe checkout: ${session.id}.`);
     return res.status(200).json({ payment, checkout_url: url });
   } catch (error) {
     console.error('PowerSmart payment request failed:', error.message);

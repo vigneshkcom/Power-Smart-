@@ -55,7 +55,7 @@ test('GET requires a date range', async () => {
 test('creating a job from a lead logs a status note on the lead', async () => {
   const f = fixture(), r = res();
   await f.handler({ method: 'POST', headers: KEY, body: {
-    action: 'job_create', actor: 'Mani', customer_name: 'Kath Gillespie', lead_id: 'lead1',
+    action: 'job_create', actor: 'Sam', customer_name: 'Kath Gillespie', lead_id: 'lead1',
     electrician_id: 't1', scheduled_start: '2026-10-23T23:00:00.000Z', duration_min: 60, status: 'scheduled', work_type: 'install',
   } }, r);
   assert.equal(r.code, 200);
@@ -63,7 +63,7 @@ test('creating a job from a lead logs a status note on the lead', async () => {
   const note = f.calls.find((c) => c.q === 'lead_comments');
   assert(note, 'lead note written');
   assert.equal(note.body.kind, 'status');
-  assert.equal(note.body.author, 'Mani');
+  assert.equal(note.body.author, 'Sam');
   assert.match(note.body.body, /Job J1001 created — assigned to Jake Turner/);
 });
 
@@ -135,7 +135,7 @@ test('the pipeline function serves job requests (keeps Vercel at 12 functions)',
 
 test('deleting a job keeps the pipeline lead and notes the removal', async () => {
   const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', electrician_id: 't1', status: 'scheduled' }), r = res();
-  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_delete', id: 'j1', actor: 'Mani' } }, r);
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_delete', id: 'j1', actor: 'Sam' } }, r);
   assert.equal(r.code, 200);
   const deletes = f.calls.filter((c) => c.method === 'DELETE');
   assert.deepEqual(deletes.map((c) => c.q), ['jobs?id=eq.j1'], 'only the job row is deleted');
@@ -267,7 +267,7 @@ test('the board shows what each customer has paid and how', async () => {
 test('reassigning a job to another electrician starts it over as a new job; payments stay as credit', async () => {
   const f = fixture({ id: 'j1', job_no: 1008, lead_id: 'lead1', electrician_id: 't1', status: 'completed', pay_status: 'paid', pay_method: 'cash', paid_cents: 15800, pay_receipt: '/PowerSmart Jobs/J1008/Receipts/r.jpg',
     invoice_items: [{ code: 'alarm_hardwired', qty: 2 }], alarm_units: [{ id: 'u1' }], tech_notes: 'x', signoff_name: 'Jake', signoff_signature: 'data:image/png;base64,AA', approved_at: '2026-10-30T01:00:00Z' }), r = res();
-  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: 't2', status: 'completed', actor: 'Mani' } }, r);
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: 't2', status: 'completed', actor: 'Sam' } }, r);
   assert.equal(r.code, 200);
   const j = r.body.job;
   assert.equal(j.status, 'scheduled', 'forced back to scheduled even if the form still said completed');

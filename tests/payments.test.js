@@ -51,7 +51,7 @@ function fixture() {
     await handler({ method: 'POST', headers: { 'x-portal-key': '2026' }, body, ...extras }, response);
     return { status, data };
   }
-  const body = { action: 'create', lead_id: 'lead1', amount: '316.25', payment_type: 'installation_balance', description: 'Smoke alarm installation balance', request_key: 'payment-request-key-00001', agent: 'Mani' };
+  const body = { action: 'create', lead_id: 'lead1', amount: '316.25', payment_type: 'installation_balance', description: 'Smoke alarm installation balance', request_key: 'payment-request-key-00001', agent: 'Sam' };
   return { payments, comments, stripeCalls, sessions, dbCalls, smsCalls, P, SB, Stripe, handler, call, body };
 }
 

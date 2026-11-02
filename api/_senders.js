@@ -12,7 +12,7 @@ const LOGO = `${SITE}/assets/logo/power-smart-logo-full-colour.png`;
 // key -> identity
 const SENDERS = {
   customer_service: { key: "customer_service", label: "Customer Service", fromName: "PowerSmart",           signName: "Customer Service Team", title: "PowerSmart" },
-  mani:             { key: "mani",             label: "Mani",             fromName: "Mani - PowerSmart", signName: "Mani",                  title: "PowerSmart" },
+  sam:             { key: "sam",             label: "Sam",             fromName: "Sam - PowerSmart", signName: "Sam",                  title: "PowerSmart" },
   sunny:          { key: "sunny",          label: "Sunny",          fromName: "Sunny - PowerSmart", signName: "Sunny",             title: "PowerSmart" },
 };
 
@@ -20,7 +20,7 @@ function resolveSender(key) {
   return SENDERS[key === 'vignesh' ? 'sunny' : key] || SENDERS.customer_service;
 }
 
-// "Mani - PowerSmart <support@powersmartco.com.au>"
+// "Sam - PowerSmart <support@powersmartco.com.au>"
 function fromHeader(key) {
   const s = resolveSender(key);
   const addr = process.env.RESEND_FROM_ADDRESS || SUPPORT_EMAIL;

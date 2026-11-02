@@ -3,7 +3,7 @@
 // Called from the pipeline lead card, so it requires the portal key.
 //
 // Body: { to, toName?, subject, message, sendAs, agent?, leadId? }
-// sendAs ∈ customer_service | mani | sunny
+// sendAs ∈ customer_service | sam | sunny
 
 const S = require("./_senders");
 const SB = require("./_supabase");

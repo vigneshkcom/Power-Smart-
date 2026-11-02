@@ -135,7 +135,7 @@ test('email scanners cannot unsubscribe with GET; customer confirmation stops bo
 test('Send reminder now is an extra: it sends both channels at once and never touches the three automatic follow-ups',async()=>{
   const f=fixture();const future=new Date(Date.now()+2*86400000).toISOString();Object.assign(f.db.quote_reminder_settings[0],{next_at:future,enabled:false,reason:'Paused by staff',reminder_count:2});
   const before={count:2,next:future};
-  const d=await f.R.sendNow(leadId,'Mani');
+  const d=await f.R.sendNow(leadId,'Sam');
   assert.equal(f.sms.length,1);assert.equal(f.emails.length,1);assert.equal(d.manual.review_required,false);
   const s=f.db.quote_reminder_settings[0];
   assert.equal(s.reminder_count,before.count,'the follow-up count is untouched');assert.equal(s.next_at,before.next,'the automatic schedule is untouched');assert.equal(s.enabled,false,'a pause stays a pause');
@@ -144,15 +144,15 @@ test('Send reminder now is an extra: it sends both channels at once and never to
 });
 test('Send reminder now still works after all three automatic follow-ups, but not twice in a row',async()=>{
   const f=fixture();f.db.quote_reminder_settings[0].reminder_count=3;
-  await f.R.sendNow(leadId,'Mani');assert.equal(f.sms.length,1);
+  await f.R.sendNow(leadId,'Sam');assert.equal(f.sms.length,1);
   f.db.quote_reminder_runs[0].created_at=new Date().toISOString();
-  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/just sent/);assert.equal(f.sms.length,1);
+  await assert.rejects(()=>f.R.sendNow(leadId,'Sam'),/just sent/);assert.equal(f.sms.length,1);
 });
 test('Send reminder now never overrides opt-out, payment or a replaced quote',async()=>{
   let f=fixture();f.db.leads[0].quote_ref='9999';
-  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'));assert.equal(f.sms.length+f.emails.length,0);
+  await assert.rejects(()=>f.R.sendNow(leadId,'Sam'));assert.equal(f.sms.length+f.emails.length,0);
   f=fixture();f.db.payment_requests.push({lead_id:leadId,quote_ref:'7011',status:'paid',amount_paid_cents:3500});
-  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/Payment received/);assert.equal(f.sms.length,0);
+  await assert.rejects(()=>f.R.sendNow(leadId,'Sam'),/Payment received/);assert.equal(f.sms.length,0);
   f=fixture();f.db.sms_messages.push({phone_number:'+61412345678',status:'optout',direction:'inbound',created_at:new Date().toISOString()});
-  await assert.rejects(()=>f.R.sendNow(leadId,'Mani'),/opted out/);assert.equal(f.sms.length,0);
+  await assert.rejects(()=>f.R.sendNow(leadId,'Sam'),/opted out/);assert.equal(f.sms.length,0);
 });

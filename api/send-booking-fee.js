@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     }, prefer: 'resolution=ignore-duplicates,return=minimal' });
 
     if (checkoutOnly) {
-      await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Mani", "Sunny"].includes(agent) ? agent : "System", kind: "payment", body: "Stripe checkout created for the $35.00 booking fee. Payment has not yet been confirmed." }, prefer: "return=minimal" });
+      await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Sam", "Sunny"].includes(agent) ? agent : "System", kind: "payment", body: "Stripe checkout created for the $35.00 booking fee. Payment has not yet been confirmed." }, prefer: "return=minimal" });
       return res.status(200).json({ ok: true, amount: 35, checkout_url: session.url });
     }
 
@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const sent = await resend.emails.send({ from: process.env.RESEND_FROM_EMAIL || "PowerSmart <support@powersmartco.com.au>", to: lead.email, replyTo: process.env.RESEND_REPLY_TO || "support@powersmartco.com.au", subject: "Secure your PowerSmart booking", html, text });
     if (sent.error) throw new Error(sent.error.message || "Could not send payment email");
-    await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Mani", "Sunny"].includes(agent) ? agent : "System", kind: "payment", body: `Stripe booking fee request for $35.00 emailed to ${lead.email}.` }, prefer: "return=minimal" });
+    await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Sam", "Sunny"].includes(agent) ? agent : "System", kind: "payment", body: `Stripe booking fee request for $35.00 emailed to ${lead.email}.` }, prefer: "return=minimal" });
     return res.status(200).json({ ok: true, amount: 35, session_id: session.id, checkout_url: session.url });
   } catch (error) { return res.status(error.status || 500).json({ error: error.message || "Could not send booking fee" }); }
 };
