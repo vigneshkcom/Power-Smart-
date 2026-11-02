@@ -680,6 +680,12 @@
       col.className = "col";
       col.dataset.stage = st.id;
       var inCol = visible.filter(function(l){ return l.stage === st.id; });
+      if (st.id === "scheduled"){
+        // Earliest scheduled visit first; leads with no booked date go last (stable).
+        inCol = inCol.map(function(l,i){ return {l:l,i:i,t:l.scheduled_start ? Date.parse(l.scheduled_start) : Infinity}; })
+          .sort(function(a,b){ return a.t===b.t ? a.i-b.i : (a.t<b.t ? -1 : 1); })
+          .map(function(x){ return x.l; });
+      }
 
       col.innerHTML =
         '<div class="col-head"><span class="dot" style="background:' + st.color + '"></span><h2>' + st.label + '</h2><span class="n">' + inCol.length + '</span></div>' +
