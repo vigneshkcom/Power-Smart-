@@ -40,27 +40,71 @@ async function gateway(path, options = {}) {
   } finally { clearTimeout(timer); }
 }
 
-// Customer replies reach the portal only through a webhook that SMS Gate calls when the sending phone receives a text.
+// Customer replies reach the portal only through a webhook. SMS Gate's cloud never calls the portal itself:
+// it hands the webhook list to the phone, and the PHONE posts each received text here.
 // The portal registers it itself (idempotent), so inbound messages never depend on someone setting it up by hand.
 const WEBHOOK_URL = 'https://portal.powersmartco.com.au/api/sms';
 const WEBHOOK_ID = 'powersmart-sms-received';
+const isPortalHook = (w) => w && w.event === 'sms:received' && w.url === WEBHOOK_URL;
 async function listWebhooks() {
   const response = await gateway('/webhooks', { headers: headers() });
   const result = await readGatewayResponse(response);
   if (!response.ok) { const e = new Error(gatewayError(response.status, result).error); e.info = gatewayError(response.status, result); throw e; }
   return Array.isArray(result) ? result : [];
 }
+// The webhook is registered WITHOUT a device ID so every phone on the account forwards replies.
+// A webhook tied to a device ID only fires on that one phone: after the SMS Gate app is reinstalled or
+// re-registered the phone gets a new ID and the old webhook silently stops firing, while still "pointing at the portal".
 async function ensureWebhook() {
   const existing = await listWebhooks();
-  if (existing.some((w) => w.event === 'sms:received' && w.url === WEBHOOK_URL)) return 'already';
+  if (existing.some((w) => isPortalHook(w) && !w.deviceId)) return 'already';
+  // Same ID replaces (upserts) the earlier device-bound registration rather than adding a second one.
   const response = await gateway('/webhooks', {
     method: 'POST', headers: headers(),
-    body: JSON.stringify({ id: WEBHOOK_ID, url: WEBHOOK_URL, event: 'sms:received', ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
+    body: JSON.stringify({ id: WEBHOOK_ID, url: WEBHOOK_URL, event: 'sms:received' }),
   });
   const result = await readGatewayResponse(response);
   if (!response.ok) { const e = new Error(gatewayError(response.status, result).error); e.info = gatewayError(response.status, result); throw e; }
   return 'registered';
 }
+
+// Ask the phone(s) to re-send recent received texts through the webhook. /inbox/refresh is the current
+// SMS Gate endpoint; /messages/inbox/export is its deprecated predecessor, kept as a fallback.
+// No device ID: every phone on the account re-sends, so a stale SMSGATE_DEVICE_ID cannot block it.
+async function requestInboxResend(since, until) {
+  const range = { since: since.toISOString(), until: until.toISOString() };
+  let response = await gateway('/inbox/refresh', { method: 'POST', headers: headers(), body: JSON.stringify({ ...range, messageTypes: ['SMS'], webhookDelivery: 'Individual' }) });
+  if (response.status === 404 || response.status === 405) {
+    response = await gateway('/messages/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify(range) });
+  }
+  return response;
+}
+
+// Post a harmless test event to the public webhook address, the way the phone does, to prove the portal accepts it.
+// Catches what no SMS Gate setting shows: a redirect, a firewall/bot challenge, a wrong domain, or a crashing handler.
+async function webhookSelfTest() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(WEBHOOK_URL, {
+      method: 'POST', redirect: 'manual', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'PowerSmart-portal-webhook-check' },
+      body: JSON.stringify({ event: 'system:ping', id: 'portal-self-test', payload: { selfTest: true } }),
+    });
+    const text = await response.text().catch(() => '');
+    let json = {}; try { json = JSON.parse(text); } catch (_) { /* not ours */ }
+    if (response.ok && json.receiver === 'powersmart-sms') return { ok: true, status: response.status };
+    const where = response.headers.get('location');
+    const detail = response.status >= 300 && response.status < 400 ? `the address redirects${where ? ' to ' + where : ''}; the phone needs a direct HTTPS address`
+      : response.status === 403 || response.status === 429 ? 'the request was blocked (Vercel Firewall / Bot Protection or Attack Challenge Mode); allow POST /api/sms'
+      : response.ok ? 'something other than the SMS portal answered at this address'
+      : `the portal answered HTTP ${response.status}`;
+    return { ok: false, status: response.status, detail };
+  } catch (e) {
+    return { ok: false, status: null, detail: e.name === 'AbortError' ? 'the portal did not answer within 6 seconds' : 'could not reach the portal address: ' + e.message };
+  } finally { clearTimeout(timer); }
+}
+const maskPhone = (p) => (String(p || '').length > 4 ? '…' + String(p).slice(-3) : String(p || ''));
 
 async function insertMessage(row) {
   const rows = await sb('sms_messages', { method: 'POST', body: row });
@@ -72,22 +116,37 @@ module.exports = async (req, res) => {
   if (!configured()) return res.status(503).json({ error: 'SMS storage is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel.' });
 
   try {
-    const body = req.body || {};
-    if (req.method === 'POST' && body.event === 'sms:received' && body.payload) {
-      // SMS Gate posts directly to this endpoint and cannot attach the staff portal key.
+    let body = req.body || {};
+    // The phone's HTTP client may send a charset or content type Vercel does not auto-parse.
+    if (typeof body === 'string' || Buffer.isBuffer(body)) { try { body = JSON.parse(String(body)); } catch (_) { body = {}; } }
+    if (req.method === 'POST' && typeof body.event === 'string' && /^(sms|mms|system|app):/.test(body.event)) {
+      // SMS Gate's phone posts directly to this endpoint and cannot attach the staff portal key.
+      if (body.event !== 'sms:received' || !body.payload) {
+        // Pings, app start and the portal's own self-test: acknowledge so the phone does not retry.
+        console.log('[SMS webhook]', body.event, body.id === 'portal-self-test' ? '(portal self-test)' : '', 'acknowledged');
+        return res.status(200).json({ ok: true, receiver: 'powersmart-sms', event: body.event });
+      }
       const p = body.payload;
-      const phone = cleanPhone(p.phoneNumber || p.phone || p.sender);
+      // `sender` is the customer; `phoneNumber` is its deprecated alias in older SMS Gate app versions.
+      const phone = cleanPhone(p.sender || p.phoneNumber || p.phone);
       const message = String(p.message || p.textMessage || p.text || '').trim();
-      if (!phone || !message) return res.status(400).json({ error: 'Webhook payload is missing a phone number or message.' });
-      const gatewayId = String(p.id || p.messageId || p.smsId || '');
+      if (!phone || !message) {
+        console.error('[SMS webhook] sms:received rejected: missing', !phone ? 'sender' : 'message', '| payload keys:', Object.keys(p).join(','));
+        return res.status(400).json({ error: 'Webhook payload is missing a phone number or message.' });
+      }
+      const gatewayId = String(p.messageId || p.id || p.smsId || '');
       if (gatewayId) {
-        const existing = await sb(`sms_messages?sms_gate_id=eq.${encodeURIComponent(gatewayId)}&select=id&limit=1`);
-        if (existing && existing.length) return res.status(200).json({ ok: true, duplicate: true });
+        const existing = await sb(`sms_messages?sms_gate_id=eq.${encodeURIComponent(gatewayId)}&direction=eq.inbound&phone_number=eq.${encodeURIComponent(phone)}&select=id&limit=1`);
+        if (existing && existing.length) {
+          console.log('[SMS webhook] sms:received from', maskPhone(phone), 'duplicate, already stored');
+          return res.status(200).json({ ok: true, receiver: 'powersmart-sms', duplicate: true });
+        }
       }
       const normalised = message.trim().toUpperCase();
       const status = ['STOP', 'UNSUBSCRIBE', 'OPT OUT'].includes(normalised) ? 'optout' : ['START', 'UNSTOP'].includes(normalised) ? 'optin' : 'received';
       await insertMessage({ phone_number: phone, message, direction: 'inbound', status, sms_gate_id: gatewayId || null });
-      return res.status(200).json({ ok: true });
+      console.log('[SMS webhook] sms:received from', maskPhone(phone), 'stored as', status);
+      return res.status(200).json({ ok: true, receiver: 'powersmart-sms' });
     }
 
     if (req.method === 'GET') {
@@ -96,22 +155,36 @@ module.exports = async (req, res) => {
         if (req.headers?.['x-portal-key'] !== '2026') return res.status(401).json({ error: 'Invalid portal key' });
         if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
         try {
-          const response = await gateway('/devices', { headers: headers() });
+          // Run the slow checks side by side; the self-test calls this same endpoint over the public internet.
+          const [response, hooks, selfTest, lastInbound, lastOutbound] = await Promise.all([
+            gateway('/devices', { headers: headers() }),
+            listWebhooks().catch(() => null),
+            webhookSelfTest(),
+            sb('sms_messages?direction=eq.inbound&order=created_at.desc&limit=1&select=created_at').catch(() => null),
+            sb('sms_messages?direction=eq.outbound&status=eq.sent&order=created_at.desc&limit=1&select=created_at').catch(() => null),
+          ]);
           const result = await readGatewayResponse(response);
           if (!response.ok) {
             const info = gatewayError(response.status, result);
-            return res.status(200).json({ gatewayReachable: false, httpStatus: response.status, error: response.status >= 500 ? 'SMS Gate is temporarily unavailable.' : info.error, detail: info.detail });
+            return res.status(200).json({ gatewayReachable: false, httpStatus: response.status, error: response.status >= 500 ? 'SMS Gate is temporarily unavailable.' : info.error, detail: info.detail, selfTest });
           }
-          let inboundConnected = null, webhookUrls = [];
-          try { const hooks = await listWebhooks(); webhookUrls = hooks.filter((w) => w.event === 'sms:received').map((w) => w.url); inboundConnected = webhookUrls.includes(WEBHOOK_URL); } catch (_) { /* reported as unknown */ }
-          const devices = Array.isArray(result) ? result : [];
+          const devices = (Array.isArray(result) ? result : []).filter(Boolean);
+          const deviceIds = devices.map((d) => d.id);
+          // Connected only if a portal webhook will actually fire on a phone that still exists.
+          let inboundConnected = null, webhookUrls = [], staleWebhook = false;
+          if (hooks) {
+            webhookUrls = hooks.filter((w) => w.event === 'sms:received').map((w) => w.url);
+            const ours = hooks.filter(isPortalHook);
+            inboundConnected = ours.some((w) => !w.deviceId || deviceIds.includes(w.deviceId));
+            staleWebhook = !inboundConnected && ours.length > 0;
+          }
           const configuredId = process.env.SMSGATE_DEVICE_ID || '';
-          let lastInboundAt = null;
-          try { lastInboundAt = (await sb('sms_messages?direction=eq.inbound&order=created_at.desc&limit=1&select=created_at'))?.[0]?.created_at || null; } catch (_) { /* reported as unknown */ }
+          const lastSeen = devices.map((d) => d.lastSeen || d.last_seen || d.updatedAt).filter(Boolean).sort().pop() || null;
           return res.status(200).json({
-            gatewayReachable: true, httpStatus: response.status, deviceCount: Array.isArray(result) ? result.length : null, inboundConnected, webhookUrls,
-            deviceIdConfigured: Boolean(configuredId), deviceIdMatches: configuredId ? devices.some((d) => d && d.id === configuredId) : null,
-            deviceLastSeen: devices.map((d) => d && (d.lastSeen || d.last_seen || d.updatedAt)).filter(Boolean)[0] || null, lastInboundAt,
+            gatewayReachable: true, httpStatus: response.status, deviceCount: devices.length, inboundConnected, staleWebhook, webhookUrls,
+            deviceIdConfigured: Boolean(configuredId), deviceIdMatches: configuredId ? deviceIds.includes(configuredId) : null,
+            deviceLastSeen: lastSeen, lastInboundAt: lastInbound?.[0]?.created_at || null, lastOutboundAt: lastOutbound?.[0]?.created_at || null,
+            selfTest,
           });
         } catch (_) {
           return res.status(200).json({ gatewayReachable: false, error: 'SMS Gate is not responding. SMS sending may be unavailable.', detail: 'Connection check failed or timed out.' });
@@ -173,7 +246,7 @@ module.exports = async (req, res) => {
       let webhook = 'unknown';
       try { webhook = await ensureWebhook(); } catch (e) { webhook = 'failed: ' + (e.info?.detail || e.message); }
       const until = new Date(), since = new Date(until.getTime() - 7 * 86400000);
-      const response = await gateway('/messages/inbox/export', { method: 'POST', headers: headers(), body: JSON.stringify({ since: since.toISOString(), until: until.toISOString(), ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }) });
+      const response = await requestInboxResend(since, until);
       if (!response.ok) { const info = gatewayError(response.status, await readGatewayResponse(response)); return res.status(502).json({ error: 'Replies connected: ' + (String(webhook).startsWith('failed') ? 'NO (' + String(webhook).slice(8) + ')' : 'yes (' + webhook + ')') + '. Could not request an older-texts sync: ' + info.error, detail: info.detail, webhook }); }
       return res.status(200).json({ ok: true, webhook });
     }

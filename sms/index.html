@@ -339,12 +339,32 @@ async function checkSmsService() {
   try {
     const r = await api('/api/sms?action=diagnostics', { headers: { 'x-portal-key': '2026' } });
     const when = v => v ? new Date(v).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
-    if (!r.gatewayReachable) notice.textContent = [r.error, r.detail].filter(Boolean).join(' ') + ' No test message was sent.';
-    else if (r.deviceCount === 0) notice.textContent = 'SMS Gate is connected, but no sending phone is registered. Open SMS Gate on the sending phone and check its connection.';
-    else if (r.deviceIdMatches === false) notice.textContent = 'The phone ID saved in Vercel (SMSGATE_DEVICE_ID) does not match the phone registered with SMS Gate, so replies are tied to the wrong phone. Copy the Device ID from the SMS Gate app into Vercel, or delete that variable, then redeploy.';
-    else if (r.inboundConnected === false) notice.textContent = 'Replies are NOT connected (SMS Gate is not sending received texts to this portal). Tap Sync inbox to connect them.' + (r.webhookUrls && r.webhookUrls.length ? ' Currently sending to: ' + r.webhookUrls.join(', ') : '');
-    else if (r.inboundConnected && !r.lastInboundAt) notice.textContent = 'Replies are connected, but no reply has arrived yet. On the sending phone: Settings > Apps > SMS Gateway > Permissions > SMS = Allow (needs Receive SMS), Battery = Unrestricted, and keep the app running. Then text the sending number from another phone to test.';
-    else notice.textContent = 'SMS Gate connection is working and replies are connected. Last reply received ' + when(r.lastInboundAt) + '.' + (r.deviceLastSeen ? ' Phone last seen ' + when(r.deviceLastSeen) + '.' : '') + ' This check does not send a text.';
+    const step = (ok, label, detail) => (ok === true ? 'OK  ' : ok === false ? 'FAIL' : 'NOTE') + '  ' + label + (detail ? ' - ' + detail : '');
+    const lines = [];
+    const self = r.selfTest || {};
+    if (!r.gatewayReachable) {
+      lines.push(step(false, 'SMS Gate account', [r.error, r.detail].filter(Boolean).join(' ')));
+    } else {
+      const stale = r.deviceLastSeen && Date.now() - new Date(r.deviceLastSeen) > 864e5;
+      lines.push(step(r.deviceCount > 0, 'Sending phone registered with SMS Gate', r.deviceCount ? `${r.deviceCount} phone${r.deviceCount === 1 ? '' : 's'}${r.deviceLastSeen ? ', last seen ' + when(r.deviceLastSeen) : ''}` : 'none - open SMS Gate on the sending phone and sign in to Cloud server'));
+      if (stale) lines.push(step(false, 'Sending phone online', 'not seen for over a day - open SMS Gate on the phone and check it is connected'));
+      if (r.deviceIdMatches === false) lines.push(step(false, 'SMSGATE_DEVICE_ID in Vercel', 'does not match any registered phone (affects sending). Copy the Device ID from the SMS Gate app, or delete the variable, then redeploy'));
+      lines.push(r.inboundConnected === false
+        ? step(false, 'Replies connected to this portal', (r.staleWebhook ? 'connected to an old phone registration, not this phone' : 'not connected') + ' - tap Sync inbox to fix' + (r.webhookUrls && r.webhookUrls.length ? '. Currently sending to: ' + r.webhookUrls.join(', ') : ''))
+        : step(r.inboundConnected === true ? true : null, 'Replies connected to this portal', r.inboundConnected === true ? 'every phone on the account forwards replies' : 'could not check'));
+    }
+    lines.push(step(self.ok === true, 'Portal accepts replies from the phone', self.ok ? 'test post answered' : (self.detail || 'not checked')));
+    lines.push(step(null, 'Last reply stored', (r.lastInboundAt ? when(r.lastInboundAt) : 'never') + (r.lastOutboundAt ? ' · last text sent ' + when(r.lastOutboundAt) : '')));
+    const allOk = r.gatewayReachable && r.deviceCount > 0 && r.inboundConnected === true && self.ok;
+    if (allOk) lines.push('',
+      'Everything on the portal side is working. If a customer reply shows on the sending phone but not here:',
+      '- It most likely arrived as an RCS chat, which SMS Gate cannot see (iPhones on iOS 18+ use RCS too). In Google Messages (or Samsung Messages) on the sending phone: Settings > RCS chats / Chat features > turn OFF.',
+      '- If that SIM was ever in an iPhone, deregister the number from iMessage: selfsolve.apple.com/deregister-imessage',
+      '- SMS Gate app: Permissions > SMS = Allow (Android 13+: App info > ⋮ > Allow restricted settings first), Battery = Unrestricted.',
+      'Then text the sending number from another phone. It should appear here within a minute.');
+    lines.push('', 'This check does not send a text.');
+    notice.style.whiteSpace = 'pre-line';
+    notice.textContent = lines.join('\n');
   } catch (e) { notice.textContent = showError(e); }
   finally { btn.disabled = false; }
 }
@@ -387,11 +407,11 @@ $('newPhone').addEventListener('keydown', e => { if (e.key === 'Enter') startCon
 $('sync').onclick = syncInbox;
 // Once per browser session, quietly make sure customer replies are wired up (safe to repeat).
 try {
-  if (!sessionStorage.getItem('sms-connected')) {
+  if (!sessionStorage.getItem('sms-connected-v2')) {
     fetch('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connect' }) })
       .then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
         if (!ok) return;
-        sessionStorage.setItem('sms-connected', '1');
+        sessionStorage.setItem('sms-connected-v2', '1');
         if (j.webhook === 'registered') { toast('Replies are now connected. Fetching recent texts...'); syncInbox(); }
       }).catch(() => {});
   }
