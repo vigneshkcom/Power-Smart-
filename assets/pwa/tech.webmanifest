@@ -1,0 +1,17 @@
+{
+  "name": "PowerSmart Electrician",
+  "short_name": "PowerSmart",
+  "description": "Job schedule and job sign-off for PowerSmart electricians",
+  "id": "/tech",
+  "start_url": "/tech",
+  "scope": "/tech",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1B1F",
+  "theme_color": "#0B1B1F",
+  "icons": [
+    { "src": "/assets/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

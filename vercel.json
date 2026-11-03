@@ -1,19 +1,37 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/pipeline.js": { "maxDuration": 60, "includeFiles": "api/_cert-assets/**" },
-    "api/stripe-webhook.js": { "maxDuration": 60, "includeFiles": "api/_cert-assets/**" }
+    "api/pipeline.js": {
+      "maxDuration": 60,
+      "includeFiles": "api/_cert-assets/**"
+    },
+    "api/stripe-webhook.js": {
+      "maxDuration": 60,
+      "includeFiles": "api/_cert-assets/**"
+    }
   },
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/quote", "destination": "/api/customer-link?kind=quote" },
-    { "source": "/pay", "destination": "/api/customer-link?kind=payment" },
-    { "source": "/invoice", "destination": "/api/customer-link?kind=invoice" },
+    {
+      "source": "/quote",
+      "destination": "/api/customer-link?kind=quote"
+    },
+    {
+      "source": "/pay",
+      "destination": "/api/customer-link?kind=payment"
+    },
+    {
+      "source": "/invoice",
+      "destination": "/api/customer-link?kind=invoice"
+    },
     {
       "source": "/",
       "has": [
-        { "type": "host", "value": "portal\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "portal\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "/staff-hub"
     }
@@ -22,7 +40,10 @@
     {
       "source": "/staff-hub",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/",
       "permanent": false
@@ -30,7 +51,10 @@
     {
       "source": "/tools",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/tools",
       "permanent": false
@@ -38,7 +62,10 @@
     {
       "source": "/tools/:path*",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/tools/:path*",
       "permanent": false
@@ -46,7 +73,10 @@
     {
       "source": "/tech",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/tech",
       "permanent": false
@@ -54,7 +84,10 @@
     {
       "source": "/sms",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/sms",
       "permanent": false
@@ -62,16 +95,71 @@
     {
       "source": "/sms/:path*",
       "has": [
-        { "type": "host", "value": "smokealarms\\.powersmartco\\.com\\.au" }
+        {
+          "type": "host",
+          "value": "smokealarms\\.powersmartco\\.com\\.au"
+        }
       ],
       "destination": "https://portal.powersmartco.com.au/sms/:path*",
       "permanent": false
     },
-    { "source": "/sales-portal.html", "destination": "/tools", "permanent": true },
-    { "source": "/sales-portal", "destination": "/tools", "permanent": true },
-    { "source": "/portal", "destination": "/tools", "permanent": false },
-    { "source": "/qld-smoke-alarms.html", "destination": "/", "permanent": true },
-    { "source": "/qld-smoke-alarms", "destination": "/", "permanent": true },
-    { "source": "/AussieGreenEnergySmokeAlarms.html", "destination": "/archive/AussieGreenEnergySmokeAlarms.html", "permanent": false }
+    {
+      "source": "/sales-portal.html",
+      "destination": "/tools",
+      "permanent": true
+    },
+    {
+      "source": "/sales-portal",
+      "destination": "/tools",
+      "permanent": true
+    },
+    {
+      "source": "/portal",
+      "destination": "/tools",
+      "permanent": false
+    },
+    {
+      "source": "/qld-smoke-alarms.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/qld-smoke-alarms",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/AussieGreenEnergySmokeAlarms.html",
+      "destination": "/archive/AussieGreenEnergySmokeAlarms.html",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/pwa/tech-sw.js",
+      "headers": [
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/tech"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/javascript; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/assets/pwa/tech.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
   ]
 }

@@ -7,6 +7,10 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#0B1B1F">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PowerSmart">
+<link rel="manifest" href="/assets/pwa/tech.webmanifest">
+<link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -912,6 +916,9 @@
   }
   if (me && me.code) route(); else showLogin();
 })();
+</script>
+<script>
+if ("serviceWorker" in navigator) window.addEventListener("load", function(){ navigator.serviceWorker.register("/assets/pwa/tech-sw.js", { scope: "/tech" }).catch(function(){}); });
 </script>
 </body>
 </html>
