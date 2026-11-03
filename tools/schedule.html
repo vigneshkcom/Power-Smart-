@@ -474,6 +474,11 @@
   var $ = function(id){ return document.getElementById(id); };
   var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
   var pad = function(n){ return (n < 10 ? "0" : "") + n; };
+  /* Everything on this page is Brisbane time (UTC+10, no daylight saving), whatever the browser's time zone is.
+     bt(x): real instant -> Date whose local fields read as Brisbane wall-clock. fromB(d): the reverse. */
+  var BNE_MS = 10 * 3600e3;
+  function bt(x){ var u = new Date(new Date(x).getTime() + BNE_MS); return new Date(u.getUTCFullYear(), u.getUTCMonth(), u.getUTCDate(), u.getUTCHours(), u.getUTCMinutes(), u.getUTCSeconds()); }
+  function fromB(d){ return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()) - BNE_MS); }
   function startOfDay(d){ var x = new Date(d); x.setHours(0,0,0,0); return x; }
   function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function isoDate(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
@@ -483,7 +488,7 @@
   try { savedView = localStorage.getItem(VIEW_LS) || "day"; } catch(e){}
   var state = {
     view: VIEWS[savedView] ? savedView : "day",
-    start: startOfDay(new Date()),
+    start: startOfDay(bt(new Date())),
     techs: [], jobs: [], waiting: [], leads: null,
     slot: 60, typeFilter: "", techFilter: "", showWaiting: true,
     drag: null, editing: null, agent: ""
@@ -551,7 +556,7 @@
 
   /* ---------- load ---------- */
   function load(){
-    var url = "/api/pipeline?resource=jobs&from=" + encodeURIComponent(state.start.toISOString()) + "&to=" + encodeURIComponent(rangeEnd().toISOString());
+    var url = "/api/pipeline?resource=jobs&from=" + encodeURIComponent(fromB(state.start).toISOString()) + "&to=" + encodeURIComponent(fromB(rangeEnd()).toISOString());
     return call(url, "GET").then(function(d){
       state.techs = d.electricians || [];
       state.jobs = d.jobs || [];
@@ -572,7 +577,7 @@
   function totalW(){ return dayW() * cfg().days; }
   function dayIndex(d){ return Math.round((startOfDay(d) - state.start) / 864e5); }
   function xOf(date){
-    var c = cfg(), d = new Date(date), di = dayIndex(d);
+    var c = cfg(), d = bt(date), di = dayIndex(d);
     if (di < 0) return 0;
     if (di >= c.days) return totalW();
     var h = d.getHours() + d.getMinutes() / 60;
@@ -604,7 +609,7 @@
   /* ---------- formatting ---------- */
   function titleDay(d){ return DOW[d.getDay()] + ", " + pad(d.getDate()) + "-" + MON[d.getMonth()] + "-" + d.getFullYear(); }
   function shortDay(d){ return DOW[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
-  function timeText(d){ return new Date(d).toLocaleTimeString("en-AU", { hour:"numeric", minute:"2-digit" }); }
+  function timeText(d){ return new Date(d).toLocaleTimeString("en-AU", { hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" }); }
   function addressLine(j){ return [j.address, [j.suburb, j.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", "); }
   function mapsQuery(j){ var a = addressLine(j); return a ? a + ", QLD, Australia" : ""; }
   function typeOk(j){ return !state.typeFilter || j.work_type === state.typeFilter; }
@@ -664,7 +669,7 @@
   function renderAgenda(){
     var c = cfg(), techs = visibleTechs();
     if (!state.techs.length) return emptyBoard();
-    var today = startOfDay(new Date()).getTime();
+    var today = startOfDay(bt(new Date())).getTime();
     var html = '<div class="agenda" style="grid-template-columns:214px repeat(' + c.days + ', minmax(' + (c.days > 3 ? 150 : 230) + 'px, 1fr))">' +
       '<div class="ag-h ag-corner">ELECTRICIAN</div>';
     for (var d = 0; d < c.days; d++){
@@ -676,7 +681,7 @@
         .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); });
       html += techCell(t, mine, 'style="border-right:1px solid var(--line)"');
       for (var d2 = 0; d2 < c.days; d2++){
-        var dayJobs = mine.filter(function(j){ return dayIndex(new Date(j.scheduled_start)) === d2; });
+        var dayJobs = mine.filter(function(j){ return dayIndex(bt(j.scheduled_start)) === d2; });
         html += '<div class="acell' + (t.active ? '' : ' inactive') + '" data-tech="' + esc(t.id) + '" data-day="' + d2 + '">' + dayJobs.map(function(j){
           var st = STATUS[statusKey(j)] || STATUS.scheduled;
           return '<div class="achip' + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" style="background:' + st.bg + '" title="' + esc(st.label + " · " + (addressLine(j) || "No address")) + '">' +
@@ -738,10 +743,10 @@
 
     var seps = '';
     for (var s = 1; s < c.days; s++) seps += '<div class="day-sep" style="left:' + (s * dayW()) + 'px"></div>';
-    var now = new Date(), nowLine = '';
+    var now = bt(new Date()), nowLine = '';
     if (now >= state.start && now < rangeEnd()){
       var nh = now.getHours() + now.getMinutes() / 60;
-      if (nh >= c.startH && nh <= c.endH) nowLine = '<div class="now-line" style="left:' + xOf(now) + 'px"></div>';
+      if (nh >= c.startH && nh <= c.endH) nowLine = '<div class="now-line" style="left:' + xOf(fromB(now)) + 'px"></div>';
     }
     var noRows = techs.length ? '' : '<div class="empty-board">No electricians match this filter.</div>';
 
@@ -818,7 +823,7 @@
     var start;
     if (lane.classList.contains("acell")){
       // day column: keep the job's time of day (08:00 for unscheduled jobs)
-      var src = job.scheduled_start ? new Date(job.scheduled_start) : null;
+      var src = job.scheduled_start ? bt(job.scheduled_start) : null;
       start = addDays(state.start, +lane.dataset.day);
       start.setHours(src ? src.getHours() : 8, src ? src.getMinutes() : 0, 0, 0);
     } else {
@@ -827,9 +832,9 @@
     }
     var techId = lane.dataset.tech;
     state.drag = null;
-    if (job.electrician_id === techId && job.scheduled_start && new Date(job.scheduled_start).getTime() === start.getTime()) return;
-    moveJob(job, { electrician_id: techId, scheduled_start: start.toISOString() },
-      "J" + job.job_no + " → " + (techById(techId) || {}).name + ", " + shortDay(start) + " " + timeText(start));
+    if (job.electrician_id === techId && job.scheduled_start && new Date(job.scheduled_start).getTime() === fromB(start).getTime()) return;
+    moveJob(job, { electrician_id: techId, scheduled_start: fromB(start).toISOString() },
+      "J" + job.job_no + " → " + (techById(techId) || {}).name + ", " + shortDay(start) + " " + timeText(fromB(start)));
   });
   wl.addEventListener("dragover", function(e){ if (!state.drag) return; e.preventDefault(); wl.classList.add("over"); });
   wl.addEventListener("dragleave", function(e){ if (!wl.contains(e.relatedTarget)) wl.classList.remove("over"); });
@@ -917,7 +922,7 @@
     if (!$("jm-duration").value) $("jm-duration").value = "60";
     $("jm-notes").value = j.notes || "";
     if (j.scheduled_start){
-      var d = new Date(j.scheduled_start);
+      var d = bt(j.scheduled_start);
       $("jm-date").value = isoDate(d); setTime(pad(d.getHours()) + ":" + pad(d.getMinutes()));
     } else { $("jm-date").value = ""; setTime(""); }
     $("jm-quote-hint").textContent = ""; $("jm-quote-hint").classList.remove("warn");
@@ -951,7 +956,7 @@
     state.editing = null;
     $("jm-title").textContent = "New job";
     setPill(null);
-    fillForm({ status:"scheduled", duration_min: state.slot, scheduled_start: opts.start ? opts.start.toISOString() : null });
+    fillForm({ status:"scheduled", duration_min: state.slot, scheduled_start: opts.start ? fromB(opts.start).toISOString() : null });
     $("jm-confirm").checked = true; $("jm-confirm-email").checked = true; $("jm-confirm-sms").checked = true;
     if (!opts.start){ $("jm-date").value = ""; setTime(""); }
     techOptions(opts.techId || "");
@@ -1006,7 +1011,7 @@
       (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
-        (j.approved_at ? '<br>Customer approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" })) : '') : '') +
+        (j.approved_at ? '<br>Customer approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) : '') : '') +
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
     box.style.display = "";
   }
@@ -1113,7 +1118,7 @@
       work_type: $("jm-type").value,
       alarms: $("jm-alarms").value,
       electrician_id: techId,
-      scheduled_start: start ? start.toISOString() : null,
+      scheduled_start: start ? fromB(start).toISOString() : null,
       duration_min: +$("jm-duration").value,
       status: $("jm-status").value,
       notes: $("jm-notes").value.trim()
@@ -1232,7 +1237,7 @@
   var rp = { preset: "this-week" };
   function weekStart(d){ var x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }   // Monday
   function presetRange(p){
-    var now = new Date(), a, b;
+    var now = bt(new Date()), a, b;
     if (p === "this-week"){ a = weekStart(now); b = addDays(a, 7); }
     else if (p === "last-week"){ b = weekStart(now); a = addDays(b, -7); }
     else if (p === "this-month"){ a = new Date(now.getFullYear(), now.getMonth(), 1); b = new Date(now.getFullYear(), now.getMonth() + 1, 1); }
@@ -1259,7 +1264,7 @@
     if (!$("rp-from").value || !$("rp-to").value) return;
     var r = rpRange();
     $("rp-label").textContent = "Completed " + rpLabel(r) + " · loading…";
-    jobsApi({ action:"report", from: r[0].toISOString(), to: r[1].toISOString(), electrician_id: $("rp-tech").value }).then(function(d){
+    jobsApi({ action:"report", from: fromB(r[0]).toISOString(), to: fromB(r[1]).toISOString(), electrician_id: $("rp-tech").value }).then(function(d){
       $("rp-label").textContent = "Completed " + rpLabel(r) + " · " + d.totals.jobs + " job" + (d.totals.jobs === 1 ? "" : "s");
       var untyped = d.totals.untyped > 0;
       var head = '<thead><tr><th>Electrician</th><th class="n">Jobs</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
@@ -1274,7 +1279,7 @@
         : '<tbody><tr><td class="empty">No completed jobs in this period.</td></tr></tbody>';
       $("rp-jobs").innerHTML = d.rows.length ? '<thead><tr><th>Completed</th><th>Job</th><th>Electrician</th><th>Customer</th><th>Suburb / address</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
         '<th class="n">Controllers</th><th>Other</th><th class="n">Invoice</th><th>Payment</th></tr></thead><tbody>' + d.rows.map(function(x){
-          return '<tr><td>' + esc(new Date(x.completed_at).toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" })) + '</td><td>J' + esc(x.job_no) + '</td><td>' + esc(x.electrician) + '</td><td>' + esc(x.customer) + '</td><td>' + esc(x.address) + '</td>' +
+          return '<tr><td>' + esc(new Date(x.completed_at).toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short", timeZone:"Australia/Brisbane" })) + '</td><td>J' + esc(x.job_no) + '</td><td>' + esc(x.electrician) + '</td><td>' + esc(x.customer) + '</td><td>' + esc(x.address) + '</td>' +
             '<td class="n">' + x.battery + '</td><td class="n">' + x.hardwired + '</td>' + (untyped ? '<td class="n">' + x.untyped + '</td>' : '') + '<td class="n">' + x.controllers + '</td><td>' + esc(x.other) + '</td>' +
             '<td class="n">' + (x.invoice == null ? "—" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + (x.paid_cash ? (x.cash_receipt ? ' · receipt ✓' : ' · <b style="color:#B3261E">no receipt</b>') : '') + '</td></tr>';
         }).join("") + '</tbody>' : '';
@@ -1298,7 +1303,7 @@
     btn.disabled = true;
     fetch("/api/pipeline?resource=jobs", {
       method: "POST", headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
-      body: JSON.stringify({ action:"report", format:"xlsx", from: r[0].toISOString(), to: r[1].toISOString(), electrician_id: $("rp-tech").value,
+      body: JSON.stringify({ action:"report", format:"xlsx", from: fromB(r[0]).toISOString(), to: fromB(r[1]).toISOString(), electrician_id: $("rp-tech").value,
         label: rpLabel(r) + ($("rp-tech").value ? " · " + $("rp-tech").selectedOptions[0].textContent : "") })
     }).then(function(res){
       if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the Excel file"); });
@@ -1315,7 +1320,7 @@
   function go(days){ state.start = addDays(state.start, days); reload(); }
   $("prev").addEventListener("click", function(){ go(-cfg().days); });
   $("next").addEventListener("click", function(){ go(cfg().days); });
-  $("today").addEventListener("click", function(){ state.start = startOfDay(new Date()); reload(); });
+  $("today").addEventListener("click", function(){ state.start = startOfDay(bt(new Date())); reload(); });
   document.querySelectorAll(".seg button").forEach(function(b){
     b.addEventListener("click", function(){
       state.view = b.dataset.view;
