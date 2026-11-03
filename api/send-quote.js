@@ -106,8 +106,17 @@ module.exports = async (req, res) => {
     return res.status(error.status || 500).json({ error: error.message || "Could not allocate a quote number" });
   }
 
+  // Show the property address on the quote when the lead has one saved.
+  let address = "";
+  if (hintLeadId && SB.configured()) {
+    try {
+      const l = (await SB.sb(`leads?id=eq.${encodeURIComponent(hintLeadId)}&select=address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0];
+      if (l && l.address_line1) address = [l.address_line1, [l.address_suburb, l.address_state, l.address_postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    } catch (_) { /* address is optional */ }
+  }
+
   const rendered = Q.renderQuoteEmail({
-    customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty,
+    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty,
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 

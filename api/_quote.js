@@ -78,7 +78,7 @@ function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, co
 
 /* ---------- Customer-facing quote email ---------- */
 function renderQuoteEmail(opts) {
-  const { customerName, agentName, ref, issueDate, validUntil } = opts;
+  const { customerName, agentName, ref, issueDate, validUntil, address } = opts;
   const q = buildQuote(opts);
   const name = escapeHtml(customerName || "there");
   const isInspect = opts.serviceMode === "inspect";
@@ -138,7 +138,7 @@ function renderQuoteEmail(opts) {
       <!-- Meta band -->
       <tr><td style="background:#F4F9FA;padding:14px 32px;border-bottom:1px solid #E5EEEF;">
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-          <td style="font-size:12px;color:#6B8288;">PREPARED FOR<br><strong style="font-size:14px;color:#0B1B1F;">${name}</strong></td>
+          <td style="font-size:12px;color:#6B8288;">PREPARED FOR<br><strong style="font-size:14px;color:#0B1B1F;">${name}</strong>${address ? `<br><span style="font-size:11px;">PROPERTY</span><br><strong style="font-size:13px;color:#0B1B1F;">${escapeHtml(address)}</strong>` : ""}</td>
           <td align="right" style="font-size:12px;color:#6B8288;line-height:1.7;">Issued: <strong style="color:#41585D;">${escapeHtml(issueDate)}</strong><br>Valid until: <strong style="color:#41585D;">${escapeHtml(validUntil)}</strong></td>
         </tr></table>
       </td></tr>
@@ -223,7 +223,7 @@ function renderQuoteEmail(opts) {
 
   const text = `QUOTATION ${ref} - PowerSmart
 Prepared for: ${customerName || "you"}
-Issued: ${issueDate} | Valid until: ${validUntil}
+${address ? `Property: ${address}\n` : ""}Issued: ${issueDate} | Valid until: ${validUntil}
 
 ${introLine.replace(/<[^>]+>/g, "")}
 
