@@ -248,6 +248,7 @@
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <button class="btn btn-ghost" id="techs-btn">Electricians</button>
       <button class="btn btn-ghost" id="report-btn">Report</button>
+      <button class="btn btn-ghost" id="stock-btn">Stock</button>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -381,6 +382,32 @@
   </div>
 
   <!-- completed jobs report -->
+  <div class="overlay" id="stock-overlay">
+    <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="st-title">
+      <div class="modal-head">
+        <h3 id="st-title">Stock tracker</h3>
+        <button class="x" id="st-close" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-label" style="border-top:none;padding-top:0">Stock on hand by electrician</div>
+        <div class="rp-scroll"><table class="rp-table" id="st-table"></table></div>
+        <p class="hint" id="st-hint" style="margin:.4rem 0 1rem"></p>
+        <div class="section-label">Record stock</div>
+        <div class="rp-bar">
+          <label>Electrician <select id="st-tech"></select></label>
+          <label>Action <select id="st-kind"><option value="issue">Give</option><option value="return">Take back</option><option value="adjust">Correction (+/-)</option></select></label>
+          <label>Product <select id="st-product"><option value="hardwired">Hardwired smoke alarm</option><option value="battery">Battery smoke alarm</option><option value="controller">Controller</option></select></label>
+          <label>Qty <input type="number" id="st-qty" step="1" style="width:5rem"></label>
+          <label>Note <input type="text" id="st-note" maxlength="300" placeholder="optional" style="width:12rem"></label>
+          <button class="btn btn-primary" id="st-save">Save</button>
+        </div>
+        <div class="section-label" style="margin-top:1rem">Recent stock entries</div>
+        <div class="rp-scroll"><table class="rp-table" id="st-log"></table></div>
+      </div>
+      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded.</span></div>
+    </div>
+  </div>
+
   <div class="overlay" id="report-overlay">
     <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="rp-title">
       <div class="modal-head">
@@ -1293,6 +1320,38 @@
     setPreset(rp.preset);
   }
   $("report-btn").addEventListener("click", openReport);
+
+  /* ---------- stock tracker ---------- */
+  var STOCK_LABEL = { hardwired:"Hardwired alarm", battery:"Battery alarm", controller:"Controller" };
+  function renderStock(d){
+    var P = ["hardwired","battery","controller"];
+    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Given / used</th></tr></thead><tbody>' +
+      (d.electricians.length ? d.electricians.map(function(t){
+        return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
+          P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
+          '<td>' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
+            (t.unclassified ? ' · <span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td></tr>';
+      }).join("") : '<tr><td class="empty" colspan="5">No electricians yet</td></tr>') + '</tbody>';
+    $("st-log").innerHTML = '<thead><tr><th>When</th><th>Electrician</th><th>Product</th><th class="n">Qty</th><th>Note</th><th>By</th></tr></thead><tbody>' +
+      (d.movements.length ? d.movements.map(function(m){
+        return '<tr><td>' + esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</td><td>' + esc(m.electrician) + '</td><td>' + esc(STOCK_LABEL[m.product] || m.product) + '</td><td class="n">' + (m.qty > 0 ? "+" : "") + m.qty + '</td><td>' + esc(m.note) + '</td><td>' + esc(m.created_by) + '</td></tr>';
+      }).join("") : '<tr><td class="empty" colspan="6">Nothing recorded yet</td></tr>') + '</tbody>';
+  }
+  function loadStock(){ return jobsApi({ action:"stock_summary" }).then(renderStock).catch(function(err){ toast(err.message); }); }
+  $("stock-btn").addEventListener("click", function(){
+    $("st-tech").innerHTML = state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
+    $("stock-overlay").classList.add("show"); loadStock();
+  });
+  $("st-close").addEventListener("click", function(){ $("stock-overlay").classList.remove("show"); });
+  $("stock-overlay").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("show"); });
+  $("st-save").addEventListener("click", function(){
+    var qty = parseInt($("st-qty").value, 10);
+    if (!qty){ toast("Enter a quantity"); $("st-qty").focus(); return; }
+    var btn = this; btn.disabled = true;
+    jobsApi({ action:"stock_move", electrician_id: $("st-tech").value, kind: $("st-kind").value, product: $("st-product").value, qty: qty, note: $("st-note").value })
+      .then(function(d){ renderStock(d); $("st-qty").value = ""; $("st-note").value = ""; toast("Stock saved"); })
+      .catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
   $("rp-close").addEventListener("click", function(){ $("report-overlay").classList.remove("show"); });
   $("report-overlay").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("show"); });
   document.querySelectorAll("[data-preset]").forEach(function(b){ b.addEventListener("click", function(){ setPreset(b.dataset.preset); }); });

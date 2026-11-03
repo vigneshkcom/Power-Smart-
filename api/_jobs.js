@@ -433,6 +433,12 @@ module.exports = async (req, res) => {
       return res.status(200).send(file);
     }
 
+    if (b.action === "stock_summary") return res.status(200).json(await require("./_stock").summary(installedCounts));
+    if (b.action === "stock_move") {
+      const m = await require("./_stock").move(b, actor, clean);
+      return res.status(200).json({ ok: true, movement: m, ...(await require("./_stock").summary(installedCounts)) });
+    }
+
     // Latest sent quote for a lead → alarm/controller counts for the job card.
     if (b.action === "lead_quote") {
       let leadId = clean(b.lead_id, 40), email = clean(b.email, 254).toLowerCase(), ref = '';
