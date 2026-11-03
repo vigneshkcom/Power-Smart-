@@ -21,7 +21,7 @@ function bookingSlot(iso) {
   return { date, short, slot: isAm ? "AM" : "PM", window: isAm ? "8:00am and 12:00pm" : "12:00pm and 5:00pm" };
 }
 
-function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, address, slot, quoteUrl }) {
+function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, address, slot, quoteUrl, note }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const balance = quoteTotal != null ? Math.max(0, quoteTotal - (feePaid || 0)) : null;
   const row = (label, value, color) => `<tr><td colspan="2" style="padding:4px 12px;color:${color || "#41585D"};">${label}</td><td align="right" style="padding:4px 12px;color:${color || "#41585D"};">${value}</td></tr>`;
@@ -70,6 +70,7 @@ ${quoteBlock}
     &bull; You will get your <strong>compliance certificate the same day</strong>.${balanceLine}
   </td></tr></table>
 </td></tr>
+${note ? `<tr><td style="background:#ffffff;padding:14px 32px 0;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;white-space:pre-line;border-left:3px solid #43A8B6;padding-left:12px;">${esc(note)}</p></td></tr>` : ""}
 <tr><td style="background:#ffffff;padding:14px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Need to change the day or slot? Reply to this email or call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0;font-weight:bold;">${Q.PHONE_DISPLAY}</a> at least 24 hours before and we will move you.</p></td></tr>
 <tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;">
   <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p>
@@ -92,7 +93,7 @@ Before we arrive:
 - Your electrician will text you when they are on the way.
 - You will get your compliance certificate the same day.
 
-Need to change the day or slot? Reply to this email or call ${Q.PHONE_DISPLAY} at least 24 hours before.
+${note ? note + "\n\n" : ""}Need to change the day or slot? Reply to this email or call ${Q.PHONE_DISPLAY} at least 24 hours before.
 
 PowerSmart Pty Ltd | ABN ${Q.ABN}`;
   return { html, text };
@@ -100,7 +101,7 @@ PowerSmart Pty Ltd | ABN ${Q.ABN}`;
 
 // Sends the confirmation for a booked visit (a specific job, or the lead's next one).
 // `email` / `sms` choose the channels (both by default). Throws errors with .status for the API layer.
-async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = true, sms = true }) {
+async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = true, sms = true, note = "" }) {
   const fail = (status, message) => Object.assign(new Error(message), { status });
   if (!email && !sms) throw fail(400, "Choose email, SMS or both");
   if (email && !process.env.RESEND_API_KEY) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
@@ -148,7 +149,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   if (email) {
     if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
     else {
-      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, address, slot, quoteUrl });
+      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, address, slot, quoteUrl, note });
       const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
         const { Resend } = require("resend");

@@ -189,7 +189,7 @@ module.exports = async (req, res) => {
       const leadId = clean(b.lead_id, 40), jobId = clean(b.job_id, 40);
       if (!leadId && !jobId) return res.status(400).json({ error: "lead_id or job_id is required" });
       try {
-        const sent = await require("./_booking-confirmation").sendBookingConfirmation({ leadId, jobId, sendAs: clean(b.send_as, 40), agent: clean(b.agent, 120), email: b.email !== false, sms: b.sms !== false });
+        const sent = await require("./_booking-confirmation").sendBookingConfirmation({ leadId, jobId, sendAs: clean(b.send_as, 40), agent: clean(b.agent, 120), email: b.email !== false, sms: b.sms !== false, note: clean(b.note, 1000) });
         return res.status(200).json(sent);
       } catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not send booking confirmation" }); }
     }

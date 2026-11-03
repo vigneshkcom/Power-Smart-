@@ -1129,6 +1129,8 @@
         wantEmail = confirmSend && $("jm-confirm-email").checked && !$("jm-confirm-email").disabled,
         wantSms = confirmSend && $("jm-confirm-sms").checked && !$("jm-confirm-sms").disabled;
     if (confirmSend && !wantEmail && !wantSms){ toast("Tick Email, SMS or both for the booking confirmation, or untick it"); return; }
+    var note = "";
+    if (wantEmail){ note = prompt("Optional: add a personal note to the booking confirmation email (leave blank for none). Cancel to stop saving.", ""); if (note === null) return; }
     var btn = this; btn.disabled = true;
     var p = editing ? jobsApi(Object.assign({ action:"job_update", id: editing.id }, payload))
                     : jobsApi(Object.assign({ action:"job_create" }, payload));
@@ -1140,7 +1142,7 @@
       if (start && (start < state.start || start >= rangeEnd()) && techId){ state.start = startOfDay(start); }
       var after = reload();
       if (!(wantEmail || wantSms) || !job.id) return after;
-      return call("/api/pipeline", "POST", { action:"booking_confirmation", job_id: job.id, email: wantEmail, sms: wantSms,
+      return call("/api/pipeline", "POST", { action:"booking_confirmation", job_id: job.id, email: wantEmail, sms: wantSms, note: note.trim(),
           send_as: state.agent === "Sam" ? "sam" : state.agent === "Sunny" ? "sunny" : "customer_service", agent: state.agent || "Office" })
         .then(function(r){
           var parts = [];
