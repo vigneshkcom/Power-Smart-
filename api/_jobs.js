@@ -434,6 +434,17 @@ module.exports = async (req, res) => {
     }
 
     if (b.action === "stock_summary") return res.status(200).json(await require("./_stock").summary(installedCounts));
+    if (b.action === "stock_report") {
+      const St = require("./_stock"), data = await St.load(installedCounts);
+      const file = await St.workbook(data, installedCounts, clean(b.electrician_id, 40));
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="powersmart-stock-${new Date().toISOString().slice(0, 10)}.xlsx"`);
+      return res.status(200).send(file);
+    }
+    if (b.action === "stock_send") {
+      const St = require("./_stock");
+      return res.status(200).json(await St.sendCount(await St.load(installedCounts), clean(b.electrician_id, 40), { sendAs: clean(b.send_as, 40), agent: actor }));
+    }
     if (b.action === "stock_move") {
       const m = await require("./_stock").move(b, actor, clean);
       return res.status(200).json({ ok: true, movement: m, ...(await require("./_stock").summary(installedCounts)) });

@@ -404,7 +404,8 @@
         <div class="section-label" style="margin-top:1rem">Recent stock entries</div>
         <div class="rp-scroll"><table class="rp-table" id="st-log"></table></div>
       </div>
-      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded.</span></div>
+      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded.</span><span class="spacer"></span>
+        <button class="btn btn-primary" id="st-download">⬇ Download Excel</button></div>
     </div>
   </div>
 
@@ -1325,13 +1326,13 @@
   var STOCK_LABEL = { hardwired:"Hardwired alarm", battery:"Battery alarm", controller:"Controller" };
   function renderStock(d){
     var P = ["hardwired","battery","controller"];
-    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Given / used</th></tr></thead><tbody>' +
+    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Given / used</th><th></th></tr></thead><tbody>' +
       (d.electricians.length ? d.electricians.map(function(t){
         return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
           P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
           '<td>' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
-            (t.unclassified ? ' · <span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td></tr>';
-      }).join("") : '<tr><td class="empty" colspan="5">No electricians yet</td></tr>') + '</tbody>';
+            (t.unclassified ? ' · <span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td>' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
+      }).join("") : '<tr><td class="empty" colspan="6">No electricians yet</td></tr>') + '</tbody>';
     $("st-log").innerHTML = '<thead><tr><th>When</th><th>Electrician</th><th>Product</th><th class="n">Qty</th><th>Note</th><th>By</th></tr></thead><tbody>' +
       (d.movements.length ? d.movements.map(function(m){
         return '<tr><td>' + esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</td><td>' + esc(m.electrician) + '</td><td>' + esc(STOCK_LABEL[m.product] || m.product) + '</td><td class="n">' + (m.qty > 0 ? "+" : "") + m.qty + '</td><td>' + esc(m.note) + '</td><td>' + esc(m.created_by) + '</td></tr>';
@@ -1341,6 +1342,25 @@
   $("stock-btn").addEventListener("click", function(){
     $("st-tech").innerHTML = state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
     $("stock-overlay").classList.add("show"); loadStock();
+  });
+  $("st-table").addEventListener("click", function(e){
+    var b = e.target.closest("[data-send-stock]"); if (!b) return;
+    if (!confirm("Email " + b.dataset.name + " their stock count? A copy goes to the office.")) return;
+    b.disabled = true;
+    jobsApi({ action:"stock_send", electrician_id: b.dataset.sendStock, send_as: state.agent === "Sam" ? "sam" : state.agent === "Sunny" ? "sunny" : "customer_service" })
+      .then(function(d){ toast("Stock count emailed to " + d.to + " (cc " + d.cc + ")"); })
+      .catch(function(err){ toast(err.message); }).finally(function(){ b.disabled = false; });
+  });
+  $("st-download").addEventListener("click", function(){
+    var btn = this; btn.disabled = true;
+    fetch("/api/pipeline?resource=jobs", { method:"POST", headers:{ "Content-Type":"application/json", "x-portal-key": portalKey() }, body: JSON.stringify({ action:"stock_report" }) })
+      .then(function(res){
+        if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the Excel file"); });
+        return res.blob();
+      }).then(function(blob){
+        var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "powersmart-stock-" + isoDate(bt(new Date())) + ".xlsx"; a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000); toast("Stock report downloaded");
+      }).catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = false; });
   });
   $("st-close").addEventListener("click", function(){ $("stock-overlay").classList.remove("show"); });
   $("stock-overlay").addEventListener("click", function(e){ if (e.target === this) this.classList.remove("show"); });
