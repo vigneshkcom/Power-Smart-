@@ -129,6 +129,17 @@
   .modal{background:#fff;border-radius:16px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 70px -20px rgba(11,27,31,.5)}
   .modal.wide{width:min(720px,100%)}
   .modal.xwide{width:min(1100px,100%)}
+  .route-modal{width:min(1180px,100%);height:min(760px,92vh)}
+  .route-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr)}
+  .route-map{min-height:320px;background:#e8eef0}
+  .route-side{overflow:auto;border-left:1px solid var(--line);font-size:.8rem}
+  .route-stops{padding:.7rem .9rem;border-bottom:1px solid var(--line);display:grid;gap:.4rem}
+  .route-stop{display:flex;gap:.55rem;align-items:flex-start;line-height:1.3}
+  .route-stop b.pin{flex:none;width:22px;height:22px;border-radius:50%;background:#d93025;color:#fff;font-size:.72rem;display:flex;align-items:center;justify-content:center}
+  .route-stop small{display:block;color:var(--muted)}
+  .route-sum{padding:.6rem .9rem;font-weight:700;border-bottom:1px solid var(--line)}
+  .route-msg{padding:1rem;color:var(--muted)}
+  @media(max-width:760px){.route-body{grid-template-columns:1fr;grid-template-rows:45% 55%}.route-side{border-left:0;border-top:1px solid var(--line)}}
   .rp-bar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:.4rem}
   .rp-bar label{display:flex;align-items:center;gap:.35rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--body)}
   .rp-bar input,.rp-bar select{padding:.42rem .55rem;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:.8rem;text-transform:none;letter-spacing:0;font-weight:500}
@@ -435,6 +446,21 @@
       </div>
       <div class="modal-foot"><span class="hint">Counts come from what the electrician entered in the app.</span><span class="spacer"></span>
         <button class="btn btn-primary" id="rp-download">⬇ Download Excel</button></div>
+    </div>
+  </div>
+
+  <!-- driving route modal -->
+  <div class="overlay" id="route-overlay">
+    <div class="modal route-modal" role="dialog" aria-modal="true" aria-labelledby="route-title">
+      <div class="modal-head">
+        <h3 id="route-title">Driving route</h3>
+        <a class="btn btn-ghost" id="route-gmaps" target="_blank" rel="noopener" style="margin-left:auto">Open in Google Maps</a>
+        <button class="x" id="route-close" aria-label="Close">✕</button>
+      </div>
+      <div class="route-body">
+        <div class="route-map" id="route-map"></div>
+        <div class="route-side"><div class="route-stops" id="route-stops"></div><div class="route-sum" id="route-sum" hidden></div><div id="route-panel"></div></div>
+      </div>
     </div>
   </div>
 
@@ -885,12 +911,54 @@
       .catch(function(err){ toast("Couldn't move job: " + err.message); reload(); });
   }
 
+  var mapsLoading, routeRenderer;
+  function loadMaps(){
+    if (window.google && google.maps && google.maps.DirectionsService) return Promise.resolve();
+    if (!mapsLoading) mapsLoading = fetch("/api/pipeline?resource=address-config").then(function(r){ return r.json(); }).then(function(c){
+      if (!c.enabled) throw new Error("Maps key not configured");
+      return new Promise(function(resolve, reject){
+        window.__routeMapsReady = resolve;
+        var sc = document.createElement("script");
+        sc.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(c.key) + "&callback=__routeMapsReady&region=AU&language=en";
+        sc.async = true; sc.referrerPolicy = "origin"; sc.onerror = function(){ reject(new Error("Google Maps failed to load")); };
+        document.head.appendChild(sc);
+      });
+    }).catch(function(e){ mapsLoading = null; throw e; });
+    return mapsLoading;
+  }
+  function closeRoute(){ $("route-overlay").classList.remove("show"); }
+
   function openRoute(techId){
     var stops = state.jobs.filter(function(j){ return j.electrician_id === techId && j.status !== "cancelled" && mapsQuery(j); })
-      .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); });
+      .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).slice(0, 10);
     if (!stops.length){ toast("No jobs with addresses for this electrician in this range."); return; }
-    var url = "https://www.google.com/maps/dir/" + stops.slice(0, 10).map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
-    window.open(url, "_blank", "noopener");
+    var tech = state.techs.filter(function(t){ return t.id === techId; })[0];
+    var gUrl = "https://www.google.com/maps/dir/" + stops.map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
+    $("route-title").textContent = "Driving route" + (tech ? " · " + tech.name : "");
+    $("route-gmaps").href = gUrl;
+    $("route-stops").innerHTML = stops.map(function(j, i){
+      return '<div class="route-stop"><b class="pin">' + String.fromCharCode(65 + i) + '</b><div><strong>' + esc(j.job_no ? "J" + j.job_no : "Job") + " · " + esc(timeText(j.scheduled_start)) + '</strong><small>' + esc(addressLine(j)) + '</small></div></div>';
+    }).join("");
+    $("route-sum").hidden = true; $("route-panel").innerHTML = '<div class="route-msg">Loading route…</div>'; $("route-map").innerHTML = "";
+    $("route-overlay").classList.add("show");
+    var fail = function(msg){ $("route-panel").innerHTML = '<div class="route-msg">' + esc(msg) + ' Use "Open in Google Maps" above instead.</div>'; };
+    if (stops.length < 2){ fail("A route needs at least two jobs."); return; }
+    loadMaps().then(function(){
+      var pts = stops.map(function(j){ return mapsQuery(j); });
+      var map = new google.maps.Map($("route-map"), { mapTypeControl:true, fullscreenControl:true, streetViewControl:false, center:{ lat:-27.47, lng:153.02 }, zoom:10 });
+      if (routeRenderer) routeRenderer.setMap(null);
+      routeRenderer = new google.maps.DirectionsRenderer({ map: map, panel: $("route-panel") });
+      return new google.maps.DirectionsService().route({
+        origin: pts[0], destination: pts[pts.length - 1],
+        waypoints: pts.slice(1, -1).map(function(a){ return { location:a, stopover:true }; }),
+        travelMode: google.maps.TravelMode.DRIVING, optimizeWaypoints: false
+      }).then(function(res){
+        routeRenderer.setDirections(res);
+        var m = 0, t = 0; res.routes[0].legs.forEach(function(l){ m += l.distance.value; t += l.duration.value; });
+        var mins = Math.round(t / 60), time = mins >= 60 ? Math.floor(mins / 60) + " hr " + (mins % 60) + " mins" : mins + " mins";
+        $("route-sum").textContent = (m / 1000).toFixed(1) + " km · about " + time + " driving"; $("route-sum").hidden = false;
+      });
+    }).catch(function(e){ fail("Couldn't build the route (" + (e && (e.code || e.message) || "error") + ")."); });
   }
 
   /* ---------- job modal ---------- */
@@ -1417,7 +1485,9 @@
   $("print").addEventListener("click", function(){ window.print(); });
   $("refresh").addEventListener("click", function(){ reload().then(function(){ toast("Refreshed"); }); });
   $("new-job").addEventListener("click", function(){ openNewJob({}); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeJob(); closeTechs(); } });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeJob(); closeTechs(); closeRoute(); } });
+  $("route-close").addEventListener("click", closeRoute);
+  $("route-overlay").addEventListener("click", function(e){ if (e.target === this) closeRoute(); });
 
   // keep the board fresh for multiple dispatchers
   setInterval(function(){
