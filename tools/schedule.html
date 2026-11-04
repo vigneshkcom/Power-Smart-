@@ -959,7 +959,7 @@
         origin: pts[0], destination: pts[pts.length - 1],
         intermediates: pts.slice(1, -1).map(function(a){ return { location:a }; }),
         travelMode:"DRIVING", optimizeWaypointOrder:false, region:"au", language:"en-AU",
-        fields:["path", "legs.startLocation", "legs.endLocation", "legs.durationMillis", "viewport", "distanceMeters", "durationMillis"]
+        fields:["path", "legs", "viewport", "distanceMeters", "durationMillis"]
       });
       if (version !== routeVersion) return;
       var route = res.routes && res.routes[0];

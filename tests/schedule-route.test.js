@@ -22,6 +22,8 @@ test('route uses enabled Routes API in schedule order and displays directions, p
   assert.equal(f.calls[0].origin,'Stop 1'); assert.equal(f.calls[0].destination,'Stop 3');
   assert.equal(f.calls[0].intermediates[0].location,'Stop 2');
   assert.equal(f.calls[0].travelMode,'DRIVING'); assert.equal(f.calls[0].optimizeWaypointOrder,false);
+  assert.ok(f.calls[0].fields.includes('legs'));
+  assert.ok(f.calls[0].fields.every(field=>!field.startsWith('legs.')), 'Maps JavaScript accepts the legs field, not nested leg field masks');
   assert.match(f.elements['route-panel'].innerHTML,/A → B<\/strong> · 10 mins/);
   assert.doesNotMatch(f.elements['route-panel'].innerHTML,/Turn left|<ol>/);
   assert.match(f.elements['route-sum'].textContent,/12.5 km.*1 hr 5 mins/);
