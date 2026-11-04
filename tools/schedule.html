@@ -959,7 +959,7 @@
         origin: pts[0], destination: pts[pts.length - 1],
         intermediates: pts.slice(1, -1).map(function(a){ return { location:a }; }),
         travelMode:"DRIVING", optimizeWaypointOrder:false, region:"au", language:"en-AU",
-        fields:["path", "legs", "viewport", "distanceMeters", "durationMillis", "warnings"]
+        fields:["path", "legs.startLocation", "legs.endLocation", "legs.durationMillis", "viewport", "distanceMeters", "durationMillis"]
       });
       if (version !== routeVersion) return;
       var route = res.routes && res.routes[0];
@@ -971,11 +971,10 @@
       if (route.viewport) map.fitBounds(route.viewport);
       var mins = Math.round(route.durationMillis / 60000), time = mins >= 60 ? Math.floor(mins / 60) + " hr " + (mins % 60) + " mins" : mins + " mins";
       $("route-sum").textContent = (route.distanceMeters / 1000).toFixed(1) + " km · about " + time + " driving"; $("route-sum").hidden = false;
-      $("route-panel").innerHTML = (route.warnings || []).map(function(w){ return '<p class="route-msg">' + esc(w) + '</p>'; }).join("") +
-        (route.legs || []).map(function(leg, i){
-          return '<section class="route-msg"><strong>' + String.fromCharCode(65 + i) + ' → ' + String.fromCharCode(66 + i) + '</strong><ol>' +
-            (leg.steps || []).map(function(step){ return '<li>' + esc(step.instructions || "Continue") + ' <small>(' + esc(step.localizedValues && step.localizedValues.distance || Math.round(step.distanceMeters) + " m") + ')</small></li>'; }).join("") + '</ol></section>';
-        }).join("");
+      $("route-panel").innerHTML = (route.legs || []).map(function(leg, i){
+        var minutes = Number.isFinite(leg.durationMillis) ? Math.round(leg.durationMillis / 60000) + " mins" : "Time unavailable";
+        return '<div class="route-msg"><strong>' + String.fromCharCode(65 + i) + ' → ' + String.fromCharCode(66 + i) + '</strong> · ' + minutes + '</div>';
+      }).join("");
     }).catch(function(e){ if (version === routeVersion) fail("Couldn't build the route (" + (e && (e.code || e.message) || "error") + ")."); });
   }
 

@@ -7,7 +7,7 @@ function fixture(compute) {
   const elements = {};
   const $ = id => elements[id] ||= {innerHTML:'', classList:{add(){},remove(){}}};
   const calls = [], marker = {}, polyline = {setMap(map){this.map=map;}};
-  const route = {distanceMeters:12500,durationMillis:3900000,viewport:{},legs:[{steps:[{instructions:'Turn left <unsafe>',distanceMeters:250}]}],
+  const route = {distanceMeters:12500,durationMillis:3900000,viewport:{},legs:[{durationMillis:600000,steps:[{instructions:'Turn left <unsafe>',distanceMeters:250}]}],
     createWaypointAdvancedMarkers:async()=>[marker], createPolylines:()=>[polyline]};
   const google = {maps:{Map:class {fitBounds(){}},importLibrary:async()=>({Route:{computeRoutes:async request=>{calls.push(request);return compute ? compute(route) : {routes:[route]};}}})}};
   const context = {google,window:{google},$,state:{techs:[],jobs:[3,1,2].map(n=>({electrician_id:'tech',scheduled_start:`2026-11-05T0${n}:00:00Z`,address:'Stop '+n,job_no:n}))},
@@ -22,7 +22,8 @@ test('route uses enabled Routes API in schedule order and displays directions, p
   assert.equal(f.calls[0].origin,'Stop 1'); assert.equal(f.calls[0].destination,'Stop 3');
   assert.equal(f.calls[0].intermediates[0].location,'Stop 2');
   assert.equal(f.calls[0].travelMode,'DRIVING'); assert.equal(f.calls[0].optimizeWaypointOrder,false);
-  assert.match(f.elements['route-panel'].innerHTML,/Turn left &lt;unsafe>/);
+  assert.match(f.elements['route-panel'].innerHTML,/A → B<\/strong> · 10 mins/);
+  assert.doesNotMatch(f.elements['route-panel'].innerHTML,/Turn left|<ol>/);
   assert.match(f.elements['route-sum'].textContent,/12.5 km.*1 hr 5 mins/);
   assert.ok(f.marker.map); assert.ok(f.polyline.map);
   f.context.closeRoute(); assert.equal(f.marker.map,null); assert.equal(f.polyline.map,null);
