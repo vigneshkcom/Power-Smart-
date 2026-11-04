@@ -10,7 +10,7 @@ function quoteOptions(quote) {
   const href = (quote.body_html || '').match(/href="([^"]*\/accept\?[^"]+)"/);
   if (!href) throw new Error('This quote cannot be opened. Please contact PowerSmart.');
   const url = new URL(href[1].replace(/&amp;/g, '&'));
-  const options = Q.normalise({ serviceMode: url.searchParams.get('mode'), alarmQty: url.searchParams.get('alarms'), controllerQty: url.searchParams.get('ctrl') });
+  const options = Q.normalise({ serviceMode: url.searchParams.get('mode'), alarmQty: url.searchParams.get('alarms'), controllerQty: url.searchParams.get('ctrl'), discount: url.searchParams.get('disc') });
   const calculation = Q.buildQuote(options);
   if (Math.round(calculation.total * 100) !== Math.round(Number(quote.quote_total) * 100)) throw new Error('The saved quote total could not be verified. Please contact PowerSmart.');
   return { ...options, calculation };

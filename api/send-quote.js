@@ -18,7 +18,7 @@ const PORTAL_KEY = "2026";
 
 // leadId is only honoured when the call came from the pipeline (portal key), so a
 // quote sent from a lead card updates that exact lead instead of matching by email.
-async function recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total, leadId: hintId }) {
+async function recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total, leadId: hintId, revises = "", discount = 0 }) {
   if (!SB.configured()) return null;
   try {
     const patch = { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null };
@@ -47,7 +47,7 @@ async function recordInPipeline({ customerName, customerEmail, customerPhone, ag
     if (leadId) {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
+        body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: revises ? `Updated quote ${ref} emailed (replaces ${revises})${discount > 0 ? `, ${Q.fmt(discount)} discount applied` : ""}. Total ${Q.fmt(total)} incl. GST.` : `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
         prefer: "return=minimal",
       });
     }
@@ -91,7 +91,9 @@ module.exports = async (req, res) => {
   const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
   const customerPhone = fromPipeline ? Sms.cleanPhone(b.customerPhone) : '';
   const hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";
-  const { serviceMode, alarmQty, controllerQty } = Q.normalise(b);
+  // Discounts and revisions can only be applied from the staff portal.
+  const { serviceMode, alarmQty, controllerQty, discount } = Q.normalise(fromPipeline ? b : { ...b, discount: 0 });
+  const revises = fromPipeline ? String(b.revisesRef || "").replace(/[^\w-]/g, "").slice(0, 20) : "";
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
   if (customerPhone && !/^\+[1-9]\d{7,14}$/.test(customerPhone)) return res.status(400).json({error:'Enter a valid customer mobile number.'});
@@ -116,7 +118,7 @@ module.exports = async (req, res) => {
   }
 
   const rendered = Q.renderQuoteEmail({
-    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty,
+    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, revised: Boolean(revises),
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 
@@ -124,7 +126,7 @@ module.exports = async (req, res) => {
   const resend = new Resend(apiKey);
   const notify = process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL;
 
-  const subject = `Your Smoke Alarm Compliance Quotation (${ref}) - PowerSmart`;
+  const subject = `Your ${revises ? "Updated " : ""}Smoke Alarm Compliance Quotation (${ref}) - PowerSmart`;
 
   try {
     const { data, error } = await resend.emails.send({
@@ -140,7 +142,7 @@ module.exports = async (req, res) => {
       await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
       return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     }
-    const leadId = await recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total: rendered.quote.total, leadId: hintLeadId });
+    const leadId = await recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total: rendered.quote.total, leadId: hintLeadId, revises, discount: rendered.quote.discount });
     const emailId = randomUUID();
     const saved = await logEmail({ id:emailId, kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
     const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${emailId}`;

@@ -21,6 +21,7 @@
   .overlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(11,27,31,.6)}.overlay.show{display:flex}.modal{width:min(940px,100%);max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 30px 80px -28px rgba(11,27,31,.55)}.modal-head{display:flex;align-items:center;gap:12px;padding:20px 26px;border-bottom:1px solid var(--line)}.modal-head h2{margin:0;font-size:20px}.modal-head button{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-weight:700}.modal-body{overflow:auto;padding:24px 26px}.detail-layout{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.detail-panel{border:1px solid var(--line);border-radius:14px;padding:18px;background:#fff}.detail-panel.tint{background:var(--paper);border-color:transparent}.detail-panel h3{margin:0 0 14px;font-size:14px}.detail-list{display:grid;gap:11px}.detail-row{display:grid;grid-template-columns:130px 1fr;gap:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}.detail-row:last-child{padding-bottom:0;border-bottom:0}.detail-row label{color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.detail-row strong{font-size:13px;line-height:1.45;word-break:break-word}.quote-summary{display:grid;gap:10px}.summary-row{display:flex;justify-content:space-between;gap:18px;color:var(--body);font-size:13px}.summary-row strong{color:var(--ink);text-align:right}.summary-row.total{margin-top:4px;padding-top:12px;border-top:1px solid var(--line);font-size:16px;font-weight:800}.summary-row.total strong{color:var(--teal-deep);font-size:19px}.stage-editor{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.stage-editor label{display:block;margin-bottom:6px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.stage-control{display:flex;gap:8px}.stage-control select{min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px}.stage-control button{border:0;border-radius:9px;background:var(--teal);padding:9px 12px;font-weight:800;font-size:11px}.stage-control :disabled{opacity:.5;cursor:not-allowed}.original-copy{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:#fff}.original-copy summary{cursor:pointer;padding:13px 15px;font-size:12px;font-weight:700;color:var(--teal-deep)}.quote-text{white-space:pre-wrap;word-break:break-word;border-top:1px solid var(--line);padding:15px;color:var(--body);font-family:inherit;font-size:12px;line-height:1.7;background:#FAFCFC;max-height:260px;overflow:auto}.quote-preview{display:none;margin-top:18px}.quote-preview.show{display:block}.quote-preview iframe{width:100%;height:58vh;border:1px solid var(--line);border-radius:12px;background:#fff}.modal-actions{display:flex;gap:9px;align-items:center;padding:15px 26px;border-top:1px solid var(--line);background:#FAFCFC}.modal-actions .spacer{flex:1}.action-btn{border:1px solid var(--line);border-radius:9px;background:#fff;padding:9px 13px;font-weight:800;font-size:11px}.action-btn.primary{background:var(--teal);border-color:var(--teal)}.action-btn.danger{color:var(--red)}
   @media(max-width:1050px){.stats{grid-template-columns:repeat(3,1fr)}.filters{grid-template-columns:1fr 1fr 1fr}.filters .search{grid-column:1/-1}.clear{min-height:40px}}
   @media(max-width:720px){.topbar{align-items:flex-start;flex-wrap:wrap}.title{font-size:15px}.nav{width:100%;margin-left:0;overflow:auto}.stats{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr}.filters .search{grid-column:auto}.intro{align-items:flex-start;flex-direction:column}.detail-layout{grid-template-columns:1fr}.detail-row{grid-template-columns:1fr;gap:3px}main{width:min(100% - 20px,1440px);padding-top:18px}.hide-mobile{display:none}.modal-body{padding:18px}.modal-head{padding:16px 18px}}
+.discount-panel{display:none;margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.discount-panel.show{display:block}.discount-panel h3{margin:0 0 8px}.discount-panel .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.discount-panel input{width:130px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#fff}.discount-panel .note{margin-top:8px;font-size:12px;color:var(--muted)}.discount-panel .err{color:var(--red)}.discount-panel button{border:0;border-radius:9px;background:var(--teal-dark);color:#fff;font-weight:600;padding:10px 14px}.discount-panel button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -83,11 +84,11 @@
     <div class="modal">
       <div class="modal-head"><h2 id="detail-title">Quote details</h2><button id="detail-close">Close</button></div>
       <div class="modal-body">
-        <div class="detail-layout"><section class="detail-panel"><h3>Customer and job</h3><div class="detail-list" id="detail-customer"></div></section><section class="detail-panel tint"><h3>Quote summary</h3><div class="quote-summary" id="detail-summary"></div></section></div>
+        <div class="detail-layout"><section class="detail-panel"><h3>Customer and job</h3><div class="detail-list" id="detail-customer"></div></section><section class="detail-panel tint"><h3>Quote summary</h3><div class="quote-summary" id="detail-summary"></div><div class="discount-panel" id="discount-panel"><h3>Add a discount</h3><div class="row"><input id="discount-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="Discount $"><button id="discount-send">Send updated quote</button></div><div class="note" id="discount-note"></div></div></section></div>
         <details class="original-copy"><summary>View original quote email text</summary><div class="quote-text" id="detail-text"></div></details>
         <div class="quote-preview" id="quote-preview"></div>
       </div>
-      <div class="modal-actions"><button class="action-btn danger" id="detail-delete">Delete quote</button><span class="spacer"></span><button class="action-btn" id="detail-view">View current quote</button><button class="action-btn primary" id="detail-done">Done</button></div>
+      <div class="modal-actions"><button class="action-btn danger" id="detail-delete">Delete quote</button><span class="spacer"></span><button class="action-btn" id="detail-discount">Add discount</button><button class="action-btn" id="detail-view">View current quote</button><button class="action-btn primary" id="detail-done">Done</button></div>
     </div>
   </div>
 
@@ -170,7 +171,7 @@
     $("detail-summary").innerHTML=summary.map(function(d){return '<div class="summary-row"><span>'+esc(d[0])+'</span><strong>'+esc(d[1])+'</strong></div>';}).join("")+'<div class="summary-row total"><span>Pending balance</span><strong>'+(ps?money(ps.pending_cents/100,true):"Unavailable")+'</strong></div><div class="sub">Pending is based on the quote. The final installation invoice may differ.</div>'+editor+
       (ps && ps.payments.length?'<div style="margin-top:16px"><h3>Payments received</h3>'+ps.payments.map(function(p){return '<div class="summary-row" style="padding:7px 0;border-bottom:1px solid var(--line)"><span>'+esc(p.description)+'<span class="sub">'+esc(dateText(p.paid_at))+'</span></span><strong>'+money(p.amount_cents/100,true)+'</strong></div>';}).join('')+'</div>':'');
     $("detail-text").textContent=cleanText(q.body_text)||"No plain-text quote copy was recorded.";
-    $("quote-preview").classList.remove("show");$("quote-preview").innerHTML="";$("detail-view").textContent="View current quote";$("detail-overlay").classList.add("show");
+    $("quote-preview").classList.remove("show");$("quote-preview").innerHTML="";$("detail-view").textContent="View current quote";$("discount-panel").classList.remove("show");$("detail-discount").textContent=q.discount>0?"Change discount":"Add discount";$("detail-overlay").classList.add("show");
     var save=$("detail-stage-save");if(save)save.addEventListener("click",function(){updateStage(q);});
   }
 
@@ -187,6 +188,39 @@
       if(content.body_html){var frame=document.createElement("iframe");frame.setAttribute("sandbox","");frame.srcdoc=content.body_html;panel.innerHTML="";panel.appendChild(frame);}else{var text=document.createElement("div");text.className="quote-text";text.textContent=cleanText(content.body_text)||"No saved quote content is available.";panel.innerHTML="";panel.appendChild(text);}
       panel.classList.add("show");button.textContent="Hide current quote";panel.scrollIntoView({behavior:"smooth",block:"start"});
     }).catch(function(e){alert(e.message);button.textContent="View current quote";}).finally(function(){button.disabled=false;});
+  }
+  var ALARM_PRICE=79,CTRL_PRICE=35;
+  function discountCap(q){return q.alarm_qty*ALARM_PRICE+q.controller_qty*CTRL_PRICE;}
+  function discountBlocker(q){
+    if(q.email_status==="failed")return "This quote was never delivered, so it cannot be revised.";
+    if(q.service!=="Installation"||!q.alarm_qty)return "Discounts can only be added to installation quotes.";
+    if(!q.customer_email)return "This quote has no customer email address.";
+    if(q.payment_summary&&q.payment_summary.received_cents>0)return "A payment has already been received on this quote, so it cannot be re-issued. Adjust the final invoice instead.";
+    return "";
+  }
+  function toggleDiscount(){
+    var q=activeQuote;if(!q)return;var panel=$("discount-panel"),input=$("discount-amount"),note=$("discount-note"),send=$("discount-send");
+    if(panel.classList.contains("show")){panel.classList.remove("show");return;}
+    var blocked=discountBlocker(q);input.value=q.discount||"";input.disabled=send.disabled=Boolean(blocked);
+    note.className="note"+(blocked?" err":"");
+    note.textContent=blocked||"Comes off the balance due on installation day (max "+money(discountCap(q),true)+"). The booking fee is unchanged. A new quote number is issued, emailed and texted to the customer, and replaces this one.";
+    panel.classList.add("show");input.focus();
+  }
+  function sendDiscount(){
+    var q=activeQuote;if(!q||discountBlocker(q))return;
+    var amount=Math.round(Number($("discount-amount").value)*100)/100,cap=discountCap(q),note=$("discount-note");
+    if(!(amount>=0)||amount>cap){note.className="note err";note.textContent="Enter a discount between $0 and "+money(cap,true)+".";return;}
+    if(amount===(q.discount||0)){note.className="note err";note.textContent="That is the same as the current quote. Enter a different amount.";return;}
+    var newTotal=discountCap(q)+35-amount;
+    if(!confirm("Send updated quote to "+(q.customer_name||q.customer_email)+" ("+q.customer_email+")?\n\nDiscount: "+money(amount,true)+"\nNew total: "+money(newTotal,true)+" (was "+money(q.total,true)+")\n\nThey will receive a new quote by email and SMS. Quote "+q.ref+" will be replaced."))return;
+    var button=$("discount-send");button.disabled=true;button.textContent="Sending...";
+    fetch("/api/send-quote",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify({
+      customerEmail:q.customer_email,customerName:q.customer_name,customerPhone:q.customer_phone,agentName:q.agent,sendAs:q.sender,
+      serviceMode:"install",alarmQty:q.alarm_qty,controllerQty:q.controller_qty,discount:amount,leadId:q.lead_id||"",revisesRef:q.ref
+    })}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw new Error(d.error||"Could not send the updated quote");return d;});})
+    .then(function(d){alert("Updated quote "+d.ref+" sent ("+money(d.total,true)+")."+(d.sms&&d.sms.status!=="submitted"&&d.sms.status!=="skipped"?"\nSMS issue: "+(d.sms.error||d.sms.status):""));closeDetail();return load();})
+    .catch(function(e){note.className="note err";note.textContent=e.message;})
+    .finally(function(){button.disabled=false;button.textContent="Send updated quote";});
   }
   function deleteQuote(q){
     if(!q||!confirm("Delete quote "+(q.ref||"")+" for "+(q.customer_name||"this customer")+"? The customer lead will be kept."))return;
@@ -205,7 +239,7 @@
   $("clear-btn").addEventListener("click",function(){$("search").value="";$("agent-filter").value="";$("status-filter").value="";$("period-filter").value="all";applyFilters();});
   $("refresh-btn").addEventListener("click",load); $("export-btn").addEventListener("click",exportCsv);
   $("quote-body").addEventListener("click",function(e){var row=e.target.closest("tr[data-index]");if(!row)return;var q=visible[Number(row.dataset.index)],action=e.target.closest("[data-action]");if(action&&action.dataset.action==="delete")deleteQuote(q);else showDetail(q);});
-  $("detail-close").addEventListener("click",closeDetail);$("detail-done").addEventListener("click",closeDetail);$("detail-view").addEventListener("click",toggleQuotePreview);$("detail-delete").addEventListener("click",function(){deleteQuote(activeQuote);});$("detail-overlay").addEventListener("click",function(e){if(e.target===this)closeDetail();});
+  $("detail-close").addEventListener("click",closeDetail);$("detail-done").addEventListener("click",closeDetail);$("detail-view").addEventListener("click",toggleQuotePreview);$("detail-discount").addEventListener("click",toggleDiscount);$("discount-send").addEventListener("click",sendDiscount);$("detail-delete").addEventListener("click",function(){deleteQuote(activeQuote);});$("detail-overlay").addEventListener("click",function(e){if(e.target===this)closeDetail();});
   if(portalKey())load().catch(function(e){if(e.message!=="Invalid portal key")$("quote-body").innerHTML='<tr><td colspan="12" class="empty">'+esc(e.message)+'</td></tr>';});else showGate(false);
 })();
 </script>

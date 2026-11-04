@@ -122,3 +122,16 @@ test('a different-purpose partial credit does not remove the booking payment but
   const f=fixture();const html=f.QP.renderPaidQuote(f.quote,[{id:'p1',lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'other',amount_paid_cents:1000}]);
   assert.match(html,/Remaining balance/);assert.match(html,/\$613\.00/);assert.match(html,/Accept this quote/);assert.doesNotMatch(html,/Booking fee paid/);
 });
+
+test('a discounted quote reduces the balance only, and its saved total still verifies for checkout', ()=>{
+  const f=fixture();
+  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7012',serviceMode:'install',alarmQty:7,controllerQty:1,discount:50,revised:true,issueDate:'1 November 2026',validUntil:'1 December 2026'});
+  assert.equal(rendered.quote.total,573);
+  assert.equal(rendered.quote.payableToday,35);
+  assert.equal(rendered.quote.balance,538);
+  const options=f.QP.quoteOptions({quote_total:573,body_html:rendered.html});
+  assert.equal(options.discount,50);
+  assert.equal(options.calculation.total,573);
+  assert.equal(Q.normalise({serviceMode:'inspect',discount:50}).discount,0);
+  assert.equal(Q.buildQuote(Q.normalise({serviceMode:'install',alarmQty:1,discount:9999})).balance,0);
+});

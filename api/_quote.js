@@ -21,7 +21,7 @@ const IMG = {
   hardwired: `${SITE}/assets/email/hardwired-smoke-alarm-wiring.jpg`,
 };
 
-const fmt = (n) => "$" + Number(n).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n) => (Number(n) < 0 ? "-$" : "$") + Math.abs(Number(n)).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
@@ -33,10 +33,14 @@ function normalise(body) {
   const serviceMode = body.serviceMode === "inspect" ? "inspect" : "install";
   const alarmQty = Math.max(0, Math.min(50, parseInt(body.alarmQty, 10) || 0));
   const controllerQty = Math.max(0, Math.min(10, parseInt(body.controllerQty, 10) || 0));
-  return { serviceMode, alarmQty, controllerQty };
+  // Discount in whole dollars (GST-inclusive). Installation quotes only; it comes off the
+  // balance due on the day, never the booking fee. Capped again in buildQuote.
+  const raw = Math.round(Number(body.discount) * 100) / 100;
+  const discount = serviceMode === "install" && Number.isFinite(raw) ? Math.max(0, Math.min(10000, raw)) : 0;
+  return { serviceMode, alarmQty, controllerQty, discount };
 }
 
-function buildQuote({ serviceMode, alarmQty, controllerQty }) {
+function buildQuote({ serviceMode, alarmQty, controllerQty, discount }) {
   const lines = [];
   let payableToday, balance, waiverNote = "";
   if (serviceMode === "inspect") {
@@ -52,18 +56,24 @@ function buildQuote({ serviceMode, alarmQty, controllerQty }) {
     lines.push({ label: "Booking fee - secures your licensed electrician", qty: 1, unit: FEE_BOOKING, amount: FEE_BOOKING });
     payableToday = FEE_BOOKING;
     balance = alarmQty * PRICE_ALARM + controllerQty * PRICE_CTRL;
+    const off = Math.min(Math.max(0, Number(discount) || 0), balance);
+    if (off > 0) {
+      lines.push({ label: "Discount", qty: 1, unit: -off, amount: -off });
+      balance -= off;
+    }
   }
   const total = lines.reduce((s, l) => s + l.amount, 0);      // GST-inclusive
   const subtotalExGst = total / 1.1;
   const gst = total - subtotalExGst;
-  return { lines, total, subtotalExGst, gst, payableToday, balance, waiverNote };
+  const discountApplied = lines.filter((l) => l.amount < 0).reduce((sum, l) => sum - l.amount, 0);
+  return { lines, total, subtotalExGst, gst, payableToday, balance, waiverNote, discount: discountApplied };
 }
 
 function fmtDate(d) {
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, controllerQty, agentName }) {
+function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, controllerQty, discount, agentName }) {
   const p = new URLSearchParams({
     ref: ref || "",
     name: customerName || "",
@@ -71,6 +81,7 @@ function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, co
     mode: serviceMode,
     alarms: String(alarmQty),
     ctrl: String(controllerQty),
+    ...(discount > 0 ? { disc: String(discount) } : {}),
     agent: agentName || "",
   });
   return `${SITE}/accept?${p.toString()}`;
@@ -95,6 +106,8 @@ function renderQuoteEmail(opts) {
   const introLine = isInspect
     ? "Thank you for the opportunity to quote. Please find your quotation for a full smoke alarm compliance inspection of your property against Queensland's 2027 legislation below."
     : `Thank you for the opportunity to quote. Based on the details discussed, your property requires approximately <strong>${q.lines[0].qty} Anka interconnected photoelectric smoke alarm${q.lines[0].qty === 1 ? "" : "s"}</strong> to meet Queensland's smoke alarm legislation. The exact number and placement is confirmed on-site by your licensed electrician.`;
+
+  const revisedLine = opts.revised ? `<p style="margin:12px 0 0;font-size:14px;color:#41585D;line-height:1.65;">${q.discount > 0 ? `We have updated your quotation and applied a <strong>${fmt(q.discount)} discount</strong>. ` : "We have updated your quotation. "}This version replaces any earlier quote we sent you.</p>` : "";
 
   const totalsRow = (label, value, opt) => `
     <tr>
@@ -144,7 +157,7 @@ function renderQuoteEmail(opts) {
       </td></tr>
 
       <!-- Intro -->
-      <tr><td style="background:#ffffff;padding:24px 32px 6px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">${introLine}</p></td></tr>
+      <tr><td style="background:#ffffff;padding:24px 32px 6px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">${introLine}</p>${revisedLine}</td></tr>
 
       <!-- Line items -->
       <tr><td style="background:#ffffff;padding:18px 32px 0;">
@@ -226,7 +239,7 @@ Prepared for: ${customerName || "you"}
 ${address ? `Property: ${address}\n` : ""}Issued: ${issueDate} | Valid until: ${validUntil}
 
 ${introLine.replace(/<[^>]+>/g, "")}
-
+${opts.revised ? `${q.discount > 0 ? `We have updated your quotation and applied a ${fmt(q.discount)} discount. ` : "We have updated your quotation. "}This version replaces any earlier quote we sent you.\n` : ""}
 ${q.lines.map((l) => `- ${l.label} (${l.qty} x ${fmt(l.unit)}): ${fmt(l.amount)}`).join("\n")}
 
 Subtotal (excl. GST): ${fmt(q.subtotalExGst)}
