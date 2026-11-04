@@ -195,7 +195,6 @@
     if(q.email_status==="failed")return "This quote was never delivered, so it cannot be revised.";
     if(q.service!=="Installation"||!q.alarm_qty)return "Discounts can only be added to installation quotes.";
     if(!q.customer_email)return "This quote has no customer email address.";
-    if(q.payment_summary&&q.payment_summary.received_cents>0)return "A payment has already been received on this quote, so it cannot be re-issued. Adjust the final invoice instead.";
     return "";
   }
   function toggleDiscount(){
@@ -203,7 +202,7 @@
     if(panel.classList.contains("show")){panel.classList.remove("show");return;}
     var blocked=discountBlocker(q);input.value=q.discount||"";input.disabled=send.disabled=Boolean(blocked);
     note.className="note"+(blocked?" err":"");
-    note.textContent=blocked||"Comes off the balance due on installation day (max "+money(discountCap(q),true)+"). The booking fee is unchanged. A new quote number is issued, emailed and texted to the customer, and replaces this one.";
+    note.textContent=blocked||"Comes off the balance due on installation day (max "+money(discountCap(q),true)+"). The booking fee is unchanged. This quote is updated in place (same quote number, no duplicate) and re-sent to the customer by email and SMS.";
     panel.classList.add("show");input.focus();
   }
   function sendDiscount(){
@@ -212,13 +211,13 @@
     if(!(amount>=0)||amount>cap){note.className="note err";note.textContent="Enter a discount between $0 and "+money(cap,true)+".";return;}
     if(amount===(q.discount||0)){note.className="note err";note.textContent="That is the same as the current quote. Enter a different amount.";return;}
     var newTotal=discountCap(q)+35-amount;
-    if(!confirm("Send updated quote to "+(q.customer_name||q.customer_email)+" ("+q.customer_email+")?\n\nDiscount: "+money(amount,true)+"\nNew total: "+money(newTotal,true)+" (was "+money(q.total,true)+")\n\nThey will receive a new quote by email and SMS. Quote "+q.ref+" will be replaced."))return;
+    if(!confirm("Send updated quote to "+(q.customer_name||q.customer_email)+" ("+q.customer_email+")?\n\nDiscount: "+money(amount,true)+"\nNew total: "+money(newTotal,true)+" (was "+money(q.total,true)+")\n\nQuote "+q.ref+" will be updated and re-sent by email and SMS."))return;
     var button=$("discount-send");button.disabled=true;button.textContent="Sending...";
     fetch("/api/send-quote",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify({
       customerEmail:q.customer_email,customerName:q.customer_name,customerPhone:q.customer_phone,agentName:q.agent,sendAs:q.sender,
-      serviceMode:"install",alarmQty:q.alarm_qty,controllerQty:q.controller_qty,discount:amount,leadId:q.lead_id||"",revisesRef:q.ref
+      serviceMode:"install",alarmQty:q.alarm_qty,controllerQty:q.controller_qty,discount:amount,leadId:q.lead_id||"",reviseQuoteId:q.id
     })}).then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw new Error(d.error||"Could not send the updated quote");return d;});})
-    .then(function(d){alert("Updated quote "+d.ref+" sent ("+money(d.total,true)+")."+(d.sms&&d.sms.status!=="submitted"&&d.sms.status!=="skipped"?"\nSMS issue: "+(d.sms.error||d.sms.status):""));closeDetail();return load();})
+    .then(function(d){alert("Quote "+d.ref+" updated and re-sent ("+money(d.total,true)+")."+(d.sms&&d.sms.status!=="submitted"&&d.sms.status!=="skipped"?"\nSMS issue: "+(d.sms.error||d.sms.status):""));closeDetail();return load();})
     .catch(function(e){note.className="note err";note.textContent=e.message;})
     .finally(function(){button.disabled=false;button.textContent="Send updated quote";});
   }

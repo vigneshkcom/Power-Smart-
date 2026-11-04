@@ -18,7 +18,15 @@ const PORTAL_KEY = "2026";
 
 // leadId is only honoured when the call came from the pipeline (portal key), so a
 // quote sent from a lead card updates that exact lead instead of matching by email.
-async function recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total, leadId: hintId, revises = "", discount = 0 }) {
+async function recordRevision({ leadId, agentName, ref, total, discount }) {
+  if (!SB.configured() || !leadId) return;
+  try {
+    await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&quote_ref=eq.${encodeURIComponent(ref)}`, { method: "PATCH", body: { quote_total: total }, prefer: "return=minimal" });
+    await SB.sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: `Quote ${ref} updated and re-sent${discount > 0 ? `, ${Q.fmt(discount)} discount applied` : ""}. New total ${Q.fmt(total)} incl. GST.` }, prefer: "return=minimal" });
+  } catch (e) { console.error("send-quote → revision note failed:", e.message); }
+}
+
+async function recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total, leadId: hintId }) {
   if (!SB.configured()) return null;
   try {
     const patch = { stage: "quote_sent", quote_ref: ref, quote_total: total, agent: agentName || null };
@@ -47,7 +55,7 @@ async function recordInPipeline({ customerName, customerEmail, customerPhone, ag
     if (leadId) {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: revises ? `Updated quote ${ref} emailed (replaces ${revises})${discount > 0 ? `, ${Q.fmt(discount)} discount applied` : ""}. Total ${Q.fmt(total)} incl. GST.` : `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
+        body: { lead_id: leadId, author: agentName || "System", kind: "quote", body: `Quote ${ref} emailed. Total ${Q.fmt(total)} incl. GST.` },
         prefer: "return=minimal",
       });
     }
@@ -90,10 +98,10 @@ module.exports = async (req, res) => {
   const sender = S.resolveSender(b.sendAs);
   const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
   const customerPhone = fromPipeline ? Sms.cleanPhone(b.customerPhone) : '';
-  const hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";
+  let hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";
   // Discounts and revisions can only be applied from the staff portal.
   const { serviceMode, alarmQty, controllerQty, discount } = Q.normalise(fromPipeline ? b : { ...b, discount: 0 });
-  const revises = fromPipeline ? String(b.revisesRef || "").replace(/[^\w-]/g, "").slice(0, 20) : "";
+  const reviseId = fromPipeline && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(String(b.reviseQuoteId || "")) ? String(b.reviseQuoteId) : "";
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
   if (customerPhone && !/^\+[1-9]\d{7,14}$/.test(customerPhone)) return res.status(400).json({error:'Enter a valid customer mobile number.'});
@@ -101,12 +109,21 @@ module.exports = async (req, res) => {
 
   const now = new Date();
   const validUntilDate = new Date(now.getTime() + Q.QUOTE_VALID_DAYS * 864e5);
-  let ref;
+  let ref, existing = null;
   try {
-    ref = await nextQuoteReference();
+    if (reviseId) {
+      // Revising: keep the same quote (number, row and online link) and update it in place.
+      existing = (await SB.sb(`sent_emails?id=eq.${reviseId}&kind=eq.quote&status=eq.sent&select=id,lead_id,quote_ref&limit=1`))?.[0];
+      if (!existing || !existing.quote_ref) return res.status(404).json({ error: "The quote to update was not found" });
+      ref = existing.quote_ref;
+    } else {
+      ref = await nextQuoteReference();
+    }
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message || "Could not allocate a quote number" });
   }
+
+  if (existing && existing.lead_id) hintLeadId = existing.lead_id;
 
   // Show the property address on the quote when the lead has one saved.
   let address = "";
@@ -118,7 +135,7 @@ module.exports = async (req, res) => {
   }
 
   const rendered = Q.renderQuoteEmail({
-    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, revised: Boolean(revises),
+    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, revised: Boolean(existing),
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 
@@ -126,7 +143,7 @@ module.exports = async (req, res) => {
   const resend = new Resend(apiKey);
   const notify = process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL;
 
-  const subject = `Your ${revises ? "Updated " : ""}Smoke Alarm Compliance Quotation (${ref}) - PowerSmart`;
+  const subject = `Your ${existing ? "Updated " : ""}Smoke Alarm Compliance Quotation (${ref}) - PowerSmart`;
 
   try {
     const { data, error } = await resend.emails.send({
@@ -139,12 +156,22 @@ module.exports = async (req, res) => {
       text: rendered.text,
     });
     if (error) {
-      await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
+      if (!existing) await logEmail({ kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, status: "failed", error: error.message });
       return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     }
-    const leadId = await recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total: rendered.quote.total, leadId: hintLeadId, revises, discount: rendered.quote.discount });
-    const emailId = randomUUID();
-    const saved = await logEmail({ id:emailId, kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
+    let leadId, emailId, saved;
+    if (existing) {
+      emailId = existing.id; leadId = existing.lead_id || null;
+      try {
+        await SB.sb(`sent_emails?id=eq.${emailId}&kind=eq.quote`, { method: "PATCH", body: { subject, body_html: rendered.html, body_text: rendered.text, quote_total: rendered.quote.total, provider_id: data && data.id, agent: agentName || null }, prefer: "return=minimal" });
+        saved = true;
+      } catch (e) { console.error("send-quote → quote update failed:", e.message); saved = false; }
+      await recordRevision({ leadId, agentName, ref, total: rendered.quote.total, discount: rendered.quote.discount });
+    } else {
+      leadId = await recordInPipeline({ customerName, customerEmail, customerPhone, agentName, ref, total: rendered.quote.total, leadId: hintLeadId });
+      emailId = randomUUID();
+      saved = await logEmail({ id:emailId, kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
+    }
     const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${emailId}`;
     let sms = {status:'skipped',error:'SMS requires staff portal access.'};
     if (fromPipeline) {
@@ -153,8 +180,8 @@ module.exports = async (req, res) => {
         if(!leadId)throw new Error('Quote email was sent, but the customer record could not be saved.');
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         const first=String(lead?.name || customerName || 'there').trim().split(/\s+/)[0];
-        const message=`Hi ${first}, your PowerSmart smoke alarm quote ${ref} is ready. We've also emailed it to you, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
-        sms=await Sms.sendLeadSms({lead,message,key:`quote-${emailId}`,author:agentName});
+        const message=`Hi ${first}, your ${existing ? 'updated ' : ''}PowerSmart smoke alarm quote ${ref} is ready. We've also emailed it to you, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
+        sms=await Sms.sendLeadSms({lead,message,key:existing ? `quote-${emailId}-rev-${Date.now()}` : `quote-${emailId}`,author:agentName});
       } catch(e) {
         sms={status:'failed',error:e.message};
         try {await Sms.logNote(leadId,agentName,`Quote ${ref} SMS issue: ${e.message}`);} catch(_) {}
