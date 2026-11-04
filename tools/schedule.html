@@ -932,6 +932,18 @@
     return mapsLoading;
   }
   function closeRoute(){ routeVersion++; clearRouteMap(); $("route-overlay").classList.remove("show"); }
+  function renderRouteStops(stops, legs){
+    $("route-stops").innerHTML = stops.map(function(j, i){
+      var row = '<div class="route-stop"><b class="pin">' + String.fromCharCode(65 + i) + '</b><strong>' + esc(j.job_no ? "J" + j.job_no : "Job") + '</strong></div>';
+      var leg = legs && legs[i];
+      if (leg){
+        var minutes = Number.isFinite(leg.durationMillis) ? Math.round(leg.durationMillis / 60000) + " mins" : "Time unavailable";
+        var distance = Number.isFinite(leg.distanceMeters) ? ' · ' + (leg.distanceMeters / 1000).toFixed(1) + ' km' : '';
+        row += '<div class="route-msg">Driving time: ' + minutes + distance + '</div>';
+      }
+      return row;
+    }).join("");
+  }
 
   function openRoute(techId){
     var stops = state.jobs.filter(function(j){ return j.electrician_id === techId && j.status !== "cancelled" && mapsQuery(j); })
@@ -943,9 +955,7 @@
     var gUrl = "https://www.google.com/maps/dir/" + stops.map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
     $("route-title").textContent = "Driving route" + (tech ? " · " + tech.name : "");
     $("route-gmaps").href = gUrl;
-    $("route-stops").innerHTML = stops.map(function(j, i){
-      return '<div class="route-stop"><b class="pin">' + String.fromCharCode(65 + i) + '</b><div><strong>' + esc(j.job_no ? "J" + j.job_no : "Job") + " · " + esc(timeText(j.scheduled_start)) + '</strong><small>' + esc(addressLine(j)) + '</small></div></div>';
-    }).join("");
+    renderRouteStops(stops);
     $("route-sum").hidden = true; $("route-panel").innerHTML = '<div class="route-msg">Loading route…</div>'; $("route-map").innerHTML = "";
     $("route-overlay").classList.add("show");
     var fail = function(msg){ $("route-panel").innerHTML = '<div class="route-msg">' + esc(msg) + ' Use "Open in Google Maps" above instead.</div>'; };
@@ -969,12 +979,8 @@
       routeMarkers = markers; routeMarkers.forEach(function(m){ m.map = map; });
       routePolylines = route.createPolylines(); routePolylines.forEach(function(p){ p.setMap(map); });
       if (route.viewport) map.fitBounds(route.viewport);
-      var mins = Math.round(route.durationMillis / 60000), time = mins >= 60 ? Math.floor(mins / 60) + " hr " + (mins % 60) + " mins" : mins + " mins";
-      $("route-sum").textContent = (route.distanceMeters / 1000).toFixed(1) + " km · about " + time + " driving"; $("route-sum").hidden = false;
-      $("route-panel").innerHTML = (route.legs || []).map(function(leg, i){
-        var minutes = Number.isFinite(leg.durationMillis) ? Math.round(leg.durationMillis / 60000) + " mins" : "Time unavailable";
-        return '<div class="route-msg"><strong>' + String.fromCharCode(65 + i) + ' → ' + String.fromCharCode(66 + i) + '</strong> · ' + minutes + '</div>';
-      }).join("");
+      renderRouteStops(stops, route.legs);
+      $("route-panel").innerHTML = "";
     }).catch(function(e){ if (version === routeVersion) fail("Couldn't build the route (" + (e && (e.code || e.message) || "error") + ")."); });
   }
 

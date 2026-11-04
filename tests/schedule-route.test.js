@@ -7,7 +7,7 @@ function fixture(compute) {
   const elements = {};
   const $ = id => elements[id] ||= {innerHTML:'', classList:{add(){},remove(){}}};
   const calls = [], marker = {}, polyline = {setMap(map){this.map=map;}};
-  const route = {distanceMeters:12500,durationMillis:3900000,viewport:{},legs:[{durationMillis:600000,steps:[{instructions:'Turn left <unsafe>',distanceMeters:250}]}],
+  const route = {distanceMeters:12500,durationMillis:3900000,viewport:{},legs:[{durationMillis:600000,distanceMeters:38300,steps:[{instructions:'Turn left <unsafe>',distanceMeters:250}]}],
     createWaypointAdvancedMarkers:async()=>[marker], createPolylines:()=>[polyline]};
   const google = {maps:{Map:class {fitBounds(){}},importLibrary:async()=>({Route:{computeRoutes:async request=>{calls.push(request);return compute ? compute(route) : {routes:[route]};}}})}};
   const context = {google,window:{google},$,state:{techs:[],jobs:[3,1,2].map(n=>({electrician_id:'tech',scheduled_start:`2026-11-05T0${n}:00:00Z`,address:'Stop '+n,job_no:n}))},
@@ -24,9 +24,9 @@ test('route uses enabled Routes API in schedule order and displays directions, p
   assert.equal(f.calls[0].travelMode,'DRIVING'); assert.equal(f.calls[0].optimizeWaypointOrder,false);
   assert.ok(f.calls[0].fields.includes('legs'));
   assert.ok(f.calls[0].fields.every(field=>!field.startsWith('legs.')), 'Maps JavaScript accepts the legs field, not nested leg field masks');
-  assert.match(f.elements['route-panel'].innerHTML,/A → B<\/strong> · 10 mins/);
-  assert.doesNotMatch(f.elements['route-panel'].innerHTML,/Turn left|<ol>/);
-  assert.match(f.elements['route-sum'].textContent,/12.5 km.*1 hr 5 mins/);
+  assert.match(f.elements['route-stops'].innerHTML,/A<\/b><strong>J1.*Driving time: 10 mins · 38.3 km.*B<\/b><strong>J2/);
+  assert.equal(f.elements['route-panel'].innerHTML,'');
+  assert.equal(f.elements['route-sum'].hidden,true);
   assert.ok(f.marker.map); assert.ok(f.polyline.map);
   f.context.closeRoute(); assert.equal(f.marker.map,null); assert.equal(f.polyline.map,null);
 });
