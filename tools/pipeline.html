@@ -586,8 +586,8 @@
     var pc = l.address_postcode || l.postcode;
     if (!pc) return "";
     var area = areaForPostcode(pc), sub = l.address_suburb || "";
-    var label = sub ? sub + (area ? " · " + area : "") : (area || pc);
-    return '<span class="chip" title="Postcode ' + esc(pc) + '">' + esc(label) + '</span>';
+    var label = [sub, area, pc].filter(Boolean).join(" · ");
+    return '<span class="chip" title="' + esc(label) + '">' + esc(label) + '</span>';
   }
   function addressForMaps(l){
     if (!l || !l.address_line1 || !l.address_suburb) return "";
