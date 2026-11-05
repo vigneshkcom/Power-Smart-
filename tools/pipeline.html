@@ -564,6 +564,31 @@
     var time = d.toLocaleTimeString("en-AU", Object.assign({ hour:"numeric", minute:"2-digit", hour12:true }, o)).replace(/\s/g, "").toLowerCase();
     return day + " · " + time;
   }
+  // Postcode -> service area (SE Queensland). First matching range wins, so
+  // narrower ranges sit above broader ones. Edit here to adjust areas.
+  var AREA_RANGES = [
+    [4300, 4306, "Ipswich"], [4340, 4347, "Lockyer Valley"], [4350, 4399, "Toowoomba / Darling Downs"],
+    [4550, 4575, "Sunshine Coast"], [4500, 4503, "Moreton Bay North"], [4504, 4521, "Moreton Bay"],
+    [4020, 4022, "Redcliffe"], [4114, 4114, "Logan"], [4117, 4133, "Logan"], [4205, 4209, "Logan / Beenleigh"],
+    [4210, 4230, "Gold Coast"], [4270, 4285, "Scenic Rim"],
+    [4000, 4036, "Brisbane North"], [4037, 4079, "Brisbane West"], [4101, 4179, "Brisbane South"], [4180, 4199, "Brisbane East"],
+    [4600, 4899, "Regional QLD"], [2000, 2999, "NSW"], [3000, 3999, "VIC"]
+  ];
+  function areaForPostcode(pc){
+    var n = parseInt(pc, 10);
+    if (!n) return "";
+    for (var i = 0; i < AREA_RANGES.length; i++){
+      if (n >= AREA_RANGES[i][0] && n <= AREA_RANGES[i][1]) return AREA_RANGES[i][2];
+    }
+    return "";
+  }
+  function areaChip(l){
+    var pc = l.address_postcode || l.postcode;
+    if (!pc) return "";
+    var area = areaForPostcode(pc), sub = l.address_suburb || "";
+    var label = sub ? sub + (area ? " · " + area : "") : (area || pc);
+    return '<span class="chip" title="Postcode ' + esc(pc) + '">' + esc(label) + '</span>';
+  }
   function addressForMaps(l){
     if (!l || !l.address_line1 || !l.address_suburb) return "";
     return [l.address_line1, [l.address_suburb, l.address_state, l.address_postcode].filter(Boolean).join(" ")].join(", ") + ", Australia";
@@ -646,7 +671,7 @@
   }
 
   function matches(l){
-    var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.quote_ref||"")).toLowerCase();
+    var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.address_suburb||"")+" "+areaForPostcode(l.address_postcode||l.postcode)+" "+(l.quote_ref||"")).toLowerCase();
     return (!searchTerm || hay.indexOf(searchTerm) !== -1) &&
       (!$('filter-stage').value || l.stage === $('filter-stage').value) &&
       (!$('filter-agent').value || (l.agent || "") === $('filter-agent').value) &&
@@ -701,7 +726,7 @@
         card.draggable = true;
         card.dataset.id = l.id;
         var chips = '<span class="chip src">' + esc(l.source || "Not provided") + '</span>';
-        if (l.postcode) chips += '<span class="chip">' + esc(l.postcode) + '</span>';
+        chips += areaChip(l);
         if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
         if (l.paid_total_cents > 0) chips += '<span class="chip src" title="Total payments received">Paid ' + fmt$(l.paid_total_cents / 100) + ((l.paid_methods || []).length ? ' · ' + esc(l.paid_methods.join(", ")) : '') + '</span>';
         else if (l.payment) chips += '<span class="chip quote">' + (l.payment.status === "paid" ? "Paid " : "Booking fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
