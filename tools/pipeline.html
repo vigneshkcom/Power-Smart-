@@ -87,6 +87,8 @@
   .modal-head .x:hover{background:var(--paper);color:var(--ink)}
   .modal-body{padding:1.1rem 1.4rem;overflow-y:auto}
   .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+  .fgrid3{grid-template-columns:1fr 1.4fr 1fr}
+  @media (max-width:480px){.fgrid3{grid-template-columns:1fr 1fr}.fgrid3 .field:first-child{grid-column:1/-1}}
   .field{display:flex;flex-direction:column;gap:.25rem}
   .field.full{grid-column:1/-1}
   .field label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -332,9 +334,10 @@
             </div>
           </div>
         </div>
-        <div class="fgrid" id="lm-quote-row" style="display:none;margin-top:.7rem">
+        <div class="fgrid fgrid3" id="lm-quote-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
           <div class="field"><label>Sent quote</label><button class="quote-view-btn" id="lm-view-quote">View quote</button></div>
+          <div class="field"><label>Customer</label><button class="quote-view-btn" id="lm-resend-quote" type="button" title="Re-send this same quote to the customer by email and SMS">Resend quote</button></div>
         </div>
         <div class="fgrid" id="lm-payment-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Booking fee</label><input id="lm-payment-amount" readonly style="background:#F8FBFB"></div>
@@ -1534,6 +1537,20 @@
   $("th-back").addEventListener("click", threadBackToList);
   $("th-close").addEventListener("click", closeThread);
   $("thread-overlay").addEventListener("click", function(e){ if (e.target === this) closeThread(); });
+  $("lm-resend-quote").addEventListener("click",function(){
+    var id=currentId;if(!id)return;
+    var lead=leads.find(function(l){return l.id===id;});if(!lead||!lead.quote_ref)return;
+    if(!confirm("Resend quote "+lead.quote_ref+" to "+(lead.name||"this customer")+" by email and SMS?\n\nThis sends the same quote again. Nothing on the quote changes."))return;
+    var btn=this,label=btn.textContent;btn.disabled=true;btn.textContent="Sending…";
+    fetch("/api/send-quote",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify({resendLeadId:id,agentName:currentAgent()})})
+      .then(function(r){return r.json().catch(function(){return {};}).then(function(d){if(!r.ok)throw new Error(d.error||("Error "+r.status));return d;});})
+      .then(function(d){
+        toast("Quote "+d.ref+" re-sent by email"+(d.sms&&d.sms.status==="submitted"?" and SMS.":". SMS issue: "+((d.sms&&d.sms.error)||"SMS was not sent.")));
+        return api("POST",{action:"comments",lead_id:id}).then(function(c){if(currentId===id)renderComments(c.comments||[]);});
+      })
+      .catch(function(e){toast(e.message);})
+      .then(function(){btn.textContent=label;btn.disabled=false;});
+  });
   $("lm-view-quote").addEventListener("click",function(){if(!currentId)return;var lead=leads.find(function(item){return item.id===currentId;});if(!lead)return;var id=currentId,ref=lead.quote_ref;closeModal();openEmailThread(id,ref);});
 
   /* ---------- top bar ---------- */

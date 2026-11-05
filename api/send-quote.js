@@ -82,6 +82,40 @@ function isValidEmail(v) {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+async function resendQuote(req, res, leadId, agentName, apiKey) {
+  if (!/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(leadId)) return res.status(400).json({ error: "Invalid customer" });
+  try {
+    const lead = (await SB.sb(`leads?id=eq.${leadId}&select=id,name,phone,email,quote_ref&limit=1`))?.[0];
+    if (!lead) return res.status(404).json({ error: "Customer not found" });
+    if (!lead.quote_ref) return res.status(400).json({ error: "This customer has no quote to resend" });
+    const q = (await SB.sb(`sent_emails?lead_id=eq.${leadId}&kind=eq.quote&status=eq.sent&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}&select=id,lead_id,sender,quote_ref,subject,body_html,body_text,to_email,to_name&order=created_at.desc&limit=1`))?.[0];
+    if (!q) return res.status(404).json({ error: "The original quote email was not found" });
+    const to = isValidEmail(lead.email) ? lead.email : q.to_email;
+    if (!isValidEmail(to)) return res.status(400).json({ error: "Add a valid customer email address first" });
+    const sender = S.resolveSender(q.sender);
+    const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${q.id}`;
+    const subject = `Reminder: ${q.subject || `Your PowerSmart quotation (${q.quote_ref})`}`;
+    const { Resend } = require("resend");
+    const { data, error } = await new Resend(apiKey).emails.send({
+      from: S.fromHeader(sender.key), to: to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
+      subject, html: q.body_html, text: q.body_text,
+    });
+    if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    let sms = { status: "skipped", error: "No mobile number saved." };
+    if (lead.phone) {
+      try {
+        const first = String(lead.name || "there").trim().split(/\s+/)[0];
+        const message = `Hi ${first}, here is your PowerSmart smoke alarm quote ${q.quote_ref} again. We've also re-emailed it, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
+        sms = await Sms.sendLeadSms({ lead, message, key: `quote-${q.id}-resend-${Date.now()}`, author: agentName });
+      } catch (e) { sms = { status: "failed", error: e.message }; }
+    }
+    try { await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: agentName || "System", kind: "quote", body: `Quote ${q.quote_ref} re-sent by email${sms.status === "submitted" ? " and SMS" : " (SMS not sent: " + (sms.error || sms.status) + ")"}.` }, prefer: "return=minimal" }); } catch (_) {}
+    return res.status(200).json({ ok: true, id: data && data.id, ref: q.quote_ref, sms });
+  } catch (err) {
+    return res.status(500).json({ error: (err && err.message) || "Could not resend the quote" });
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -102,6 +136,9 @@ module.exports = async (req, res) => {
   // Discounts and revisions can only be applied from the staff portal.
   const { serviceMode, alarmQty, controllerQty, discount } = Q.normalise(fromPipeline ? b : { ...b, discount: 0 });
   const reviseId = fromPipeline && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(String(b.reviseQuoteId || "")) ? String(b.reviseQuoteId) : "";
+
+  // Resend: staff re-send the SAME quote (same ref, total and online link) by email + SMS. Nothing about the quote changes.
+  if (fromPipeline && b.resendLeadId) return resendQuote(req, res, String(b.resendLeadId), agentName, apiKey);
 
   if (!isValidEmail(customerEmail)) return res.status(400).json({ error: "A valid customer email address is required" });
   if (customerPhone && !/^\+[1-9]\d{7,14}$/.test(customerPhone)) return res.status(400).json({error:'Enter a valid customer mobile number.'});
