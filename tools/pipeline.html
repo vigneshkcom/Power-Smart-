@@ -670,9 +670,22 @@
     return age <= Number(value) * 864e5;
   }
 
+  // Phone search: ignore spaces/dashes/brackets and treat +61 / 61 / 0 prefixes alike.
+  function phoneDigits(s){
+    var d = String(s || "").replace(/\D/g, "");
+    if (d.indexOf("0061") === 0) d = d.slice(4);
+    else if (d.indexOf("61") === 0 && (/^\s*\+/.test(String(s)) || d.length >= 10)) d = d.slice(2);
+    return d.replace(/^0+/, "");
+  }
+  function phoneMatch(l, term){
+    if (!/^[\d\s+()\-.]+$/.test(term)) return false;
+    var t = phoneDigits(term);
+    return t.length >= 3 && phoneDigits(l.phone).indexOf(t) !== -1;
+  }
+
   function matches(l){
     var hay = ((l.name||"")+" "+(l.phone||"")+" "+(l.email||"")+" "+(l.postcode||"")+" "+(l.address_suburb||"")+" "+areaForPostcode(l.address_postcode||l.postcode)+" "+(l.quote_ref||"")).toLowerCase();
-    return (!searchTerm || hay.indexOf(searchTerm) !== -1) &&
+    return (!searchTerm || hay.indexOf(searchTerm) !== -1 || phoneMatch(l, searchTerm)) &&
       (!$('filter-stage').value || l.stage === $('filter-stage').value) &&
       (!$('filter-agent').value || (l.agent || "") === $('filter-agent').value) &&
       (!$('filter-source').value || (l.source || "") === $('filter-source').value) &&
