@@ -7,6 +7,10 @@
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const SB = require("./_supabase");
 const { welcomeLead } = require('./_welcome-sms');
+const S = require("./_senders");
+const { renderEnquiryConfirmation } = require("./_enquiry-confirmation");
+const { logEmail } = require("./_maillog");
+const Sms = require("./_sms-outbound");
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -76,6 +80,24 @@ module.exports = async (req, res) => {
   try {
     const { Resend } = require("resend");
     const resend = new Resend(apiKey);
+
+    // Confirmation to the customer (only when they gave an email). Never blocks the team alert.
+    if (email) {
+      try {
+        const mail = renderEnquiryConfirmation({ name });
+        const { error: custError } = await resend.emails.send({
+          from: S.fromHeader("customer_service"), to: email,
+          replyTo: SUPPORT_EMAIL, subject: mail.subject, html: mail.html, text: mail.text,
+        });
+        if (custError) throw new Error(custError.message || "Email provider rejected the request");
+        await logEmail({ kind: "email", sender: "customer_service", agent: "System", to_email: email, to_name: name, subject: mail.subject, body_html: mail.html, body_text: mail.text, lead_id: savedLead && savedLead.id, status: "sent" });
+        if (savedLead) await Sms.logNote(savedLead.id, "System", "Enquiry confirmation email sent to the customer.").catch(() => {});
+      } catch (e) {
+        console.error("lead → customer confirmation email failed:", e.message);
+        if (savedLead) await Sms.logNote(savedLead.id, "System", `Enquiry confirmation email failed: ${e.message}`).catch(() => {});
+      }
+    }
+
     const { error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || `PowerSmart Leads <${SUPPORT_EMAIL}>`,
       to: process.env.NOTIFY_EMAIL || SUPPORT_EMAIL,

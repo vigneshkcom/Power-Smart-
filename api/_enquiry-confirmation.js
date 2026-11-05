@@ -79,9 +79,7 @@ function renderEnquiryConfirmation({ name }) {
         </table>
       </td></tr>
 
-      <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:14px 32px 28px;">
-        <p style="margin:0;font-size:13px;color:#6B8288;line-height:1.6;">Prefer to talk now? Call us on <a href="tel:${Q.PHONE_TEL}" style="color:#2E8494;font-weight:bold;text-decoration:none;">${Q.PHONE_DISPLAY}</a>.</p>
-      </td></tr>
+      <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:6px 32px 20px;"></td></tr>
 
       <tr><td align="center" style="padding:20px 12px 6px;">
         <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p>
@@ -105,8 +103,6 @@ The alarms we install: Anka photoelectric, interconnected smoke alarms (battery 
 - Same-day compliance certificate
 - Certified to AS 3786-2014/2023
 - 10-year manufacturer warranty on every alarm
-
-Prefer to talk now? Call us on ${Q.PHONE_DISPLAY}.
 
 PowerSmart Pty Ltd | ABN ${Q.ABN}
 ${Q.SITE}`;
