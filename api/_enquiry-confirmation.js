@@ -46,7 +46,7 @@ function renderEnquiryConfirmation({ name }) {
 
       <tr><td style="background:#ffffff;padding:28px 32px 6px;">
         <h1 style="margin:0 0 12px;font-size:22px;color:#0B1B1F;line-height:1.3;">Hi ${first}, thanks for your enquiry</h1>
-        <p style="margin:0 0 12px;font-size:15px;color:#41585D;line-height:1.65;">We've received your details and one of our team will give you a call <strong style="color:#0B1B1F;">within the next 24 hours</strong> to go through your smoke alarm requirements.</p>
+        <p style="margin:0 0 12px;font-size:15px;color:#41585D;line-height:1.65;">We've received your details and one of our team members will give you a call <strong style="color:#0B1B1F;">within the next 24 hours</strong> to go through your smoke alarm requirements.</p>
         <p style="margin:0;font-size:15px;color:#41585D;line-height:1.65;">We know how busy things get, and you may well be at work when we ring. If there's a time that suits you better, just reply to this email with the <strong style="color:#0B1B1F;">best time to call</strong> and we'll make sure we catch you then.</p>
       </td></tr>
 
@@ -92,7 +92,7 @@ function renderEnquiryConfirmation({ name }) {
 
   const text = `Hi ${String(name || "").trim().split(/\s+/)[0] || "there"}, thanks for your enquiry.
 
-We've received your details and one of our team will give you a call within the next 24 hours to go through your smoke alarm requirements.
+We've received your details and one of our team members will give you a call within the next 24 hours to go through your smoke alarm requirements.
 
 We know how busy things get, and you may well be at work when we ring. If there's a time that suits you better, just reply to this email with the best time to call and we'll make sure we catch you then.
 
