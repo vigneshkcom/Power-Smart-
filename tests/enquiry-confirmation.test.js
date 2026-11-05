@@ -11,8 +11,9 @@ test('confirmation email promises a call, asks three questions, and has no phone
     assert.match(out, /existing alarms/i);
     assert.doesNotMatch(out, /0401 991 420|tel:/);
   }
-  assert.match(m.html, /Thanks Sarah,/);
-  assert.match(renderEnquiryConfirmation({ name: '<b>x</b>' }).html, /Thanks &lt;b&gt;x&lt;\/b&gt;,/);
+  assert.match(m.html, /Hi Sarah,/);
+  assert.match(m.html, /best time to call/); assert.match(m.text, /best time to call/);
+  assert.match(renderEnquiryConfirmation({ name: '<b>x</b>' }).html, /Hi &lt;b&gt;x&lt;\/b&gt;,/);
 });
 
 function run(body, { failCustomer = false } = {}) {
