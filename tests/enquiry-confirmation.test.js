@@ -52,3 +52,11 @@ test('a failed customer email is noted and does not stop the team alert', async 
   assert.equal(r.code, 200); assert.ok(r.sent.some(m => /New lead/.test(m.subject)));
   assert.ok(r.notes.some(n => /failed: bounced/.test(n)));
 });
+
+test('a blocked number gets a normal success but nothing is saved or sent', async () => {
+  for (const phone of ['0425200047', '+61 400 608 098', '0415-706-675']) {
+    const r = await run({ name: 'Rival Co', phone, email: 'rival@example.test', postcode: '4000' });
+    assert.equal(r.code, 200); assert.equal(r.b.ok, true);
+    assert.equal(r.sent.length, 0); assert.equal(r.notes.length, 0);
+  }
+});

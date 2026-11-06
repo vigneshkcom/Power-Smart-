@@ -11,6 +11,7 @@ const S = require("./_senders");
 const { renderEnquiryConfirmation } = require("./_enquiry-confirmation");
 const { logEmail } = require("./_maillog");
 const Sms = require("./_sms-outbound");
+const { isBlocked } = require("./_blocked-numbers");
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -36,6 +37,12 @@ module.exports = async (req, res) => {
 
   if (!name || !phone) return res.status(400).json({ error: "Name and phone are required" });
   if (email && !isValidEmail(email)) return res.status(400).json({ error: "Please enter a valid email address" });
+
+  // Blocked numbers (competitors): answer exactly like a normal success, but save and send nothing.
+  if (isBlocked(phone)) {
+    console.log("lead → blocked number ignored");
+    return res.status(200).json({ ok: true, welcome_sms: { status: "skipped" } });
+  }
 
   const rows = [
     ["Name", name],
