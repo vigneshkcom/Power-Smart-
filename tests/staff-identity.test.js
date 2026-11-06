@@ -1,11 +1,10 @@
 const test = require('node:test'), assert = require('node:assert/strict');
 const Staff = require('../api/_staff-identity'), Senders = require('../api/_senders');
-test('new and legacy sender keys both use Sunny in outgoing email headers and signatures', () => {
-  for (const key of ['sunny','vignesh']) {
-    assert.equal(Senders.resolveSender(key).key,'sunny');
-    assert.match(Senders.fromHeader(key), /^Sunny - PowerSmart </);
-    assert.match(Senders.signatureText(key), /Sunny/);
-    assert.doesNotMatch(Senders.signatureHtml(key), /Vignesh/);
+test('every sender key sends as the PowerSmart team, never a personal name', () => {
+  for (const key of ['sunny','vignesh','sam','customer_service']) {
+    assert.match(Senders.fromHeader(key), /^PowerSmart </);
+    assert.match(Senders.signatureText(key), /PowerSmart Team/);
+    assert.doesNotMatch(Senders.signatureText(key)+Senders.signatureHtml(key), /Sunny|Sam|Vignesh/);
   }
 });
 test('stored staff attribution displays Sunny while customer identity and original records are preserved', () => {

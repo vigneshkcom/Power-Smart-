@@ -9,11 +9,12 @@ const SITE = "https://smokealarms.powersmartco.com.au";
 const ABN = "41 669 943 720";
 const LOGO = `${SITE}/assets/logo/power-smart-logo-full-colour.png`;
 
-// key -> identity
+// key -> identity. Customers only ever see "PowerSmart" / "PowerSmart Team": the Sam and Sunny
+// keys are kept so old records and the staff picker still work, but they send exactly the same.
 const SENDERS = {
-  customer_service: { key: "customer_service", label: "Customer Service", fromName: "PowerSmart",           signName: "Customer Service Team", title: "PowerSmart" },
-  sam:             { key: "sam",             label: "Sam",             fromName: "Sam - PowerSmart", signName: "Sam",                  title: "PowerSmart" },
-  sunny:          { key: "sunny",          label: "Sunny",          fromName: "Sunny - PowerSmart", signName: "Sunny",             title: "PowerSmart" },
+  customer_service: { key: "customer_service", label: "Customer Service", fromName: "PowerSmart",           signName: "PowerSmart Team", title: "PowerSmart" },
+  sam:             { key: "sam",             label: "Sam",             fromName: "PowerSmart", signName: "PowerSmart Team", title: "PowerSmart" },
+  sunny:          { key: "sunny",          label: "Sunny",          fromName: "PowerSmart", signName: "PowerSmart Team", title: "PowerSmart" },
 };
 
 function resolveSender(key) {
