@@ -395,7 +395,7 @@
       <div class="modal-body">
         <p style="font-size:.82rem;color:var(--muted);margin:0 0 1rem">Enter the total amount to charge in AUD. Card details are entered securely on Stripe.</p>
         <div class="fgrid">
-          <div class="field"><label for="payment-type">Payment type</label><select id="payment-type"><option value="other">Pending balance</option><option value="booking_fee">Deposit / electrician call-out</option><option value="inspection">Inspection</option><option value="installation_balance">Installation balance</option></select></div>
+          <div class="field"><label for="payment-type">Payment type</label><select id="payment-type"><option value="other">Pending balance</option><option value="booking_fee">Electrician call-out fee</option><option value="inspection">Inspection</option><option value="installation_balance">Installation balance</option></select></div>
           <div class="field"><label for="payment-amount">Amount (AUD)</label><input id="payment-amount" type="number" min="0.50" max="999999.99" step="0.01" inputmode="decimal" placeholder="e.g. 316.00"></div>
           <div class="field full"><label for="payment-description">Payment description</label><input id="payment-description" maxlength="250" placeholder="e.g. Smoke alarm installation balance"></div>
         </div>
@@ -1109,7 +1109,7 @@
   /* ---------- Custom Stripe payments ---------- */
   var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "", paymentSmsPreview = null;
   var paymentTypeLabels = {booking_fee:"Electrician call-out fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Pending balance"};
-  function paymentLabel(p){return p.payment_type === "booking_fee" && p.amount_cents === 5000 ? "Deposit" : paymentTypeLabels[p.payment_type] || "Payment";}
+  function paymentLabel(p){return p.payment_type === "booking_fee" && /deposit/i.test(p.description || "") ? "Deposit" : paymentTypeLabels[p.payment_type] || "Payment";}
   function paymentApi(body){
     return fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error || "Payment request failed");return d;});});
@@ -1131,7 +1131,7 @@
     $("payment-total").textContent="Confirmed payments: "+fmt$(total/100)+" AUD";
     $("payment-history").innerHTML=paymentRows.length ? paymentRows.map(function(p){
       var status={paid:"Paid",sent:"Awaiting payment",expired:"Expired",failed:"Failed"}[p.status] || p.status;
-      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentLabel(p))+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.payment_type === "booking_fee" ? (p.amount_cents === 5000 ? "Credited against quote total" : "Electrician call-out fee") : (p.description || "Payment"))+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button><button class="btn btn-ghost" data-payment-sms="'+esc(p.id)+'">Text payment link</button>' : '')+'</div></div>';
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentLabel(p))+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.payment_type === "booking_fee" ? (/deposit/i.test(p.description || "") ? "Credited against issued quote total" : "Electrician call-out fee") : (p.description || "Payment"))+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button><button class="btn btn-ghost" data-payment-sms="'+esc(p.id)+'">Text payment link</button>' : '')+'</div></div>';
     }).join("") : '<p style="font-size:.82rem;color:var(--muted)">No payment requests yet.</p>';
   }
   function loadPaymentHistory(){
@@ -1161,7 +1161,7 @@
     if (this.value !== "booking_fee") return;
     var lead = leads.find(function(l){return l.id === paymentLeadId;});
     $("payment-amount").value = String(calloutFeeForLead(lead));
-    $("payment-description").value = calloutFeeForLead(lead) === 50 ? "Deposit toward smoke alarm quote" : "Electrician call-out fee";
+    $("payment-description").value = "Electrician call-out fee";
   });
   $("payment-create").addEventListener("click",function(){
     if(paymentBusy || !paymentLeadId)return;
@@ -1328,16 +1328,16 @@
     if (quoteMode === "inspect"){
       box.innerHTML = '<div class="qrow"><span>Smoke alarm compliance inspection</span><b>' + fmt$(FEE_INSPECT) + '</b></div>' +
         '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(FEE_INSPECT) + '</span></div>' +
-        '<p class="qnote">Waived in full if the customer proceeds with an install. The ' + fmt$(calloutFee) + (calloutFee === 50 ? ' deposit is credited against the quoted installation total.' : ' electrician call-out fee is charged separately from the alarms.') + '</p>';
+        '<p class="qnote">Waived in full if the customer proceeds with an install. The ' + fmt$(calloutFee) + ' electrician call-out fee is charged separately from the alarms.</p>';
       return;
     }
     var c = quoteCalc(), alarmTotal = c.alarms * PRICE_ALARM, ctrlTotal = c.ctrl * PRICE_CTRL;
     var rows = '<div class="qrow"><span>Alarms (' + c.alarms + ' × ' + fmt$(PRICE_ALARM) + ')</span><b>' + fmt$(alarmTotal) + '</b></div>';
     if (c.ctrl) rows += '<div class="qrow"><span>Controllers (' + c.ctrl + ' × ' + fmt$(PRICE_CTRL) + ')</span><b>' + fmt$(ctrlTotal) + '</b></div>';
-    if (calloutFee === 35) rows += '<div class="qrow"><span>Electrician call-out fee</span><b>' + fmt$(calloutFee) + '</b></div>';
-    rows += '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(alarmTotal + ctrlTotal + (calloutFee === 35 ? 35 : 0)) + '</span></div>' +
-      '<div class="qrow sub"><span>' + (calloutFee === 50 ? 'Electrician call-out deposit (included in total)' : 'Call-out fee today') + '</span><b>' + fmt$(calloutFee) + '</b></div>' +
-      '<div class="qrow"><span>Balance after installation</span><b>' + fmt$(alarmTotal + ctrlTotal - (calloutFee === 50 ? 50 : 0)) + '</b></div>';
+    rows += '<div class="qrow"><span>Electrician call-out fee</span><b>' + fmt$(calloutFee) + '</b></div>';
+    rows += '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(alarmTotal + ctrlTotal + calloutFee) + '</span></div>' +
+      '<div class="qrow sub"><span>Call-out fee payable today</span><b>' + fmt$(calloutFee) + '</b></div>' +
+      '<div class="qrow"><span>Balance after installation</span><b>' + fmt$(alarmTotal + ctrlTotal) + '</b></div>';
     box.innerHTML = rows;
   }
 
@@ -1373,11 +1373,11 @@
     if (!currentId) return;
     var lead = leads.find(function(x){ return x.id === currentId; });
     if (!lead || !lead.email) { toast("Add an email address before sending an electrician call-out fee"); return; }
-    if (!confirm("Send a " + fmt$(calloutFeeForLead(lead)) + " Stripe " + (calloutFeeForLead(lead) === 50 ? "deposit" : "electrician call-out fee") + " request to " + lead.email + "?")) return;
+    if (!confirm("Send a " + fmt$(calloutFeeForLead(lead)) + " Stripe electrician call-out fee request to " + lead.email + "?")) return;
     var button = this, original = button.textContent; button.disabled = true; button.textContent = "Sending…";
     fetch("/api/send-booking-fee", { method:"POST", headers:{"Content-Type":"application/json","x-portal-key":portalKey()}, body:JSON.stringify({lead_id:currentId,agent:currentAgent()}) })
       .then(function(response){ return response.json().then(function(data){ if (!response.ok) throw new Error(data.error || "Could not send electrician call-out fee"); return data; }); })
-      .then(function(){ toast(fmt$(calloutFeeForLead(lead)) + " Stripe " + (calloutFeeForLead(lead) === 50 ? "deposit" : "electrician call-out fee") + " request sent"); return load(); })
+      .then(function(){ toast(fmt$(calloutFeeForLead(lead)) + " Stripe electrician call-out fee request sent"); return load(); })
       .then(function(){ openLead(currentId); })
       .catch(function(error){ toast(error.message); })
       .finally(function(){ button.disabled = false; button.textContent = original; });

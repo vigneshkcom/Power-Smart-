@@ -695,7 +695,7 @@
       (cur.items.length ? '<div class="tot"><div><span>Total (incl. GST)</span><span>' + money(cur.totals.total) + '</span></div>' +
       cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>\u2212' + money(cr.cents) + '</span></div>'; }).join("") +
       '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '') +
-      (cur.booking_fee_cents === 3500 ? '<p class="muted" style="margin-top:8px">Electrician call-out fee of ' + money(cur.booking_fee_cents) + ' was paid earlier and is not included above.</p>' : '') + '</div>';
+      ([3500,5000].includes(cur.booking_fee_cents) && !cur.credits.some(function(cr){return /call-out deposit/i.test(cr.label||'');}) ? '<p class="muted" style="margin-top:8px">Electrician call-out fee of ' + money(cur.booking_fee_cents) + ' was paid earlier and is separate from the installation total above.</p>' : '') + '</div>';
 
     // 3. payment details
     var cardPaid = paid && (!j.pay_method || j.pay_method === "card");

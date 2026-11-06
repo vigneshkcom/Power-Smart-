@@ -81,12 +81,13 @@ function itemsSummary(items) {
 }
 
 // Payments the customer already made in advance (inspection fee, balances…).
-// The new $50 call-out deposit is credited; the historical $35 fee was separate.
+// Only deposits promised as included in previously issued quotes are credited.
+// Separate $35/$50 call-out fees are not subtracted from installation invoices.
 async function prepaid(leadId) {
   if (!leadId) return [];
   try {
     const rows = await sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.paid&select=payment_type,description,amount_cents,amount_paid_cents`);
-    return (rows || []).filter((p) => p.payment_type !== 'booking_fee' || Number(p.amount_paid_cents || p.amount_cents || 0) === 5000)
+    return (rows || []).filter((p) => p.payment_type !== 'booking_fee' || /deposit/i.test(p.description || ''))
       .map((p) => ({ label: p.payment_type === 'booking_fee' ? 'Electrician call-out deposit' : p.description || p.payment_type, cents: Number(p.amount_paid_cents || p.amount_cents || 0) }));
   } catch (_) { return []; }   // payment tracking not set up yet
 }
@@ -179,7 +180,7 @@ async function refreshPayment(job) {
   return job;
 }
 
-// Upfront call-out payment already paid by the customer. New $50 deposits are deducted by prepaid().
+// Upfront call-out payment already paid by the customer. Previously included deposits are deducted by prepaid().
 async function bookingFeePaid(leadId) {
   if (!leadId) return 0;
   try {

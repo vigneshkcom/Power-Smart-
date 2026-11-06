@@ -21,7 +21,7 @@ function bookingSlot(iso) {
   return { date, short, slot: isAm ? "AM" : "PM", window: isAm ? "8:00am and 12:00pm" : "12:00pm and 5:00pm" };
 }
 
-function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, address, slot, quoteUrl, note }) {
+function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeIncluded = false, address, slot, quoteUrl, note }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const balance = quoteTotal != null ? Math.max(0, quoteTotal - (feePaid || 0)) : null;
   const row = (label, value, color) => `<tr><td colspan="2" style="padding:4px 12px;color:${color || "#41585D"};">${label}</td><td align="right" style="padding:4px 12px;color:${color || "#41585D"};">${value}</td></tr>`;
@@ -30,7 +30,7 @@ function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, addres
   <div style="font-size:15px;font-weight:bold;color:#0B1B1F;padding-bottom:8px;">Your quote${quoteRef ? ` (${esc(quoteRef)})` : ""}</div>
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
     ${row("Total (incl. GST)", fmt(quoteTotal), "#0B1B1F")}
-    ${feePaid ? row(feePaid === 50 ? "Deposit received (credited against quote)" : "Electrician call-out fee paid", "-" + fmt(feePaid), "#32925d") : ""}
+    ${feePaid ? row(feeIncluded ? "Deposit received (credited against quote)" : "Electrician call-out fee paid", "-" + fmt(feePaid), "#32925d") : ""}
     <tr><td colspan="2" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:8px 0 0 8px;">Balance due on the day</td><td align="right" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:0 8px 8px 0;">${fmt(balance)}</td></tr>
   </table>
   ${quoteUrl ? `<p style="margin:10px 0 0;font-size:12px;"><a href="${esc(quoteUrl)}" style="color:#398ea0;">View your full quote</a></p>` : ""}
@@ -86,7 +86,7 @@ Your smoke alarm installation is booked in.
 
 Date: ${slot.date}
 Arrival: ${slot.slot} slot - your electrician will arrive between ${slot.window}
-${address ? `Address: ${address}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `${feePaid === 50 ? "Deposit received (credited against quote)" : "Electrician call-out fee paid"}: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
+${address ? `Address: ${address}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `${feeIncluded ? "Deposit received (credited against quote)" : "Electrician call-out fee paid"}: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
 Before we arrive:
 - Someone aged 18 or over needs to be home to let us in.
 - Please clear access to the ceiling areas and the switchboard where you can.
@@ -129,7 +129,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   const address = jobAddress || leadAddress;
   const quoteTotal = lead && lead.quote_total != null ? Number(lead.quote_total) : null;
 
-  let feePaid = 0, quoteUrl = "";
+  let feePaid = 0, feeIncluded = false, quoteUrl = "";
   if (leadId) {
     const id = encodeURIComponent(leadId);
     try {
@@ -138,8 +138,11 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
     } catch (_) { /* payment tracking is optional */ }
     try {
       const ref = lead && lead.quote_ref ? `&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}` : "";
-      const q = await SB.sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${id}${ref}&select=id&order=created_at.desc&limit=1`);
-      if (q?.[0]) quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q[0].id}`;
+      const q = await SB.sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${id}${ref}&select=id,body_html,quote_total&order=created_at.desc&limit=1`);
+      if (q?.[0]) {
+        quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q[0].id}`;
+        try { feeIncluded = require('./_quote-payments').quoteOptions(q[0]).calloutIncluded; } catch (_) { /* old confirmation remains usable */ }
+      }
     } catch (_) { /* link is optional */ }
   }
 
@@ -149,7 +152,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   if (email) {
     if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
     else {
-      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, address, slot, quoteUrl, note });
+      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, slot, quoteUrl, note });
       const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
         const { Resend } = require("resend");

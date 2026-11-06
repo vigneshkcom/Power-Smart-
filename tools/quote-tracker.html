@@ -190,7 +190,7 @@
     }).catch(function(e){alert(e.message);button.textContent="View current quote";}).finally(function(){button.disabled=false;});
   }
   var ALARM_PRICE=79,CTRL_PRICE=35;
-  function discountCap(q){return Math.max(0,q.alarm_qty*ALARM_PRICE+q.controller_qty*CTRL_PRICE-(q.callout_fee===50?50:0));}
+  function discountCap(q){return Math.max(0,q.alarm_qty*ALARM_PRICE+q.controller_qty*CTRL_PRICE-(q.callout_included?50:0));}
   function discountBlocker(q){
     if(q.email_status==="failed")return "This quote was never delivered, so it cannot be revised.";
     if(q.service!=="Installation"||!q.alarm_qty)return "Discounts can only be added to installation quotes.";

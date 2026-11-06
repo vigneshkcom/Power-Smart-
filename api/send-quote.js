@@ -167,9 +167,12 @@ module.exports = async (req, res) => {
   if (existing && existing.lead_id) hintLeadId = existing.lead_id;
 
   let calloutFee = Fee.CURRENT_CENTS / 100;
+  let calloutIncluded = false;
   try {
     if (existing) {
-      calloutFee = QP.quoteOptions(existing).calloutFee;
+      const saved = QP.quoteOptions(existing);
+      calloutFee = saved.calloutFee;
+      calloutIncluded = saved.calloutIncluded;
     } else {
       const byId = hintLeadId ? (await SB.sb(`leads?id=eq.${encodeURIComponent(hintLeadId)}&select=id,created_at&limit=1`))?.[0] : null;
       const byEmail = byId ? null : (await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id,created_at&order=updated_at.desc&limit=1`))?.[0];
@@ -187,7 +190,7 @@ module.exports = async (req, res) => {
   }
 
   const rendered = Q.renderQuoteEmail({
-    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, calloutFee, revised: Boolean(existing),
+    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, calloutFee, calloutIncluded, revised: Boolean(existing),
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 

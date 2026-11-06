@@ -92,11 +92,13 @@ module.exports = async (req, res) => {
       const params = new URLSearchParams(accept ? accept[1] : "");
       const discount = Math.max(0, Number(params.get("disc")) || 0);
       const savedFee = params.get("fee") === "50" ? 50 : 35;
+      const calloutIncluded = savedFee === 50 && params.get("model") !== "additional";
       return {
         id: email.id,
         sender: email.sender || "customer_service",
         discount,
         callout_fee: savedFee,
+        callout_included: calloutIncluded,
         created_at: email.created_at,
         ref: email.quote_ref || "",
         total: Number(email.quote_total || 0),

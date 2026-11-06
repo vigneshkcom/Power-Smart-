@@ -16,6 +16,9 @@ function quoteOptions(quote) {
   const calloutFee = url.searchParams.has('fee') ? Number(url.searchParams.get('fee')) : 35;
   if (![35, 50].includes(calloutFee)) throw new Error('The saved quote fee is invalid.');
   options.calloutFee = calloutFee;
+  // $50 links issued before the pricing correction had no model marker and
+  // promised an included deposit. Keep those exact totals and payment terms.
+  options.calloutIncluded = calloutFee === 50 && url.searchParams.get('model') !== 'additional';
   const calculation = Q.buildQuote(options);
   if (Math.round(calculation.total * 100) !== Math.round(Number(quote.quote_total) * 100)) throw new Error('The saved quote total could not be verified. Please contact PowerSmart.');
   return { ...options, calculation };
@@ -53,13 +56,13 @@ async function checkout(quote, lead) {
   // Expired sessions get a new key; simultaneous/repeated submissions share one checkout.
   const attempt = payments.filter(p => p.payment_type === type).map(p => p.stripe_session_id).sort().join(',');
   const requestKey = crypto.createHash('sha256').update(`quote:${quote.lead_id}:${quote.quote_ref}:${type}:${amount}:${attempt}`).digest('hex');
-  const description = type === 'booking_fee' && amount === 5000 ? `Deposit toward smoke alarm quote ${quote.quote_ref}` : `${P.TYPES[type]} for quote ${quote.quote_ref}`;
+  const description = type === 'booking_fee' && calculation.calloutIncluded ? `Deposit toward smoke alarm quote ${quote.quote_ref}` : `${P.TYPES[type]} for quote ${quote.quote_ref}`;
   const session = await Stripe.request('/checkout/sessions', {
     mode: 'payment', 'payment_method_types[0]': 'card', customer_email: lead.email,
     success_url: `${Q.SITE}/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: quoteUrl, client_reference_id: lead.id,
     'line_items[0][price_data][currency]': 'aud', 'line_items[0][price_data][unit_amount]': String(amount),
-    'line_items[0][price_data][product_data][name]': type === 'booking_fee' && amount === 5000 ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[type]}`,
+    'line_items[0][price_data][product_data][name]': type === 'booking_fee' && calculation.calloutIncluded ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[type]}`,
     'line_items[0][price_data][product_data][description]': description, 'line_items[0][quantity]': '1',
     'metadata[lead_id]': lead.id, 'metadata[quote_ref]': quote.quote_ref, 'metadata[payment_type]': type,
     'payment_intent_data[metadata][lead_id]': lead.id, 'payment_intent_data[metadata][quote_ref]': quote.quote_ref,
@@ -83,7 +86,7 @@ function renderPaidQuote(quote, payments) {
   const total = Math.round(Number(quote.quote_total) * 100), balance = Math.max(0, total - cents);
   const booking = summaryData.booking_paid_cents;
   const row = (label, amount) => `<tr><td style="padding:8px 12px;font-size:14px;color:#176646;"><strong>${label}</strong></td><td align="right" style="padding:8px 12px;font-size:14px;color:#176646;white-space:nowrap;"><strong>${Q.fmt(amount / 100)}</strong></td></tr>`;
-  const feeLabel = quoteOptions(quote).calloutFee === 50 ? 'Deposit received (credited against quote)' : 'Electrician call-out fee paid';
+  const feeLabel = quoteOptions(quote).calculation.calloutIncluded ? 'Deposit received (credited against quote)' : 'Electrician call-out fee paid';
   const summary = `<tr><td style="background:#ffffff;padding:6px 32px 12px;"><table role="presentation" width="100%" style="background:#edf8f1;border:1px solid #c5e8d0;border-radius:10px;">${booking ? row(feeLabel, booking) : ''}${cents > booking ? row('Other payments received', cents - booking) : ''}${row('Remaining balance', balance)}</table></td></tr>`;
   let html = quote.body_html.replace('<!-- Payment terms -->', `${summary}\n<!-- Payment terms -->`);
   const { serviceMode, calculation } = quoteOptions(quote);

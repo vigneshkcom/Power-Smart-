@@ -160,7 +160,7 @@
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: PRESENTING THE QUOTE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
                     <p>"Based on your information you have provided, you will need <span id="script-qty" class="font-bold">0</span> smoke alarms, and the electrician will confirm exactly how many you need and where in each room they are to be located, to make your house compliant."</p>
-                    <p>"The cost is $79 per smoke alarm. A $50 deposit secures your electrician and comes off your quoted total. You pay the remaining balance on installation day."</p>
+                    <p>"The cost is $79 per smoke alarm, plus a $50 electrician call-out fee payable upfront. The alarm balance is payable on installation day."</p>
                 </div>
             </div>
 
@@ -168,7 +168,7 @@
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: INSPECTION SERVICE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
                     <p>"The inspection cost is <strong>$120 paid upfront</strong> to secure your booking. The electrician will check all alarms for 2027 QLD compliance."</p>
-                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $120 fee</strong>. The $50 deposit comes off your installation quote."</p>
+                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $120 inspection fee</strong>. The $50 electrician call-out fee is shown separately on the installation quote."</p>
                 </div>
             </div>
 
@@ -179,7 +179,7 @@
                 </summary>
                 <div class="p-4 pt-2 space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed border-t">
                     <p>"Can we proceed with your contact details starting with; <strong>Your name, Your address, Your email address, Confirmation of your phone number.</strong>" (Create job in Dataforce).</p>
-                    <p>"The $50 deposit secures your appointment and comes off your quote. Let me know when you are ready so I can <strong class="text-red-600 uppercase">pause the call recording</strong> before we proceed with your card details. Can I please have your card details?"</p>
+                    <p>"The $50 electrician call-out fee secures your appointment and is added to the alarm price on your quote. Let me know when you are ready so I can <strong class="text-red-600 uppercase">pause the call recording</strong> before we proceed with your card details. Can I please have your card details?"</p>
                 </div>
             </details>
         </div>
@@ -197,7 +197,7 @@
                         <span id="res_ctrlTotal" class="font-bold">$0.00</span>
                     </div>
                     <div class="flex justify-between border-b border-gray-800 pb-1.5">
-                        <span id="lbl-upfront">Electrician call-out deposit (included in total):</span>
+                        <span id="lbl-upfront">Electrician call-out fee payable now:</span>
                         <span id="res-upfront" class="font-bold">$50.00</span>
                     </div>
                     <div class="flex justify-between text-gray-500 text-[10px] pt-1">
@@ -298,8 +298,8 @@
 
 <div class="mt-4 space-y-2 text-[10px] text-gray-700">
     <p class="italic text-[9px]">* This quote is an estimate based on property details provided. On-site assessment by a licensed electrician is required for final compliance certification.</p>
-        <p class="font-semibold">What is the $50 deposit?</p>
-        <p class="mb-4">The deposit secures your electrician and is credited against the quoted total. It is fully refundable if the installation cannot be completed.</p>
+        <p class="font-semibold">What is the $50 electrician call-out fee?</p>
+        <p class="mb-4">The fee secures your electrician and is shown separately from alarms and controllers on the quote. It is fully refundable if the installation cannot be completed.</p>
         
         <p class="font-semibold uppercase">Queensland Smoke Alarm Legislation:</p>
         <ul style="list-style-type: disc; margin-left: 20px; column-count: 2; column-gap: 40px;">
@@ -311,7 +311,7 @@
             <li>Hard-wired smoke alarms replaced with hard-wired where applicable</li>
         </ul>
 
-        <p class="font-semibold mt-4">Pay Your $50 Deposit:</p>
+        <p class="font-semibold mt-4">Pay Your $50 Electrician Call-Out Fee:</p>
         <p class="text-xs">
             Ask PowerSmart for your secure, personalised Stripe payment link.
         </p>
@@ -457,7 +457,7 @@ function calculate() {
 
     const totalAlarmPrice = alarmCount * PRICE_ALARM;
     const totalCtrlPrice = controllerQty * PRICE_CTRL;
-    const grandTotal = totalAlarmPrice + totalCtrlPrice + (serviceMode === 'inspect' ? FEE_UPFRONT : 0);
+    const grandTotal = totalAlarmPrice + totalCtrlPrice + FEE_UPFRONT;
 
     document.getElementById('script-qty').innerText = alarmCount;
     document.getElementById('res_alarmQty').innerText = alarmCount;
@@ -466,9 +466,9 @@ function calculate() {
     document.getElementById('res_ctrlTotal').innerText = formatter.format(totalCtrlPrice);
 
     if (serviceMode === 'install') {
-        document.getElementById('lbl-upfront').innerText = "Deposit Payable Now:";
+        document.getElementById('lbl-upfront').innerText = "Electrician Call-Out Fee Payable Now:";
         document.getElementById('res-upfront').innerText = "$50.00";
-        document.getElementById('res-balance').innerText = formatter.format(Math.max(0, totalAlarmPrice + totalCtrlPrice - 50));
+        document.getElementById('res-balance').innerText = formatter.format(totalAlarmPrice + totalCtrlPrice);
     } else {
         document.getElementById('lbl-upfront').innerText = "Inspection Fee:";
         document.getElementById('res-upfront').innerText = "$120.00";
@@ -506,7 +506,7 @@ function copySMS() {
         if (hasControllers) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
-        breakdown += `\n- Total quote: ${grandTotal}\n- Deposit payable now (credited to total): $50.00`;
+        breakdown += `\n- Electrician call-out fee: $50.00\n- Total quote: ${grandTotal}\n- Call-out fee payable now: $50.00`;
     } else {
         breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
@@ -554,7 +554,7 @@ function buildPlainTextQuote() {
         if (controllerQty > 0) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
-        breakdown += `\n- Total quote: ${grandTotal}\n- Deposit payable now (credited to total): $50.00`;
+        breakdown += `\n- Electrician call-out fee: $50.00\n- Total quote: ${grandTotal}\n- Call-out fee payable now: $50.00`;
     } else {
         breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
@@ -683,7 +683,7 @@ function generatePDF() {
         if (ctrlQty > 0) {
             rows += `<tr><td class="py-2 border-b">Smoke Alarm Controller</td><td class="text-center border-b">${ctrlQty}</td><td class="text-right border-b">$35.00</td><td class="text-right border-b">${formatter.format(ctrlQty * 35)}</td></tr>`;
         }
-        rows += `<tr><td class="py-2 border-b" colspan="4">$50 deposit payable now; credited against the total above.</td></tr>`;
+        rows += `<tr><td class="py-2 border-b">Electrician call-out fee</td><td class="text-center border-b">1</td><td class="text-right border-b">$50.00</td><td class="text-right border-b">$50.00</td></tr>`;
     } else {
         rows += `<tr><td class="py-2 border-b">Smoke Alarm Inspection Service</td><td class="text-center border-b">1</td><td class="text-right border-b">$120.00</td><td class="text-right border-b">$120.00</td></tr>`;
     }

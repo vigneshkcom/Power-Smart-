@@ -16,7 +16,8 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
   const rows = (items || []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
   const creditRows = (credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
   const gst = Math.round(total / 11);
-  const feeRow = bookingFee === 3500 ? `<tr><td colspan="3" style="padding:6px 12px;font-size:12px;color:#32925d;">Electrician call-out fee of ${fmt(bookingFee)} received earlier (not included in the total above)</td></tr>` : "";
+  const separateFee = [3500, 5000].includes(bookingFee) && !(credits || []).some(c => /call-out deposit/i.test(c.label || ''));
+  const feeRow = separateFee ? `<tr><td colspan="3" style="padding:6px 12px;font-size:12px;color:#32925d;">Electrician call-out fee of ${fmt(bookingFee)} received earlier (separate from the installation total above)</td></tr>` : "";
   const title = paid ? "TAX INVOICE (PAID)" : "INVOICE";
   const lead = paid
     ? `Thanks for choosing PowerSmart. Your smoke alarm installation is complete and your invoice is below${method ? ` (paid by ${METHOD[method] || method})` : ""}.`
@@ -62,7 +63,7 @@ ${lead.replace(/<[^>]+>/g, "")}
 ${(items || []).map((i) => `- ${i.label} x ${i.qty}: ${fmt(i.amount_cents)}`).join("\n")}
 
 Total (incl. GST): ${fmt(total)} (GST ${fmt(gst)})
-${(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${credits && credits.length ? "\n" : ""}${bookingFee === 3500 ? "Electrician call-out fee of " + fmt(bookingFee) + " received earlier (not included in the total above)\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
+${(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${credits && credits.length ? "\n" : ""}${separateFee ? "Electrician call-out fee of " + fmt(bookingFee) + " received earlier (separate from the installation total above)\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
 
 ${footerText}
 

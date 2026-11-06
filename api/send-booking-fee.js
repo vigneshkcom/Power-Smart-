@@ -31,9 +31,14 @@ module.exports = async (req, res) => {
     const payments = await QP.refreshPending(await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(lead.id)}&payment_type=eq.booking_fee&order=created_at.desc&select=*&limit=100`));
     if ((payments || []).some(payment => payment.status === "paid")) return res.status(409).json({ error: "This customer's electrician call-out fee has already been paid." });
     const pending = payments.find(payment => payment.status === 'sent');
-    const feeCents = pending ? pending.amount_cents : Fee.centsForLead(lead);
+    let issued = null;
+    if (lead.quote_ref) {
+      const quote = (await SB.sb(`sent_emails?lead_id=eq.${encodeURIComponent(lead.id)}&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}&kind=eq.quote&status=eq.sent&select=body_html,quote_total&order=created_at.desc&limit=1`))?.[0];
+      if (quote) issued = QP.quoteOptions(quote);
+    }
+    const feeCents = pending ? pending.amount_cents : issued && issued.serviceMode === 'install' ? Math.round(issued.calculation.payableToday * 100) : Fee.centsForLead(lead);
     const feeDisplay = `$${(feeCents / 100).toFixed(2)}`;
-    const isDeposit = feeCents === 5000;
+    const isDeposit = pending ? /deposit/i.test(pending.description || '') : Boolean(issued?.calloutIncluded);
     const feeLabel = isDeposit ? 'deposit' : 'electrician call-out fee';
     const requestKey = crypto.createHash('sha256').update(`${lead.id}:${payments[0]?.stripe_session_id || 'initial'}`).digest('hex');
 
@@ -68,7 +73,7 @@ module.exports = async (req, res) => {
     }
 
     const firstName = clean(lead.name, 120).split(/\s+/)[0] || "there";
-    const explanation = isDeposit ? 'This deposit is part of your quote total and comes off the balance payable on installation day.' : 'This fee is shown in your existing quote.';
+    const explanation = isDeposit ? 'This deposit is part of your previously issued quote total and comes off the balance payable on installation day.' : 'This fee is an additional line on your quote; the alarm and controller balance is payable on installation day.';
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0B1B1F"><h2>Secure your smoke alarm appointment</h2><p>Hi ${firstName},</p><p>Please pay your <strong>${feeDisplay} ${feeLabel}</strong> to secure your licensed electrician. ${explanation} It includes GST and is fully refundable if we cannot complete your installation.</p><p style="margin:28px 0"><a href="${session.url}" style="background:#43A8B6;color:#0B1B1F;padding:13px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Pay ${feeDisplay} ${feeLabel}</a></p><p>If you have any questions, reply to this email or call 0401 991 420.</p></div>`;
     const text = `Hi ${firstName},\n\nPlease pay your ${feeDisplay} ${feeLabel}, including GST, to secure your licensed electrician. ${explanation} It is fully refundable if we cannot complete your installation.\n\nPay securely: ${session.url}\n\nQuestions? Call 0401 991 420.`;
     const resend = new Resend(process.env.RESEND_API_KEY);

@@ -65,19 +65,30 @@ test('quote checkout charges the issued booking fee with customer and quote meta
   assert.equal(f.payments[0].quote_ref,'7011');assert.equal(f.notes.length,1);
 });
 
-test('new quote takes a $50 deposit from its $588 total and Stripe charges exactly $50', async()=>{
+test('new quote adds the $50 electrician call-out fee to alarm and controller prices', async()=>{
   const f=fixture();
-  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:7,controllerQty:1,calloutFee:50});
+  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:5,controllerQty:1,calloutFee:50});
+  f.quote.body_html=rendered.html;f.quote.quote_total=480;
+  const priced=f.QP.quoteOptions(f.quote).calculation;
+  assert.equal(priced.total,480);assert.equal(priced.payableToday,50);assert.equal(priced.balance,430);
+  assert.equal(priced.lines.some(line=>line.label==='Electrician call-out fee'&&line.amount===50),true);
+  assert.match(rendered.html,/fee=50/);
+  assert.match(rendered.html,/model=additional/);
+  assert.match(rendered.text,/Electrician call-out fee \(1 x \$50\.00\): \$50\.00/);
+  await f.QP.checkout(f.quote,f.lead);
+  assert.equal(f.payments[0].amount_cents,5000);
+  assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart - Electrician call-out fee');
+});
+
+test('previously issued $50 included-deposit quote remains at its saved total and payment terms', async()=>{
+  const f=fixture();
+  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:7,controllerQty:1,calloutFee:50,calloutIncluded:true});
   f.quote.body_html=rendered.html;f.quote.quote_total=588;
   const priced=f.QP.quoteOptions(f.quote).calculation;
   assert.equal(priced.total,588);assert.equal(priced.payableToday,50);assert.equal(priced.balance,538);
   assert.equal(priced.lines.some(line=>line.label==='Electrician call-out fee'),false);
-  assert.match(rendered.html,/fee=50/);
-  assert.match(rendered.html,/Electrician call-out deposit \(included in total\)[\s\S]*?\$50\.00/);
-  assert.match(rendered.html,/Balance due on installation day[\s\S]*?\$538\.00/);
-  assert.match(rendered.text,/Electrician call-out deposit \(included in total\): \$50\.00/);
+  assert.doesNotMatch(rendered.html,/model=additional/);
   await f.QP.checkout(f.quote,f.lead);
-  assert.equal(f.payments[0].amount_cents,5000);
   assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');
 });
 
@@ -138,6 +149,18 @@ test('staff booking checkout reuses its saved link and records Stripe payment be
   assert.equal((await invoke(handler,req)).status,200);assert.equal((await invoke(handler,req)).status,200);assert.equal(f.sessions.size,1);
   const s=[...f.sessions.values()][0];s.payment_status='paid';s.status='complete';
   assert.equal((await invoke(handler,req)).status,409);assert.equal(f.payments[0].status,'paid');assert.equal(f.sessions.size,1);
+});
+
+test('staff checkout follows the issued quote model for $50 call-out and older included deposits',async()=>{
+  for (const included of [false,true]) {
+    const f=fixture();f.lead.created_at='2026-11-07T00:00:00Z';
+    const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:5,controllerQty:1,calloutFee:50,calloutIncluded:included});
+    f.quote.body_html=rendered.html;f.quote.quote_total=included?430:480;
+    const handler=load('send-booking-fee.js',{'./_supabase':f.SB,'./_stripe':f.Stripe,'./_quote-payments':f.QP,resend:{Resend:class{}}});
+    const result=await invoke(handler,{method:'POST',headers:{'x-portal-key':'2026'},body:{lead_id:f.lead.id,action:'checkout',agent:'Sunny'}});
+    assert.equal(result.status,200);assert.equal(f.payments[0].amount_cents,5000);
+    assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],included?'PowerSmart smoke alarm deposit':'PowerSmart electrician call-out fee');
+  }
 });
 
 test('a different-purpose partial credit does not remove the booking payment button',()=>{

@@ -60,8 +60,9 @@ module.exports = async (req, res) => {
         if(updated.status !== 'sent' || session.status !== 'open' || !session.url)return res.status(409).json({error:updated.status === 'paid' ? 'This payment has already been paid. No SMS was sent.' : 'This payment link has expired. Create a new request before sending SMS.'});
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         if(!lead)return res.status(404).json({error:'Customer not found.'});
-        const first=String(lead.name || 'there').trim().split(/\s+/)[0],type=(payment.payment_type === 'booking_fee' && payment.amount_cents === 5000 ? 'deposit' : P.TYPES[payment.payment_type] || 'payment').toLowerCase();
-        const description = payment.payment_type === 'booking_fee' ? (payment.amount_cents === 5000 ? 'This comes off your quoted total.' : 'Electrician call-out fee.') : payment.description;
+        const includedDeposit = payment.payment_type === 'booking_fee' && /deposit/i.test(payment.description || '');
+        const first=String(lead.name || 'there').trim().split(/\s+/)[0],type=(includedDeposit ? 'deposit' : P.TYPES[payment.payment_type] || 'payment').toLowerCase();
+        const description = payment.payment_type === 'booking_fee' ? (includedDeposit ? 'This comes off your previously issued quote total.' : 'This is an additional line on your quote.') : payment.description;
         const message=`Hi ${first}, please pay your PowerSmart ${type} of $${(payment.amount_cents/100).toFixed(2)} AUD. ${description}. Pay securely here: https://smokealarms.powersmartco.com.au/pay?token=${payment.id} Thank you, PowerSmart.`;
         const phone=Sms.cleanPhone(lead.phone);
         if(!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone)))return res.status(400).json({error:'Add a valid customer mobile number before sending SMS.'});
@@ -110,7 +111,7 @@ module.exports = async (req, res) => {
       success_url: 'https://smokealarms.powersmartco.com.au/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://smokealarms.powersmartco.com.au/payment-cancelled', client_reference_id: leadId,
       'line_items[0][price_data][currency]': 'aud', 'line_items[0][price_data][unit_amount]': String(amount),
-      'line_items[0][price_data][product_data][name]': b.payment_type === 'booking_fee' && amount === 5000 ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[b.payment_type]}`,
+      'line_items[0][price_data][product_data][name]': b.payment_type === 'booking_fee' && /deposit/i.test(description) ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[b.payment_type]}`,
       'line_items[0][price_data][product_data][description]': description, 'line_items[0][quantity]': '1',
       'metadata[lead_id]': leadId, 'metadata[quote_ref]': lead.quote_ref || '', 'metadata[payment_type]': b.payment_type,
       'metadata[description]': description, 'payment_intent_data[metadata][lead_id]': leadId,
