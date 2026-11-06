@@ -65,7 +65,7 @@ test('blocked emails and names are dropped silently too', async () => {
   const cases = [
     { name: 'Someone', phone: '0411111111', email: 'Adam@Goldsure.com.au' },
     { name: 'Someone', phone: '0411111111', email: 'caneva525@gmail.com' },
-    { name: 'Ben Caneva', phone: '0411111111' }, { name: 'Bencaneva', phone: '0411111111' },
+    { name: 'Someone', phone: '0411111111', email: 'anyone@goldsure.com.au' }, { name: 'Someone', phone: '0411111111', email: 'x@PRIMSAL.com' }, { name: 'Ben Caneva', phone: '0411111111' }, { name: 'Bencaneva', phone: '0411111111' },
     { name: 'Adam Sicari', phone: '0411111111' }, { name: 'SICARI', phone: '0411111111' },
     { name: 'Amit Chowdhury', phone: '0411111111' }, { name: 'Amit  Chodwdhary', phone: '0411111111' },
     { name: 'Amit Choudhary', phone: '0411111111' }, { name: 'amit chaudhary', phone: '0411111111' },
@@ -78,7 +78,7 @@ test('blocked emails and names are dropped silently too', async () => {
 });
 
 test('ordinary enquiries are not blocked', async () => {
-  for (const body of [{ name: 'Amit Patel', phone: '0411111111' }, { name: 'Adam Smith', phone: '0411111111', email: 'adam@example.test' }]) {
+  for (const body of [{ name: 'Amit Patel', phone: '0411111111' }, { name: 'Adam Smith', phone: '0411111111', email: 'adam@example.test' }, { name: 'Sam', phone: '0411111111', email: 'sam@notgoldsure.com.au' }]) {
     const r = await run(body); assert.ok(r.sent.length >= 1, JSON.stringify(body));
   }
 });

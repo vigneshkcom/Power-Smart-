@@ -13,6 +13,9 @@ const BLOCKED_EMAILS = [
   "caneva525@gmail.com",
 ];
 
+// Every address at these domains (and their subdomains) is blocked.
+const BLOCKED_DOMAINS = ["goldsure.com.au", "primsal.com"];
+
 // Matched against the name with everything except letters removed, so spacing,
 // capitals and punctuation don't matter ("Ben  Caneva" and "bencaneva" both hit).
 const BLOCKED_NAME_PARTS = ["caneva", "sicari"];
@@ -31,7 +34,12 @@ const PHONE_KEYS = new Set(BLOCKED_PHONES.map(phoneKey));
 const EMAILS = new Set(BLOCKED_EMAILS.map((e) => e.toLowerCase()));
 
 function isBlockedPhone(phone) { const k = phoneKey(phone); return k.length > 0 && PHONE_KEYS.has(k); }
-function isBlockedEmail(email) { return EMAILS.has(String(email || "").trim().toLowerCase()); }
+function isBlockedEmail(email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (EMAILS.has(e)) return true;
+  const domain = e.slice(e.lastIndexOf("@") + 1);
+  return e.includes("@") && BLOCKED_DOMAINS.some((d) => domain === d || domain.endsWith("." + d));
+}
 function isBlockedName(name) {
   const n = String(name || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
   return n.length > 0 && (BLOCKED_NAME_PARTS.some((p) => n.includes(p)) || BLOCKED_NAME_PATTERNS.some((re) => re.test(n)));
