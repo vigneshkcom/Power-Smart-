@@ -95,10 +95,12 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     const sender = S.resolveSender(q.sender);
     const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q.id}`;
     const subject = `Reminder: ${q.subject || `Your PowerSmart quotation (${q.quote_ref})`}`;
+    // Older saved quote emails can contain an acceptance link on the former host.
+    const replaceLegacyQuoteLinks = value => String(value || '').replace(/https:\/\/smokealarms\.powersmartco\.com\.au\/(accept|quote)(?=[?"\s<])/g, `${Q.QUOTE_SITE}/$1`);
     const { Resend } = require("resend");
     const { data, error } = await new Resend(apiKey).emails.send({
       from: S.fromHeader(sender.key), to: to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
-      subject, html: q.body_html, text: q.body_text,
+      subject, html: replaceLegacyQuoteLinks(q.body_html), text: replaceLegacyQuoteLinks(q.body_text),
     });
     if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
     let sms = { status: "skipped", error: "No mobile number saved." };
