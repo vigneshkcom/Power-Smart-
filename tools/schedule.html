@@ -498,6 +498,7 @@
 
   var KEY_LS = "powersmart_portal_key";
   var AGENT_LS = "powersmart_agent_name";
+  var SNAP_MIN = 30;   // drag-and-drop / click-to-book granularity (minutes)
   var VIEW_LS = "powersmart_schedule_view";
 
   // Board geometry per view: hours shown each day and pixels per hour.
@@ -643,8 +644,8 @@
     x = Math.max(0, Math.min(totalW() - 1, x));
     var di = Math.floor(x / dayW());
     var mins = c.startH * 60 + (x - di * dayW()) / c.colW * 60;
-    mins = Math.floor(mins / state.slot) * state.slot;
-    mins = Math.max(c.startH * 60, Math.min(c.endH * 60 - state.slot, mins));
+    mins = Math.floor(mins / SNAP_MIN) * SNAP_MIN;   // drag/click always lands on a half-hour
+    mins = Math.max(c.startH * 60, Math.min(c.endH * 60 - SNAP_MIN, mins));
     var d = addDays(state.start, di); d.setHours(0, mins, 0, 0);
     return d;
   }
@@ -949,39 +950,14 @@
     var stops = state.jobs.filter(function(j){ return j.electrician_id === techId && j.status !== "cancelled" && mapsQuery(j); })
       .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).slice(0, 10);
     if (!stops.length){ toast("No jobs with addresses for this electrician in this range."); return; }
-    var version = ++routeVersion;
-    clearRouteMap();
-    var tech = state.techs.filter(function(t){ return t.id === techId; })[0];
     var gUrl = "https://www.google.com/maps/dir/" + stops.map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
-    $("route-title").textContent = "Driving route" + (tech ? " · " + tech.name : "");
-    $("route-gmaps").href = gUrl;
-    renderRouteStops(stops);
-    $("route-sum").hidden = true; $("route-panel").innerHTML = '<div class="route-msg">Loading route…</div>'; $("route-map").innerHTML = "";
-    $("route-overlay").classList.add("show");
-    var fail = function(msg){ $("route-panel").innerHTML = '<div class="route-msg">' + esc(msg) + ' Use "Open in Google Maps" above instead.</div>'; };
-    if (stops.length < 2){ fail("A route needs at least two jobs."); return; }
-    loadMaps().then(async function(){
-      var libraries = await Promise.all([google.maps.importLibrary("routes"), google.maps.importLibrary("marker")]);
-      if (version !== routeVersion) return;
-      var pts = stops.map(function(j){ return mapsQuery(j); });
-      var map = new google.maps.Map($("route-map"), { mapId:"DEMO_MAP_ID", mapTypeControl:true, fullscreenControl:true, streetViewControl:false, center:{ lat:-27.47, lng:153.02 }, zoom:10 });
-      var res = await libraries[0].Route.computeRoutes({
-        origin: pts[0], destination: pts[pts.length - 1],
-        intermediates: pts.slice(1, -1).map(function(a){ return { location:a }; }),
-        travelMode:"DRIVING", optimizeWaypointOrder:false, region:"au", language:"en-AU",
-        fields:["path", "legs", "viewport", "distanceMeters", "durationMillis"]
-      });
-      if (version !== routeVersion) return;
-      var route = res.routes && res.routes[0];
-      if (!route) throw new Error("No driving route found");
-      var markers = await route.createWaypointAdvancedMarkers();
-      if (version !== routeVersion) return;
-      routeMarkers = markers; routeMarkers.forEach(function(m){ m.map = map; });
-      routePolylines = route.createPolylines(); routePolylines.forEach(function(p){ p.setMap(map); });
-      if (route.viewport) map.fitBounds(route.viewport);
-      renderRouteStops(stops, route.legs);
-      $("route-panel").innerHTML = "";
-    }).catch(function(e){ if (version === routeVersion) fail("Couldn't build the route (" + (e && (e.code || e.message) || "error") + ")."); });
+    // Small popup window (not an in-page overlay); fall back to a normal tab if the browser blocks popups.
+    var w = 520, h = 760;
+    var left = Math.max(0, Math.round((window.screenX || 0) + ((window.outerWidth || 1200) - w) / 2));
+    var top = Math.max(0, Math.round((window.screenY || 0) + ((window.outerHeight || 800) - h) / 2));
+    var win = window.open(gUrl, "ps_route", "popup=yes,width=" + w + ",height=" + h + ",left=" + left + ",top=" + top + ",resizable=yes,scrollbars=yes");
+    if (!win) window.open(gUrl, "_blank", "noopener");
+    else win.focus();
   }
 
   /* ---------- job modal ---------- */
