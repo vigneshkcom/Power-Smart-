@@ -181,10 +181,11 @@ function renderQuoteEmail(opts) {
       <!-- Totals -->
       <tr><td style="background:#ffffff;padding:6px 32px 4px;">
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td>
-          <table role="presentation" cellpadding="0" cellspacing="0" align="right" width="290" style="width:290px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" align="right" width="360" style="width:360px;max-width:100%;">
             ${totalsRow("Subtotal (excl. GST)", fmt(q.subtotalExGst))}
             ${totalsRow("GST (10%)", fmt(q.gst))}
             ${totalsRow("Total (incl. GST)", fmt(q.total), { big: true, top: true, pad: "12px 12px" })}
+            ${!isInspect && q.calloutFee === 50 ? totalsRow("Electrician call-out deposit (included in total)", fmt(q.payableToday)) + totalsRow("Balance due on installation day", fmt(q.balance)) : ""}
           </table>
         </td></tr></table>
       </td></tr>
@@ -251,6 +252,7 @@ ${q.lines.map((l) => `- ${l.label} (${l.qty} x ${fmt(l.unit)}): ${fmt(l.amount)}
 Subtotal (excl. GST): ${fmt(q.subtotalExGst)}
 GST (10%): ${fmt(q.gst)}
 Total (incl. GST): ${fmt(q.total)}
+${!isInspect && q.calloutFee === 50 ? `Electrician call-out deposit (included in total): ${fmt(q.payableToday)}\nBalance due on installation day: ${fmt(q.balance)}\n` : ""}
 
 Payment terms: ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutFee === 50 ? "deposit credited against this quote" : "electrician call-out fee"} today${q.balance > 0 ? `, balance of ${fmt(q.balance)} on installation day` : ""}.
 ${q.waiverNote ? q.waiverNote + "\n" : ""}

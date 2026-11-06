@@ -73,6 +73,9 @@ test('new quote takes a $50 deposit from its $588 total and Stripe charges exact
   assert.equal(priced.total,588);assert.equal(priced.payableToday,50);assert.equal(priced.balance,538);
   assert.equal(priced.lines.some(line=>line.label==='Electrician call-out fee'),false);
   assert.match(rendered.html,/fee=50/);
+  assert.match(rendered.html,/Electrician call-out deposit \(included in total\)[\s\S]*?\$50\.00/);
+  assert.match(rendered.html,/Balance due on installation day[\s\S]*?\$538\.00/);
+  assert.match(rendered.text,/Electrician call-out deposit \(included in total\): \$50\.00/);
   await f.QP.checkout(f.quote,f.lead);
   assert.equal(f.payments[0].amount_cents,5000);
   assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');

@@ -209,7 +209,7 @@
     return '<div class="row"><span>' + esc(l.label) + (l.qty > 1 ? ' <span style="color:#8AA0A5">&times; ' + l.qty + '</span>' : '') + '</span><strong>' + fmt(l.amount) + '</strong></div>';
   }).join("");
   rowsHtml += '<div class="row total"><span>Total (incl. GST)</span><strong>' + fmt(total) + '</strong></div>';
-  if (mode === "install") rowsHtml += '<div class="row sub"><span>' + (calloutFee === 50 ? 'Deposit payable today (part of total)' : 'Payable today') + '</span><strong>' + fmt(payableToday) + '</strong></div>' +
+  if (mode === "install") rowsHtml += '<div class="row sub"><span>' + (calloutFee === 50 ? 'Electrician call-out deposit (included in total)' : 'Payable today') + '</span><strong>' + fmt(payableToday) + '</strong></div>' +
     '<div class="row sub"><span>Balance on installation day</span><strong>' + fmt(balance) + '</strong></div>';
   document.getElementById("rows").innerHTML = rowsHtml;
 

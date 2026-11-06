@@ -1336,7 +1336,7 @@
     if (c.ctrl) rows += '<div class="qrow"><span>Controllers (' + c.ctrl + ' × ' + fmt$(PRICE_CTRL) + ')</span><b>' + fmt$(ctrlTotal) + '</b></div>';
     if (calloutFee === 35) rows += '<div class="qrow"><span>Electrician call-out fee</span><b>' + fmt$(calloutFee) + '</b></div>';
     rows += '<div class="qrow total"><span>Total (incl. GST)</span><span>' + fmt$(alarmTotal + ctrlTotal + (calloutFee === 35 ? 35 : 0)) + '</span></div>' +
-      '<div class="qrow sub"><span>' + (calloutFee === 50 ? 'Deposit today (included in total)' : 'Call-out fee today') + '</span><b>' + fmt$(calloutFee) + '</b></div>' +
+      '<div class="qrow sub"><span>' + (calloutFee === 50 ? 'Electrician call-out deposit (included in total)' : 'Call-out fee today') + '</span><b>' + fmt$(calloutFee) + '</b></div>' +
       '<div class="qrow"><span>Balance after installation</span><b>' + fmt$(alarmTotal + ctrlTotal - (calloutFee === 50 ? 50 : 0)) + '</b></div>';
     box.innerHTML = rows;
   }
