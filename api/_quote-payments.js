@@ -38,7 +38,7 @@ async function checkout(quote, lead) {
   const amount = Math.round(calculation.payableToday * 100);
   const payments = await quotePayments(quote, true);
   const paid = payments.filter(p => p.status === 'paid' && p.payment_type === type).reduce((sum, p) => sum + Number(p.amount_paid_cents || 0), 0);
-  const quoteUrl = `${Q.SITE}/quote?token=${quote.id}`;
+  const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${quote.id}`;
   if (paid >= amount) return { paid: true, url: quoteUrl };
   if (paid > 0) throw new Error('A partial payment is already recorded. Please call PowerSmart to arrange the remaining fee.');
   for (const payment of payments.filter(p => p.payment_type === type && p.status === 'sent')) {

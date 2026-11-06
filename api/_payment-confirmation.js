@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
     const payment = await P.reconcile(payments[0], await Stripe.request(`/checkout/sessions/${encodeURIComponent(id)}`));
     const quotes = payment.quote_ref ? await SB.sb(`sent_emails?lead_id=eq.${encodeURIComponent(payment.lead_id)}&quote_ref=eq.${encodeURIComponent(payment.quote_ref)}&kind=eq.quote&status=eq.sent&select=id&order=created_at.desc&limit=1`) : [];
     if (quotes?.[0]) {
-      res.setHeader('Location', `${Q.SITE}/quote?token=${quotes[0].id}`);
+      res.setHeader('Location', `${Q.QUOTE_SITE}/quote?token=${quotes[0].id}`);
       return res.status(303).end();
     }
     return res.status(200).send(payment.status === 'paid' ? 'Thank you. Your payment has been received by PowerSmart.' : 'Your payment is still processing. Please check your quote again shortly.');

@@ -99,7 +99,7 @@ test('Stripe return verifies payment and redirects to the same quote even before
   const f=fixture();await f.QP.checkout(f.quote,f.lead);const s=[...f.sessions.values()][0];s.payment_status='paid';s.status='complete';
   const handler=load('_payment-confirmation.js',{'./_supabase':f.SB,'./_stripe':f.Stripe,'./_payments':f.P,'./_quote':Q});
   const result=await invoke(handler,{method:'GET',query:{session_id:s.id}});
-  assert.equal(result.status,303);assert.equal(result.headers.Location,`${Q.SITE}/quote?token=${f.quote.id}`);assert.equal(f.payments[0].status,'paid');
+  assert.equal(result.status,303);assert.equal(result.headers.Location,`${Q.QUOTE_SITE}/quote?token=${f.quote.id}`);assert.equal(f.payments[0].status,'paid');
   assert.equal((await invoke(handler,{method:'GET',query:{session_id:'made-up'}})).status,404);
 });
 

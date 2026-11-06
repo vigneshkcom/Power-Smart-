@@ -93,7 +93,7 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     const to = isValidEmail(lead.email) ? lead.email : q.to_email;
     if (!isValidEmail(to)) return res.status(400).json({ error: "Add a valid customer email address first" });
     const sender = S.resolveSender(q.sender);
-    const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${q.id}`;
+    const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q.id}`;
     const subject = `Reminder: ${q.subject || `Your PowerSmart quotation (${q.quote_ref})`}`;
     const { Resend } = require("resend");
     const { data, error } = await new Resend(apiKey).emails.send({
@@ -209,7 +209,7 @@ module.exports = async (req, res) => {
       emailId = randomUUID();
       saved = await logEmail({ id:emailId, kind: "quote", sender: sender.key, agent: agentName, to_email: customerEmail, to_name: customerName, subject, body_html: rendered.html, body_text: rendered.text, quote_ref: ref, quote_total: rendered.quote.total, lead_id: leadId, provider_id: data && data.id, status: "sent" });
     }
-    const quoteUrl = `https://smokealarms.powersmartco.com.au/quote?token=${emailId}`;
+    const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${emailId}`;
     let sms = {status:'skipped',error:'SMS requires staff portal access.'};
     if (fromPipeline) {
       try {

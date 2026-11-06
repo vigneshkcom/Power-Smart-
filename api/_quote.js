@@ -3,6 +3,7 @@
 // always computed here so it can't be tampered with.
 
 const SITE = "https://smokealarms.powersmartco.com.au";
+const QUOTE_SITE = "https://quotes.powersmartco.com.au";
 const PHONE_DISPLAY = "0401 991 420";
 const PHONE_TEL = "+61401991420";
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
@@ -84,7 +85,7 @@ function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, co
     ...(discount > 0 ? { disc: String(discount) } : {}),
     agent: agentName || "",
   });
-  return `${SITE}/accept?${p.toString()}`;
+  return `${QUOTE_SITE}/accept?${p.toString()}`;
 }
 
 /* ---------- Customer-facing quote email ---------- */
@@ -260,7 +261,7 @@ ${SITE}`;
 }
 
 module.exports = {
-  SITE, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
+  SITE, QUOTE_SITE, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
   PRICE_ALARM, PRICE_CTRL, FEE_BOOKING, FEE_INSPECT,
   fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };

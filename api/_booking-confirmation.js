@@ -139,7 +139,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
     try {
       const ref = lead && lead.quote_ref ? `&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}` : "";
       const q = await SB.sb(`sent_emails?kind=eq.quote&status=eq.sent&lead_id=eq.${id}${ref}&select=id&order=created_at.desc&limit=1`);
-      if (q?.[0]) quoteUrl = `${Q.SITE}/quote?token=${q[0].id}`;
+      if (q?.[0]) quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q[0].id}`;
     } catch (_) { /* link is optional */ }
   }
 

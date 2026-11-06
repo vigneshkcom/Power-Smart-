@@ -100,7 +100,7 @@ test('a reminder submits both channels once and stores the actual messages and p
   await f.R.processRun(r,f.c());await f.R.processRun(r,f.c());
   assert.equal(f.sms.length,1);assert.equal(f.emails.length,1);const saved=f.db.quote_reminder_runs[0];
   assert.equal(saved.sms_status,'submitted');assert.equal(saved.email_status,'submitted');assert.equal(saved.email_provider_id,'email1');assert(saved.sms_body.includes(quoteId));assert(saved.finished_at);assert.equal(f.logs.length,1);
-  assert.match(f.emails[0].message.html, /<a href="https:\/\/smokealarms.powersmartco.com.au\/quote\?token=/);
+  assert.match(f.emails[0].message.html, /https:\/\/quotes.powersmartco.com.au\/quote\?token=/);
   assert.match(f.emails[0].message.html, /<img src="https:\/\/smokealarms.powersmartco.com.au\/assets/);
 });
 test('a quote replacement between claim and preparation never sends the old quote',async()=>{

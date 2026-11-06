@@ -3,6 +3,7 @@ const SB = require('./_supabase');
 const Sms = require('./_sms-outbound');
 const Senders = require('./_senders');
 const QP = require('./_quote-payments');
+const QUOTE_SITE = 'https://quotes.powersmartco.com.au';
 const { logEmail } = require('./_maillog');
 const DAY = 86400000;
 const enc = encodeURIComponent;
@@ -28,7 +29,7 @@ function expiresAt(q) {
 function messages(lead,q,sequence,token) {
   const name = String(lead.name || 'there').trim().split(/\s+/)[0];
   const agent = ['Sam','Sunny'].includes(lead.agent) ? lead.agent : 'the PowerSmart team';
-  const link = `https://smokealarms.powersmartco.com.au/quote?token=${q.id}`;
+  const link = `${QUOTE_SITE}/quote?token=${q.id}`;
   const stop = `https://smokealarms.powersmartco.com.au/api/customer-link?kind=reminders&token=${token}`;
   const wording = [
     "Just checking whether you've had a chance to review your Anka smoke alarm quote.",
