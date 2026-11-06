@@ -84,7 +84,7 @@ function renderEnquiryConfirmation({ name }) {
 
       <tr><td align="center" style="padding:20px 12px 6px;">
         <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p>
-        <p style="margin:0;font-size:11px;color:#8AA0A5;">${Q.SUPPORT_EMAIL} &middot; <a href="${Q.SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a></p>
+        <p style="margin:0;font-size:11px;color:#8AA0A5;"><a href="tel:${Q.PHONE_TEL}" style="color:#8AA0A5;">${Q.PHONE_DISPLAY}</a> &middot; ${Q.SUPPORT_EMAIL} &middot; <a href="${Q.SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a></p>
       </td></tr>
     </table>
   </td></tr></table>
@@ -111,6 +111,7 @@ Kind regards,
 The PowerSmart Team
 
 PowerSmart Pty Ltd | ABN ${Q.ABN}
+${Q.PHONE_DISPLAY} | ${Q.SUPPORT_EMAIL}
 ${Q.SITE}`;
 
   return { subject, html, text };

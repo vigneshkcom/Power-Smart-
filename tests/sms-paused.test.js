@@ -13,7 +13,17 @@ test('SMS_ENABLED=true switches SMS back on', () => {
   process.env.SMS_ENABLED = 'true'; try { assert.equal(Sms.smsEnabled(), true); } finally { delete process.env.SMS_ENABLED; }
 });
 test('the business phone number is gone from the codebase', () => {
-  const { execSync } = require('node:child_process');
-  const out = execSync(`grep -rIlE "0401 ?991 ?420|61401991420|0401&nbsp;991" . --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=archive --exclude=sms-paused.test.js --exclude=enquiry-confirmation.test.js || true`, { cwd: require('path').join(__dirname, '..') }).toString().trim();
-  assert.equal(out, '');
+  const fs = require('node:fs'), path = require('node:path'), found = [];
+  function scan(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (['.git', 'node_modules', 'archive'].includes(entry.name)) continue;
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) scan(file);
+      else if (!['sms-paused.test.js', 'enquiry-confirmation.test.js'].includes(entry.name)
+        && /\.(?:js|html|md)$/.test(entry.name)
+        && /0401(?: |&nbsp;)?991(?: |&nbsp;)?420|61401991420/.test(fs.readFileSync(file, 'utf8'))) found.push(file);
+    }
+  }
+  scan(path.join(__dirname, '..'));
+  assert.deepEqual(found, []);
 });

@@ -29,10 +29,10 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
       (invoiceUrl ? `<span style="display:block;margin:10px 0 12px;">${btn(invoiceUrl + "&pay=1", "Pay " + fmt(due) + " by card")}</span>` : "") +
       `<span style="display:block;margin:0 0 4px;">Or pay by bank transfer:</span>` +
       `<span style="display:block;background:#F4F9FA;border-radius:8px;padding:10px 14px;line-height:1.7;">Account name: <strong>${esc(BANK.name)}</strong><br>BSB: <strong>${BANK.bsb}</strong> &nbsp; Account: <strong>${BANK.account}</strong><br>Reference: <strong>J${esc(jobNo)}</strong></span>` +
-      `<span style="display:block;margin-top:10px;">Your compliance certificate is sent as soon as full payment is received. Questions? Just reply to this email.${invoiceUrl ? ` <a href="${invoiceUrl}" style="color:#398ea0;font-weight:bold;">View invoice online</a>.` : ""}</span>`;
+      `<span style="display:block;margin-top:10px;">Your compliance certificate is sent as soon as full payment is received. Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0;font-weight:bold;">${Q.PHONE_DISPLAY}</a> or reply to this email.${invoiceUrl ? ` <a href="${invoiceUrl}" style="color:#398ea0;font-weight:bold;">View invoice online</a>.` : ""}</span>`;
   const footerText = paid
     ? `Your compliance certificate is sent to you in a separate email.${invoiceUrl ? ` View this invoice online: ${invoiceUrl}` : ""}`
-    : `How to pay ${fmt(due)}:\n${invoiceUrl ? `- By card: ${invoiceUrl}&pay=1\n` : ""}- Bank transfer: ${BANK.name}, BSB ${BANK.bsb}, Account ${BANK.account}, Reference J${jobNo}\nYour compliance certificate is sent as soon as full payment is received. Questions? Just reply to this email.`;
+    : `How to pay ${fmt(due)}:\n${invoiceUrl ? `- By card: ${invoiceUrl}&pay=1\n` : ""}- Bank transfer: ${BANK.name}, BSB ${BANK.bsb}, Account ${BANK.account}, Reference J${jobNo}\nYour compliance certificate is sent as soon as full payment is received. Questions? Call ${Q.PHONE_DISPLAY}.`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Invoice J${esc(jobNo)} - PowerSmart</title></head>
 <body style="margin:0;padding:0;background-color:#EAF2F3;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#EAF2F3;"><tr><td align="center" style="padding:26px 12px;">
 <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="width:620px;max-width:100%;font-family:Arial,Helvetica,sans-serif;">
@@ -51,7 +51,7 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
   <tr><td colspan="2" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:8px 0 0 8px;">Balance owing</td><td align="right" style="padding:10px 12px;font-weight:bold;color:${paid ? "#32925d" : "#B3261E"};background:#F4F9FA;border-radius:0 8px 8px 0;">${paid ? "$0.00 (paid in full)" : fmt(due)}</td></tr>
 </table></td></tr>
 <tr><td style="background:#ffffff;padding:18px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">${footerNote}</p></td></tr>
-<tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#8AA0A5;">${Q.SUPPORT_EMAIL}</p></td></tr>
+<tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#8AA0A5;">${Q.PHONE_DISPLAY} &middot; ${Q.SUPPORT_EMAIL}</p></td></tr>
 </table></td></tr></table></body></html>`;
   const text = `${title} - PowerSmart
 Invoice J${jobNo} - ${date}

@@ -38,7 +38,7 @@ test('sending respects the channel choice and works for a job with no lead', asy
     delete require.cache[require.resolve('../api/_booking-confirmation')];
     const { sendBookingConfirmation } = require('../api/_booking-confirmation');
     let r = await sendBookingConfirmation({ jobId: 'j1', email: false, sms: true });
-    assert.equal(r.sms.status, 'submitted'); assert.equal(calls.mail.length, 0); assert.match(calls.sms[0].message, /AM slot \(8am-12pm\).*support@powersmartco\.com\.au/);
+    assert.equal(r.sms.status, 'submitted'); assert.equal(calls.mail.length, 0); assert.match(calls.sms[0].message, /AM slot \(8am-12pm\).*0475 184 984/);
     r = await sendBookingConfirmation({ jobId: 'j1', email: true, sms: false });
     assert.equal(r.email.status, 'sent'); assert.equal(calls.mail.length, 1); assert.equal(calls.sms.length, 1);
     await assert.rejects(() => sendBookingConfirmation({ jobId: 'j1', email: false, sms: false }), /Choose email, SMS or both/);

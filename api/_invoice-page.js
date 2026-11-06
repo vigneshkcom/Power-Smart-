@@ -42,14 +42,14 @@ function page(job, thanks) {
 <tr class="tot"><td colspan="2">Total (incl. GST)</td><td class="r">${fmt(total)}</td></tr><tr class="sub"><td colspan="2">Includes GST of ${fmt(Math.round(total / 11))}</td><td></td></tr>
 ${credit ? `<tr class="sub"><td colspan="2">Less paid in advance</td><td class="r">-${fmt(credit)}</td></tr>` : ""}
 <tr class="due"><td colspan="2">Balance owing</td><td class="r" style="color:${owing ? "#B3261E" : "#32925d"}">${fmt(owing)}</td></tr></table>${pay}</div>
-<div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Email <a href="mailto:${Q.SUPPORT_EMAIL}" style="color:#398ea0">${Q.SUPPORT_EMAIL}</a></div></div></div></body></html>`;
+<div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0">${Q.PHONE_DISPLAY}</a></div></div></div></body></html>`;
 }
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Robots-Tag", "noindex, nofollow"); res.setHeader("Referrer-Policy", "no-referrer");
   if (req.method !== "GET") { res.setHeader("Allow", "GET"); return res.status(405).send("Method not allowed"); }
   const token = String(req.query.token || "");
-  const notFound = () => res.status(404).send("Invoice not found. Please email PowerSmart at support@powersmartco.com.au.");
+  const notFound = () => res.status(404).send("Invoice not found. Please contact PowerSmart on 0475 184 984.");
   if (!UUID.test(token)) return notFound();
   try {
     const job = (await SB.sb(`jobs?id=eq.${token}&select=id,job_no,customer_name,address,suburb,postcode,email,lead_id,status,pay_status,amount_due_cents,invoice_items,invoice_total_cents,completed_at,certificate_sent_at&limit=1`))?.[0];
@@ -68,6 +68,6 @@ module.exports = async (req, res) => {
     }
     res.setHeader("Content-Type", "text/html; charset=utf-8"); res.setHeader("Content-Security-Policy", CSP);
     return res.status(200).send(page(job, String(req.query.thanks || "") === "1"));
-  } catch (e) { console.error("invoice page failed:", e.message); return res.status(503).send("Your invoice is temporarily unavailable. Please try again or email PowerSmart at support@powersmartco.com.au."); }
+  } catch (e) { console.error("invoice page failed:", e.message); return res.status(503).send("Your invoice is temporarily unavailable. Please try again or call PowerSmart on 0475 184 984."); }
 };
 module.exports.page = page;

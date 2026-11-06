@@ -3,13 +3,14 @@ const assert = require('node:assert/strict');
 const Module = require('node:module');
 const { renderEnquiryConfirmation } = require('../api/_enquiry-confirmation');
 
-test('confirmation email promises a call, asks three questions, and has no phone number', () => {
+test('confirmation email promises a call, asks three questions, and shows the new number', () => {
   const m = renderEnquiryConfirmation({ name: 'Sarah Jones' });
   for (const out of [m.html, m.text]) {
     assert.match(out, /within the next 24 hours/);
     assert.match(out, /bedrooms/i); assert.match(out, /interconnecting hallways/i); assert.match(out, /storeys/i);
     assert.match(out, /existing alarms/i);
-    assert.doesNotMatch(out, /0401 991 420|tel:/);
+    assert.match(out, /0475 184 984/);
+    assert.doesNotMatch(out, /0401 991 420/);
   }
   assert.match(m.html, /Hi Sarah,/);
   assert.match(m.html, /best time to call/); assert.match(m.text, /best time to call/);

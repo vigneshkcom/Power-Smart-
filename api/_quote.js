@@ -4,6 +4,8 @@
 
 const SITE = "https://smokealarms.powersmartco.com.au";
 const QUOTE_SITE = "https://quotes.powersmartco.com.au";
+const PHONE_DISPLAY = "0475 184 984";
+const PHONE_TEL = "+61475184984";
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const ABN = "41 669 943 720";
 const QUOTE_VALID_DAYS = 30;
@@ -267,7 +269,7 @@ ${SITE}`;
 }
 
 module.exports = {
-  SITE, QUOTE_SITE, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
+  SITE, QUOTE_SITE, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
   PRICE_ALARM, PRICE_CTRL, FEE_CALLOUT, FEE_INSPECT,
   fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };
