@@ -47,7 +47,7 @@ async function sendLeadSms({ lead, message, key, author }) {
     response = await fetch('https://api.sms-gate.app/3rdparty/v1/messages', {
       method:'POST', signal:controller.signal,
       headers:{Authorization:'Basic '+Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64'),'Content-Type':'application/json'},
-      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},ttl:3600,...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
+      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},simNumber:1,ttl:3600,...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
     });
   } catch(e) {
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'unknown'},prefer:'return=minimal'});

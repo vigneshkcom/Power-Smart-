@@ -30,6 +30,7 @@ test('manual inbox send returns HTTP 502 reason and never records an outage as s
   const f=fixture();await f.handler({method:'POST',query:{},headers:{},body:{action:'send',phone:'0451 898 761',message:'Test draft'}},f.res);
   assert.equal(f.res.code,502);assert.equal(f.res.body.detail,'HTTP 502');assert.equal(f.res.body.code,'sms_submission_unknown');assert.equal(f.writes.length,0);
   assert.equal(JSON.parse(f.calls[0].options.body).phoneNumbers[0],'+61451898761');
+  assert.equal(JSON.parse(f.calls[0].options.body).simNumber,1);
 });
 test('invalid mobile fails before any gateway request',async()=>{
   const f=fixture();await f.handler({method:'POST',query:{},headers:{},body:{action:'send',phone:'04123',message:'Test draft'}},f.res);

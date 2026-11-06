@@ -226,7 +226,7 @@ module.exports = async (req, res) => {
       if (consent && consent[0] && consent[0].status === 'optout') return res.status(403).json({ error: 'This contact opted out. They must reply START before another SMS can be sent.' });
       const response = await gateway('/messages', {
         method: 'POST', headers: headers(),
-        body: JSON.stringify({ phoneNumbers: [phone], textMessage: { text: message }, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
+        body: JSON.stringify({ phoneNumbers: [phone], textMessage: { text: message }, simNumber: 1, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
       });
       const result = await readGatewayResponse(response);
       if (!response.ok) return res.status(502).json(gatewayError(response.status, result));
