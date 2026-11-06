@@ -948,15 +948,18 @@
 
   function openRoute(techId){
     var stops = state.jobs.filter(function(j){ return j.electrician_id === techId && j.status !== "cancelled" && mapsQuery(j); })
-      .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).slice(0, 10);
+      .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).slice(0, 25);
     if (!stops.length){ toast("No jobs with addresses for this electrician in this range."); return; }
-    var gUrl = "https://www.google.com/maps/dir/" + stops.map(function(j){ return encodeURIComponent(mapsQuery(j)); }).join("/");
+    var tech = state.techs.filter(function(t){ return t.id === techId; })[0];
+    var payload = { title: "Driving route" + (tech ? " · " + tech.name : ""),
+      stops: stops.map(function(j){ return { label: j.job_no ? "J" + j.job_no : "Job", q: mapsQuery(j) }; }) };
+    var gUrl = "/tools/route?d=" + encodeURIComponent(JSON.stringify(payload));
     // Small popup window (not an in-page overlay); fall back to a normal tab if the browser blocks popups.
     var w = 520, h = 760;
     var left = Math.max(0, Math.round((window.screenX || 0) + ((window.outerWidth || 1200) - w) / 2));
     var top = Math.max(0, Math.round((window.screenY || 0) + ((window.outerHeight || 800) - h) / 2));
     var win = window.open(gUrl, "ps_route", "popup=yes,width=" + w + ",height=" + h + ",left=" + left + ",top=" + top + ",resizable=yes,scrollbars=yes");
-    if (!win) window.open(gUrl, "_blank", "noopener");
+    if (!win) window.open(gUrl, "_blank");
     else win.focus();
   }
 

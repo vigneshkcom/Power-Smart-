@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Driving route</title>
+<style>
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0B1B1F}
+  body{display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:.6rem;padding:.55rem .8rem;border-bottom:1px solid #dde5e7;background:#fff}
+  header h1{font-size:.95rem;margin:0;flex:1}
+  header a{font-size:.78rem;color:#2E8494;font-weight:600;text-decoration:none;border:1px solid #cfdadd;border-radius:999px;padding:.3rem .7rem}
+  #map{flex:1 1 55%;min-height:220px;background:#e8eef0}
+  #side{flex:1 1 45%;overflow:auto;padding:.4rem .8rem .8rem;font-size:.85rem}
+  .stop{display:flex;align-items:center;gap:.5rem;margin-top:.55rem}
+  .pin{flex:none;width:22px;height:22px;border-radius:50%;background:#d93025;color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .msg{color:#6B8288;font-size:.8rem;margin:.2rem 0 0 1.9rem}
+  .sum{margin:.6rem 0 0;font-weight:600}
+</style></head><body>
+<header><h1 id="title">Driving route</h1><a id="gm" target="_blank" rel="noopener">Open in Google Maps</a></header>
+<div id="map"></div>
+<div id="side"><div id="sum" class="sum" hidden></div><div id="stops"></div><div id="status" class="msg" style="margin-left:0">Loading route…</div></div>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
+  var data = {};
+  try { data = JSON.parse(new URLSearchParams(location.search).get("d") || "{}"); } catch(e){}
+  var stops = Array.isArray(data.stops) ? data.stops.slice(0, 25) : [];
+  if (data.title) { $("title").textContent = data.title; document.title = data.title; }
+  $("gm").href = "https://www.google.com/maps/dir/" + stops.map(function(s){ return encodeURIComponent(s.q); }).join("/");
+
+  function renderStops(legs){
+    $("stops").innerHTML = stops.map(function(s, i){
+      var h = '<div class="stop"><b class="pin">' + (i < 26 ? String.fromCharCode(65 + i) : i + 1) + '</b><strong>' + esc(s.label) + '</strong></div>';
+      var leg = legs && legs[i];
+      if (leg){
+        var m = Number.isFinite(leg.durationMillis) ? Math.round(leg.durationMillis / 60000) + " mins" : "Time unavailable";
+        var d = Number.isFinite(leg.distanceMeters) ? " · " + (leg.distanceMeters / 1000).toFixed(1) + " km" : "";
+        h += '<div class="msg">Driving time: ' + m + d + '</div>';
+      }
+      return h;
+    }).join("");
+  }
+  function fail(m){ $("status").textContent = m + ' Use "Open in Google Maps" above instead.'; }
+  renderStops();
+  if (stops.length < 2){ fail("A route needs at least two jobs."); return; }
+
+  fetch("/api/pipeline?resource=address-config").then(function(r){ return r.json(); }).then(function(c){
+    if (!c.enabled) throw new Error("Maps key not configured");
+    return new Promise(function(resolve, reject){
+      window.__ready = resolve;
+      var sc = document.createElement("script");
+      sc.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(c.key) + "&callback=__ready&region=AU&language=en&v=weekly&loading=async";
+      sc.async = true; sc.referrerPolicy = "origin"; sc.onerror = function(){ reject(new Error("Google Maps failed to load")); };
+      document.head.appendChild(sc);
+    });
+  }).then(async function(){
+    var libs = await Promise.all([google.maps.importLibrary("routes"), google.maps.importLibrary("marker")]);
+    var pts = stops.map(function(s){ return s.q; });
+    var map = new google.maps.Map($("map"), { mapId:"DEMO_MAP_ID", streetViewControl:false, center:{ lat:-27.47, lng:153.02 }, zoom:10 });
+    var res = await libs[0].Route.computeRoutes({
+      origin: pts[0], destination: pts[pts.length - 1],
+      intermediates: pts.slice(1, -1).map(function(a){ return { location:a }; }),
+      travelMode:"DRIVING", optimizeWaypointOrder:false, region:"au", language:"en-AU",
+      fields:["path", "legs", "viewport", "distanceMeters", "durationMillis"]
+    });
+    var route = res.routes && res.routes[0];
+    if (!route) throw new Error("No driving route found");
+    (await route.createWaypointAdvancedMarkers()).forEach(function(m){ m.map = map; });
+    route.createPolylines().forEach(function(p){ p.setMap(map); });
+    if (route.viewport) map.fitBounds(route.viewport);
+    renderStops(route.legs);
+    $("status").hidden = true;
+    var km = Number.isFinite(route.distanceMeters) ? (route.distanceMeters / 1000).toFixed(1) + " km" : "";
+    var mins = Number.isFinite(route.durationMillis) ? Math.round(route.durationMillis / 60000) + " mins driving" : "";
+    $("sum").textContent = stops.length + " stops · " + [mins, km].filter(Boolean).join(" · "); $("sum").hidden = false;
+  }).catch(function(e){ fail("Couldn't build the route (" + ((e && (e.code || e.message)) || "error") + ")."); });
+})();
+</script></body></html>
