@@ -111,7 +111,7 @@
     </div>
     <div class="card-body">
       <div class="main" id="main">
-        <p class="intro" id="intro">Please review your quote below. You can pay the electrician call-out fee securely online or ask our team to call you to arrange payment.</p>
+        <p class="intro" id="intro">Please review your quote below. You can pay the deposit securely online or ask our team to call you to arrange payment.</p>
 
         <div class="rows" id="rows"></div>
 
@@ -135,7 +135,7 @@
           </button>
           <button class="btn secondary" id="phoneBtn">Accept quote and request a call</button>
         </div>
-        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the electrician call-out fee. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
+        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
         <div class="err" id="err"></div>
 
         <ul class="included">
@@ -201,8 +201,8 @@
     document.getElementById("intro").textContent = "Please review your quote below. You can pay the deposit securely online or ask our team to call you to arrange payment.";
     document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call 0401 991 420.";
   } else if (mode === "install") {
-    document.getElementById("intro").textContent = "Please review your quote below. You can pay the electrician call-out fee securely online or ask our team to call you to arrange payment.";
-    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the electrician call-out fee. You can also call 0401 991 420.";
+    document.getElementById("intro").textContent = "Please review your quote below. You can pay the $50 deposit securely online or ask our team to call you to arrange payment. The deposit covers the electrician call-out fee shown in your quote.";
+    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call 0401 991 420.";
   }
   if (mode === "inspect") {
     document.getElementById("intro").textContent = "Please review your inspection quote below. You can pay the inspection fee securely online or ask our team to call you to arrange payment.";
@@ -213,11 +213,11 @@
     return '<div class="row"><span>' + esc(l.label) + (l.qty > 1 ? ' <span style="color:#8AA0A5">&times; ' + l.qty + '</span>' : '') + '</span><strong>' + fmt(l.amount) + '</strong></div>';
   }).join("");
   rowsHtml += '<div class="row total"><span>Total (incl. GST)</span><strong>' + fmt(total) + '</strong></div>';
-  if (mode === "install") rowsHtml += '<div class="row sub"><span>' + (calloutIncluded ? 'Electrician call-out deposit (included in total)' : 'Electrician call-out fee payable today') + '</span><strong>' + fmt(payableToday) + '</strong></div>' +
+  if (mode === "install") rowsHtml += '<div class="row sub"><span>' + (calloutIncluded ? 'Electrician call-out deposit (included in total)' : 'Deposit payable today (covers call-out fee)') + '</span><strong>' + fmt(payableToday) + '</strong></div>' +
     '<div class="row sub"><span>Balance on installation day</span><strong>' + fmt(balance) + '</strong></div>';
   document.getElementById("rows").innerHTML = rowsHtml;
 
-  document.getElementById("terms").innerHTML = '<strong>Payment terms:</strong> ' + fmt(payableToday) + (mode === "install" && calloutIncluded ? ' deposit payable today. It comes off the quoted total' : ' payable today to secure your electrician') +
+  document.getElementById("terms").innerHTML = '<strong>Payment terms:</strong> ' + fmt(payableToday) + (mode === "install" ? (calloutIncluded ? ' deposit payable today. It comes off the quoted total' : ' deposit payable today to secure your electrician. It covers the call-out fee already shown in the quoted total') : ' inspection fee payable today') +
     (balance > 0 ? ', with the balance of <strong>' + fmt(balance) + '</strong> payable on installation day' : '') +
     '. Fully refundable if we can’t complete your ' + (mode === "inspect" ? "inspection" : "installation") + '.';
 
@@ -255,7 +255,7 @@
   function showPhoneSuccess(){
     document.getElementById("main").classList.add("hidden");
     document.getElementById("doneTitle").textContent = "Your quote has been accepted";
-    document.getElementById("doneText").textContent = "Thank you. Our team will call you to arrange your " + (calloutIncluded ? "deposit" : "electrician call-out fee") + " and installation.";
+    document.getElementById("doneText").textContent = "Thank you. Our team will call you to arrange your deposit and installation.";
     document.getElementById("payLink").style.display = "none";
     document.getElementById("done").classList.add("show");
   }

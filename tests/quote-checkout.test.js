@@ -39,6 +39,7 @@ function fixture() {
   }};
   const Stripe = {configured:()=>true,async request(url, form, opts={}) {
     calls.push({url,form,opts});
+    if(url.endsWith('/expire')){const session=sessions.get(url.split('/').at(-2));session.status='expired';return session;}
     if(!form)return sessions.get(url.split('/').pop());
     const old = [...sessions.values()].find(s=>s.key===opts.idempotencyKey);if(old)return old;
     const session = {id:'cs_live_'+'x'.repeat(30)+sessions.size,url:'https://checkout.stripe.com/c/pay/test',key:opts.idempotencyKey,
@@ -77,7 +78,20 @@ test('new quote adds the $50 electrician call-out fee to alarm and controller pr
   assert.match(rendered.text,/Electrician call-out fee \(1 x \$50\.00\): \$50\.00/);
   await f.QP.checkout(f.quote,f.lead);
   assert.equal(f.payments[0].amount_cents,5000);
-  assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart - Electrician call-out fee');
+  assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');
+  assert.match(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][description]'],/covers the electrician call-out fee/);
+  assert.doesNotMatch(f.payments[0].description,/deposit/i);
+});
+
+test('reopening a $50 quote replaces an unpaid Stripe checkout with the deposit label',async()=>{
+  const f=fixture();const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:5,controllerQty:1,calloutFee:50});
+  f.quote.body_html=rendered.html;f.quote.quote_total=480;
+  f.payments.push({id:'old',lead_id:f.lead.id,quote_ref:'7011',payment_type:'booking_fee',description:'Electrician call-out fee for quote 7011',amount_cents:5000,currency:'aud',status:'sent',stripe_session_id:'cs_live_old',checkout_url:'https://checkout.stripe.com/c/pay/old'});
+  f.sessions.set('cs_live_old',{id:'cs_live_old',url:'https://checkout.stripe.com/c/pay/old',amount_total:5000,currency:'aud',payment_status:'unpaid',status:'open',metadata:{lead_id:f.lead.id}});
+  const result=await f.QP.checkout(f.quote,f.lead);
+  assert.equal(f.payments[0].status,'expired');assert.equal(f.sessions.get('cs_live_old').status,'expired');
+  assert.equal(f.payments.length,2);assert.notEqual(result.url,'https://checkout.stripe.com/c/pay/old');
+  assert.equal(f.calls.find(c=>c.form && c.url==='/checkout/sessions').form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');
 });
 
 test('previously issued $50 included-deposit quote remains at its saved total and payment terms', async()=>{
@@ -159,7 +173,7 @@ test('staff checkout follows the issued quote model for $50 call-out and older i
     const handler=load('send-booking-fee.js',{'./_supabase':f.SB,'./_stripe':f.Stripe,'./_quote-payments':f.QP,resend:{Resend:class{}}});
     const result=await invoke(handler,{method:'POST',headers:{'x-portal-key':'2026'},body:{lead_id:f.lead.id,action:'checkout',agent:'Sunny'}});
     assert.equal(result.status,200);assert.equal(f.payments[0].amount_cents,5000);
-    assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],included?'PowerSmart smoke alarm deposit':'PowerSmart electrician call-out fee');
+    assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');
   }
 });
 

@@ -49,21 +49,32 @@ async function checkout(quote, lead) {
   const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${quote.id}`;
   if (paid >= amount) return { paid: true, url: quoteUrl };
   if (paid > 0) throw new Error('A partial payment is already recorded. Please call PowerSmart to arrange the remaining fee.');
+  const needsDepositLabel = type === 'booking_fee' && !calculation.calloutIncluded && calculation.calloutFee === 50;
   for (const payment of payments.filter(p => p.payment_type === type && p.status === 'sent')) {
     if (payment.amount_cents !== amount) throw new Error('A different payment request already exists. Please contact PowerSmart.');
+    // Earlier checkouts for this same issued quote displayed "call-out fee" in Stripe.
+    // Replace an unpaid session so revisiting the accept link shows "deposit".
+    if (needsDepositLabel && !/\(upfront payment\)$/.test(payment.description || '')) {
+      const session = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payment.stripe_session_id)}`);
+      if (session.payment_status === 'paid') return { paid: true, url: quoteUrl };
+      if (session.status === 'open') await Stripe.request(`/checkout/sessions/${encodeURIComponent(payment.stripe_session_id)}/expire`, {});
+      await SB.sb(`payment_requests?id=eq.${encodeURIComponent(payment.id)}&status=eq.sent`, { method: 'PATCH', body: { status: 'expired' }, prefer: 'return=minimal' });
+      continue;
+    }
     return { paid: false, url: P.checkoutUrl(payment.checkout_url) };
   }
   // Expired sessions get a new key; simultaneous/repeated submissions share one checkout.
   const attempt = payments.filter(p => p.payment_type === type).map(p => p.stripe_session_id).sort().join(',');
   const requestKey = crypto.createHash('sha256').update(`quote:${quote.lead_id}:${quote.quote_ref}:${type}:${amount}:${attempt}`).digest('hex');
-  const description = type === 'booking_fee' && calculation.calloutIncluded ? `Deposit toward smoke alarm quote ${quote.quote_ref}` : `${P.TYPES[type]} for quote ${quote.quote_ref}`;
+  const description = type === 'booking_fee' && calculation.calloutIncluded ? `Deposit toward smoke alarm quote ${quote.quote_ref}` : needsDepositLabel ? `Electrician call-out fee for quote ${quote.quote_ref} (upfront payment)` : `${P.TYPES[type]} for quote ${quote.quote_ref}`;
+  const stripeDescription = needsDepositLabel ? `Deposit for quote ${quote.quote_ref}; covers the electrician call-out fee in the quoted total` : description;
   const session = await Stripe.request('/checkout/sessions', {
     mode: 'payment', 'payment_method_types[0]': 'card', customer_email: lead.email,
     success_url: `${Q.SITE}/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: quoteUrl, client_reference_id: lead.id,
     'line_items[0][price_data][currency]': 'aud', 'line_items[0][price_data][unit_amount]': String(amount),
-    'line_items[0][price_data][product_data][name]': type === 'booking_fee' && calculation.calloutIncluded ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[type]}`,
-    'line_items[0][price_data][product_data][description]': description, 'line_items[0][quantity]': '1',
+    'line_items[0][price_data][product_data][name]': type === 'booking_fee' && (calculation.calloutIncluded || needsDepositLabel) ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[type]}`,
+    'line_items[0][price_data][product_data][description]': stripeDescription, 'line_items[0][quantity]': '1',
     'metadata[lead_id]': lead.id, 'metadata[quote_ref]': quote.quote_ref, 'metadata[payment_type]': type,
     'payment_intent_data[metadata][lead_id]': lead.id, 'payment_intent_data[metadata][quote_ref]': quote.quote_ref,
     'payment_intent_data[metadata][payment_type]': type,
@@ -86,7 +97,8 @@ function renderPaidQuote(quote, payments) {
   const total = Math.round(Number(quote.quote_total) * 100), balance = Math.max(0, total - cents);
   const booking = summaryData.booking_paid_cents;
   const row = (label, amount) => `<tr><td style="padding:8px 12px;font-size:14px;color:#176646;"><strong>${label}</strong></td><td align="right" style="padding:8px 12px;font-size:14px;color:#176646;white-space:nowrap;"><strong>${Q.fmt(amount / 100)}</strong></td></tr>`;
-  const feeLabel = quoteOptions(quote).calculation.calloutIncluded ? 'Deposit received (credited against quote)' : 'Electrician call-out fee paid';
+  const savedQuote = quoteOptions(quote).calculation;
+  const feeLabel = savedQuote.calloutIncluded ? 'Deposit received (credited against quote)' : savedQuote.calloutFee === 50 ? 'Deposit received (covers electrician call-out fee)' : 'Electrician call-out fee paid';
   const summary = `<tr><td style="background:#ffffff;padding:6px 32px 12px;"><table role="presentation" width="100%" style="background:#edf8f1;border:1px solid #c5e8d0;border-radius:10px;">${booking ? row(feeLabel, booking) : ''}${cents > booking ? row('Other payments received', cents - booking) : ''}${row('Remaining balance', balance)}</table></td></tr>`;
   let html = quote.body_html.replace('<!-- Payment terms -->', `${summary}\n<!-- Payment terms -->`);
   const { serviceMode, calculation } = quoteOptions(quote);

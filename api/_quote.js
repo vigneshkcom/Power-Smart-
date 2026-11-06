@@ -194,7 +194,7 @@ function renderQuoteEmail(opts) {
       <!-- Payment terms -->
       <tr><td style="background:#ffffff;padding:8px 32px 4px;">
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#F4F9FA;border-radius:10px;padding:14px 18px;font-size:12.5px;color:#41585D;line-height:1.6;">
-          <strong style="color:#0B1B1F;">Payment terms:</strong> ${isInspect ? `${fmt(q.payableToday)} inspection fee payable today` : q.calloutIncluded ? `${fmt(q.payableToday)} deposit payable today, included in the quoted total and credited against your installation balance` : `${fmt(q.payableToday)} electrician call-out fee payable today`}${q.balance > 0 ? `, with the balance of <strong>${fmt(q.balance)}</strong> payable on the day of installation` : ""}. The upfront payment is fully refundable if we can't complete your ${isInspect ? "inspection" : "installation"}.
+          <strong style="color:#0B1B1F;">Payment terms:</strong> ${isInspect ? `${fmt(q.payableToday)} inspection fee payable today` : q.calloutIncluded ? `${fmt(q.payableToday)} deposit payable today, included in the quoted total and credited against your installation balance` : `${fmt(q.payableToday)} deposit payable today, covering the electrician call-out fee shown in this quote`}${q.balance > 0 ? `, with the balance of <strong>${fmt(q.balance)}</strong> payable on the day of installation` : ""}. The upfront payment is fully refundable if we can't complete your ${isInspect ? "inspection" : "installation"}.
           ${q.waiverNote ? `<br><br>${q.waiverNote}` : ""}
         </td></tr></table>
       </td></tr>
@@ -204,7 +204,7 @@ function renderQuoteEmail(opts) {
         <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#43A8B6" style="border-radius:999px;">
           <a href="${accept}" target="_blank" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:bold;color:#0B1B1F;text-decoration:none;">Accept this quote &rarr;</a>
         </td></tr></table>
-        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutIncluded ? "deposit, credited against your quote" : "electrician call-out fee"}.<br>Prefer to talk first? Reply to this email with your preferred time and we will call you to book it in.</p>
+        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutIncluded ? "deposit, credited against your quote" : "deposit, covering the electrician call-out fee"}.<br>Prefer to talk first? Reply to this email with your preferred time and we will call you to book it in.</p>
       </td></tr>
 
       <!-- Included -->
@@ -255,7 +255,7 @@ GST (10%): ${fmt(q.gst)}
 Total (incl. GST): ${fmt(q.total)}
 ${!isInspect && q.calloutIncluded ? `Electrician call-out deposit (included in total): ${fmt(q.payableToday)}\nBalance due on installation day: ${fmt(q.balance)}\n` : ""}
 
-Payment terms: ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutIncluded ? "deposit credited against this quote" : "electrician call-out fee"} today${q.balance > 0 ? `, balance of ${fmt(q.balance)} on installation day` : ""}.
+Payment terms: ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutIncluded ? "deposit credited against this quote" : "deposit covering the electrician call-out fee shown in this quote"} today${q.balance > 0 ? `, balance of ${fmt(q.balance)} on installation day` : ""}.
 ${q.waiverNote ? q.waiverNote + "\n" : ""}
 Accept this quote: ${accept}
 
