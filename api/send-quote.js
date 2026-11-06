@@ -92,7 +92,7 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     if (!q) return res.status(404).json({ error: "The original quote email was not found" });
     const to = isValidEmail(lead.email) ? lead.email : q.to_email;
     if (!isValidEmail(to)) return res.status(400).json({ error: "Add a valid customer email address first" });
-    const sender = S.resolveSender(q.sender);
+    const sender = S.resolveSender("customer_service");   // quotes always come from the PowerSmart team, never a named person
     const quoteUrl = `${Q.QUOTE_SITE}/quote?token=${q.id}`;
     const subject = `Reminder: ${q.subject || `Your PowerSmart quotation (${q.quote_ref})`}`;
     // Older saved quote emails can contain an acceptance link on the former host.
@@ -131,7 +131,7 @@ module.exports = async (req, res) => {
   const customerEmail = b.customerEmail;
   const customerName = String(b.customerName || "").slice(0, 120).trim();
   const agentName = String(b.agentName || "").slice(0, 120).trim().replace(/^Vignesh$/i, "Sunny");
-  const sender = S.resolveSender(b.sendAs);
+  const sender = S.resolveSender("customer_service");   // quotes always come from the PowerSmart team, never a named person
   const fromPipeline = (req.headers["x-portal-key"] || "") === PORTAL_KEY;
   const customerPhone = fromPipeline ? Sms.cleanPhone(b.customerPhone) : '';
   let hintLeadId = fromPipeline && /^[\w-]{1,40}$/.test(String(b.leadId || "")) ? String(b.leadId) : "";

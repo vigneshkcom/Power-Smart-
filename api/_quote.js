@@ -227,7 +227,7 @@ function renderQuoteEmail(opts) {
       <!-- Footer -->
       <tr><td align="center" style="padding:20px 12px 6px;">
         <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${ABN}</p>
-        <p style="margin:0;font-size:11px;color:#8AA0A5;">${SUPPORT_EMAIL} &middot; <a href="${SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a>${agentName ? ` &middot; Prepared by ${escapeHtml(agentName)}` : ""}</p>
+        <p style="margin:0;font-size:11px;color:#8AA0A5;">${SUPPORT_EMAIL} &middot; <a href="${SITE}" style="color:#8AA0A5;">smokealarms.powersmartco.com.au</a></p>
         <p style="margin:8px 0 0;font-size:10px;color:#A5B8BC;line-height:1.6;max-width:500px;">This quotation is an estimate based on the property details discussed and is valid until ${escapeHtml(validUntil)}. Final compliance requirements are confirmed on-site by a licensed electrician. All prices in AUD and inclusive of GST.</p>
       </td></tr>
 
@@ -254,7 +254,7 @@ Accept this quote: ${accept}
 Included: licensed & insured electricians, same-day compliance certificate, AS 3786-2014/2023 certified alarms, 10-year manufacturer warranty.
 
 Questions? Reply to this email with your preferred time and we will call you to book it in.
-PowerSmart Pty Ltd | ABN ${ABN}${agentName ? ` | Prepared by ${agentName}` : ""}
+PowerSmart Pty Ltd | ABN ${ABN}
 ${SITE}`;
 
   return { html, text, quote: q };

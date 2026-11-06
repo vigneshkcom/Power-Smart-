@@ -28,7 +28,6 @@ function expiresAt(q) {
 }
 function messages(lead,q,sequence,token) {
   const name = String(lead.name || 'there').trim().split(/\s+/)[0];
-  const agent = ['Sam','Sunny'].includes(lead.agent) ? lead.agent : 'the PowerSmart team';
   const link = `${QUOTE_SITE}/quote?token=${q.id}`;
   const stop = `https://smokealarms.powersmartco.com.au/api/customer-link?kind=reminders&token=${token}`;
   const wording = [
@@ -36,11 +35,11 @@ function messages(lead,q,sequence,token) {
     'Do you have any questions about your Anka smoke alarm quote, pricing or installation? We are happy to help.',
     'A final follow-up on your Anka smoke alarm quote. If you would like to go ahead, you can accept it using the link below.'
   ][sequence-1];
-  const intro = `Hi ${name}, it's ${agent} from PowerSmart.`.replace('the PowerSmart team from PowerSmart','the PowerSmart team');
+  const intro = `Hi ${name}, it's the PowerSmart team.`;
   const sms = `${intro} ${wording} View quote: ${link} Reply with any questions, or STOP to stop reminders. 0401 991 420`;
   const subject = `${sequence===3?'Final follow-up':'Checking in'}: your PowerSmart quote ${q.quote_ref}`;
   const email = `${intro}\n\n${wording}\n\nView or accept your quote: ${link}\n\nReply to this email or call 0401 991 420 if you have any questions.\n\nStop automatic quote reminders: ${stop}`;
-  return {sms,subject,email,sender:lead.agent==='Sam'?'sam':'sunny'};
+  return {sms,subject,email,sender:'customer_service'};
 }
 async function context(leadId) {
   const [settings,leads] = await Promise.all([

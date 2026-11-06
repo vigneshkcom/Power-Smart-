@@ -47,7 +47,7 @@ test('reminders run only on Queensland weekdays between 9am and 5pm',()=>{
   assert.equal(R.nextWindow('2026-10-31T02:00:00Z'),'2026-11-01T23:00:00.000Z');
 });
 test('all three reminders include the exact quote, identity and stop instructions',()=>{
-  const {R,c}=fixture();for(let n=1;n<=3;n++){const m=R.messages(c().lead,c().q,n,c().s.unsubscribe_token);assert.match(m.sms,/Sunny from PowerSmart/);assert(m.sms.includes(quoteId));assert.match(m.sms,/STOP/);assert.match(m.email,/Stop automatic quote reminders:/);assert(m.email.includes(c().s.unsubscribe_token));}
+  const {R,c}=fixture();for(let n=1;n<=3;n++){const m=R.messages(c().lead,c().q,n,c().s.unsubscribe_token);assert.match(m.sms,/it.s the PowerSmart team/);assert(m.sms.includes(quoteId));assert.match(m.sms,/STOP/);assert.match(m.email,/Stop automatic quote reminders:/);assert(m.email.includes(c().s.unsubscribe_token));}
 });
 test('expiry uses the date printed on the quote',()=>{
   const {R}=fixture();assert.equal(R.expiresAt({created_at:'2026-10-28T00:00:00Z',body_text:'Valid until: 26 November 2026'}),Date.parse('2026-11-26T13:59:59Z'));
