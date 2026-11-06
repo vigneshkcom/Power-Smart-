@@ -4,7 +4,7 @@ function load(file,mocks,globals={}){
 }
 function fixture({recent=[],failure=false}={}){
   const calls=[],notes=[],queries=[];
-  const Sms={cleanPhone:v=>String(v||'').replace(/^04/,'+614'),async sendLeadSms(args){calls.push(args);if(failure)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({id,author,body});}};
+  const Sms={smsEnabled:()=>true,cleanPhone:v=>String(v||'').replace(/^04/,'+614'),async sendLeadSms(args){calls.push(args);if(failure)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({id,author,body});}};
   const W=load('_welcome-sms.js',{'./_supabase':{async sb(q){queries.push(q);return recent;}},'./_sms-outbound':Sms});
   const lead={id:'lead1',name:'  Anirudh Test ',phone:'0400000000',stage:'new_lead'};
   return {W,calls,notes,queries,lead};

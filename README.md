@@ -83,6 +83,7 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
+| `SMS_ENABLED` | to resume SMS | **SMS is paused unless this is `true`.** Everything goes by email while it is off. After the new SIM/gateway is set up, update the `SMSGATE_*` variables and set this to `true`. |
 | `SMSGATE_USERNAME` | for SMS | SMS Gate Cloud Server username from the gateway phone |
 | `SMSGATE_PASSWORD` | for SMS | SMS Gate Cloud Server password from the gateway phone |
 | `SMSGATE_DEVICE_ID` | for SMS | SMS Gate device ID from the gateway phone |

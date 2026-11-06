@@ -32,7 +32,7 @@ function fixture(options={}) {
     return sorted.slice(0,Number(params.get('limit')||1000)).map(r=>({...r}));
   }};
   const mocks={
-    './_supabase':SB,'./_sms-outbound':{cleanPhone:v=>String(v).replace(/^0/,'+61'),async sendLeadSms(data){sms.push(data);if(options.smsFails)throw Error('Uncertain gateway submission');if(options.pauseAfterSms)db.quote_reminder_settings[0].enabled=false;return {status:'submitted'};}},
+    './_supabase':SB,'./_sms-outbound':{smsEnabled:()=>true,cleanPhone:v=>String(v).replace(/^0/,'+61'),async sendLeadSms(data){sms.push(data);if(options.smsFails)throw Error('Uncertain gateway submission');if(options.pauseAfterSms)db.quote_reminder_settings[0].enabled=false;return {status:'submitted'};}},
     './_quote-payments':{async quotePayments(){return db.payment_requests;}},'./_maillog':{async logEmail(row){logs.push(row);return true;}},
     './_senders':require('../api/_senders'),resend:{Resend:class{constructor(){this.emails={send:async(message,key)=>{emails.push({message,key});return options.emailFails?{error:{message:'Timeout'}}:{data:{id:'email1'}};}};}}}
   };

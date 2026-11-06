@@ -36,9 +36,9 @@ function messages(lead,q,sequence,token) {
     'A final follow-up on your Anka smoke alarm quote. If you would like to go ahead, you can accept it using the link below.'
   ][sequence-1];
   const intro = `Hi ${name}, it's the PowerSmart team.`;
-  const sms = `${intro} ${wording} View quote: ${link} Reply with any questions, or STOP to stop reminders. 0401 991 420`;
+  const sms = `${intro} ${wording} View quote: ${link} Reply with any questions, or STOP to stop reminders.`;
   const subject = `${sequence===3?'Final follow-up':'Checking in'}: your PowerSmart quote ${q.quote_ref}`;
-  const email = `${intro}\n\n${wording}\n\nView or accept your quote: ${link}\n\nReply to this email or call 0401 991 420 if you have any questions.\n\nStop automatic quote reminders: ${stop}`;
+  const email = `${intro}\n\n${wording}\n\nView or accept your quote: ${link}\n\nReply to this email if you have any questions.\n\nStop automatic quote reminders: ${stop}`;
   return {sms,subject,email,sender:'customer_service'};
 }
 async function context(leadId) {
@@ -127,6 +127,7 @@ async function processRun(run,c,{manual=false}={}) {
   await patchRun(run.id,{sms_to:Sms.cleanPhone(c.lead.phone),email_to:c.lead.email,sms_body:content.sms,email_subject:content.subject,email_body:content.email});
   let issue=null;
   for(const channel of ['sms','email']) {
+    if(channel==='sms' && !Sms.smsEnabled()){await patchRun(run.id,{sms_status:'skipped'});continue;} // SMS paused: email only
     const fresh=await context(run.lead_id);
     const reason=await eligibility(fresh,new Date(),{refreshPayment:true,ignorePaused:manual});
     if(reason || fresh.s?.quote_id!==run.quote_id || Date.parse(fresh.s?.reply_baseline)>Date.parse(run.created_at) || fresh.lead?.phone!==c.lead.phone || fresh.lead?.email!==c.lead.email) {
@@ -166,7 +167,7 @@ async function processRun(run,c,{manual=false}={}) {
 // follow-ups and never moves the automatic schedule. It ignores the 9-5 window and a staff pause, but never overrides
 // STOP / opt-out, a payment, an expired quote or a changed recipient.
 async function sendNow(leadId,actor) {
-  if(!process.env.RESEND_API_KEY || !process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)throw new Error('Both email and SMS services must be configured');
+  if(!process.env.RESEND_API_KEY || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
   const c=await context(leadId);
   if(!c.lead)throw new Error('Customer not found');
   if(c.lead.stage!=='quote_sent' || !hasCurrentSentQuote(c))throw new Error('Send a quote and keep the lead in Quote Sent before sending a reminder');
@@ -185,7 +186,7 @@ async function sendNow(leadId,actor) {
   return {...await summary(leadId),manual:result,actor};
 }
 async function work({dryRun=false,now=new Date()}={}) {
-  if(!process.env.RESEND_API_KEY || !process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)throw new Error('Both email and SMS services must be configured');
+  if(!process.env.RESEND_API_KEY || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
   if(!businessHours(now))return {skipped:'Outside Queensland weekday sending hours (9am–5pm)',dry_run:dryRun};
   // A crashed send is held for staff review, never re-submitted automatically.
   const stale=await SB.sb(`quote_reminder_runs?finished_at=is.null&created_at=lt.${enc(new Date(now-15*60000).toISOString())}&select=id,lead_id,quote_id&limit=50`);

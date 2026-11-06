@@ -9,6 +9,7 @@ function welcomeMessage(name) {
 // Runs only at lead creation. SMS failures must never reject a saved enquiry.
 async function welcomeLead(lead, now = new Date()) {
   if (!lead?.id || lead.stage !== 'new_lead') return { status: 'skipped' };
+  if (!Sms.smsEnabled()) return { status: 'skipped', paused: true }; // SMS paused: the enquiry confirmation email covers this
   const message = welcomeMessage(lead.name), phone = Sms.cleanPhone(lead.phone);
   try {
     if (!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone))) throw new Error('No valid customer mobile number.');

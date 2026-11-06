@@ -28,7 +28,7 @@ test('sending respects the channel choice and works for a job with no lead', asy
     return [];
   };
   Sms.sendLeadSms = async (a) => { calls.sms.push(a); return { status: 'submitted', phone: a.lead.phone }; };
-  process.env.RESEND_API_KEY = 'test';
+  process.env.RESEND_API_KEY = 'test'; process.env.SMS_ENABLED = 'true';
   const Module = require('node:module'), load = Module._load;
   Module._load = function (request, ...rest) {
     if (request === 'resend') return { Resend: class { constructor() { this.emails = { send: async (m) => { calls.mail.push(m); return { data: { id: 'x' } }; } }; } } };
@@ -38,9 +38,13 @@ test('sending respects the channel choice and works for a job with no lead', asy
     delete require.cache[require.resolve('../api/_booking-confirmation')];
     const { sendBookingConfirmation } = require('../api/_booking-confirmation');
     let r = await sendBookingConfirmation({ jobId: 'j1', email: false, sms: true });
-    assert.equal(r.sms.status, 'submitted'); assert.equal(calls.mail.length, 0); assert.match(calls.sms[0].message, /AM slot \(8am-12pm\).*0401 991 420/);
+    assert.equal(r.sms.status, 'submitted'); assert.equal(calls.mail.length, 0); assert.match(calls.sms[0].message, /AM slot \(8am-12pm\).*support@powersmartco\.com\.au/);
     r = await sendBookingConfirmation({ jobId: 'j1', email: true, sms: false });
     assert.equal(r.email.status, 'sent'); assert.equal(calls.mail.length, 1); assert.equal(calls.sms.length, 1);
     await assert.rejects(() => sendBookingConfirmation({ jobId: 'j1', email: false, sms: false }), /Choose email, SMS or both/);
-  } finally { Module._load = load; SB.sb = real.sb; Sms.sendLeadSms = real.send; }
+    // SMS paused: an SMS-only request is sent by email instead and no SMS is attempted.
+    delete process.env.SMS_ENABLED; calls.mail.length = 0; calls.sms.length = 0;
+    r = await sendBookingConfirmation({ jobId: 'j1', email: false, sms: true });
+    assert.equal(r.email.status, 'sent'); assert.equal(calls.mail.length, 1); assert.equal(calls.sms.length, 0);
+  } finally { delete process.env.SMS_ENABLED; Module._load = load; SB.sb = real.sb; Sms.sendLeadSms = real.send; }
 });

@@ -129,10 +129,10 @@ async function issueCertificate(jobId, { agent, force } = {}) {
 <tr><td style="background:#ffffff;padding:16px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#F4F9FA;border-radius:10px;padding:16px 18px;font-size:13px;color:#41585D;line-height:1.7;">
   <strong style="color:#0B1B1F;">Please keep it safe.</strong> Give a copy to your property manager or insurer if they ask. The second page of the PDF explains how to look after your alarms.
 </td></tr></table></td></tr>
-<tr><td style="background:#ffffff;padding:16px 32px 26px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Questions? Reply to this email or call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0;font-weight:bold;text-decoration:none;">${Q.PHONE_DISPLAY}</a>.</p></td></tr>
+<tr><td style="background:#ffffff;padding:16px 32px 26px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Questions? Just reply to this email.</p></td></tr>
 <tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#A5B8BC;">Licensed &amp; insured electricians &middot; Installed to AS 3786:2014</p></td></tr>
 </table></td></tr></table></body></html>`;
-      const text = `Hi ${first},\n\nThanks for choosing PowerSmart and for your payment. Your smoke alarm Certificate of Compliance${address ? " for " + address : ""} is attached as a PDF. Please keep it for your records, and give a copy to your property manager or insurer if they ask.\n\nThe second page covers how to look after your alarms.\n\nQuestions? Reply to this email or call ${Q.PHONE_DISPLAY}.\n\nPowerSmart`;
+      const text = `Hi ${first},\n\nThanks for choosing PowerSmart and for your payment. Your smoke alarm Certificate of Compliance${address ? " for " + address : ""} is attached as a PDF. Please keep it for your records, and give a copy to your property manager or insurer if they ask.\n\nThe second page covers how to look after your alarms.\n\nQuestions? Just reply to this email.\n\nPowerSmart`;
       const { Resend } = require("resend");
       const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
         from: S.fromHeader("customer_service"), to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,

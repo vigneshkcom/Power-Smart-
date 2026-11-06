@@ -109,7 +109,7 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     if (lead.phone) {
       try {
         const first = String(lead.name || "there").trim().split(/\s+/)[0];
-        const message = `Hi ${first}, here is your PowerSmart smoke alarm quote ${q.quote_ref} again. We've also re-emailed it, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
+        const message = `Hi ${first}, here is your PowerSmart smoke alarm quote ${q.quote_ref} again. We've also re-emailed it, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Reply to the email with any questions.`;
         sms = await Sms.sendLeadSms({ lead, message, key: `quote-${q.id}-resend-${Date.now()}`, author: agentName });
       } catch (e) { sms = { status: "failed", error: e.message }; }
     }
@@ -235,7 +235,7 @@ module.exports = async (req, res) => {
         if(!leadId)throw new Error('Quote email was sent, but the customer record could not be saved.');
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         const first=String(lead?.name || customerName || 'there').trim().split(/\s+/)[0];
-        const message=`Hi ${first}, your ${existing ? 'updated ' : ''}PowerSmart smoke alarm quote ${ref} is ready. We've also emailed it to you, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Call 0401 991 420 with any questions.`;
+        const message=`Hi ${first}, your ${existing ? 'updated ' : ''}PowerSmart smoke alarm quote ${ref} is ready. We've also emailed it to you, so please check your spam or junk folder just in case. View your quote here: ${quoteUrl} Reply to the email with any questions.`;
         sms=await Sms.sendLeadSms({lead,message,key:existing ? `quote-${emailId}-rev-${Date.now()}` : `quote-${emailId}`,author:agentName});
       } catch(e) {
         sms={status:'failed',error:e.message};

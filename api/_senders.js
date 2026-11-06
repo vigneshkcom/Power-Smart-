@@ -3,8 +3,7 @@
 // Underscore prefix => not a Vercel route.
 
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
-const PHONE_DISPLAY = "0401 991 420";
-const PHONE_TEL = "+61401991420";
+// Phone number removed while the business SIM is being replaced. Contact is by email only.
 const SITE = "https://smokealarms.powersmartco.com.au";
 const ABN = "41 669 943 720";
 const LOGO = `${SITE}/assets/logo/power-smart-logo-full-colour.png`;
@@ -47,7 +46,6 @@ function signatureHtml(key) {
         <div style="font-weight:bold;color:#0B1B1F;font-size:14px;">${escapeHtml(s.signName)}</div>
         <div style="color:#2E8494;font-weight:600;">${escapeHtml(s.title)}</div>
         <div style="margin-top:6px;">
-          <a href="tel:${PHONE_TEL}" style="color:#41585D;text-decoration:none;">${PHONE_DISPLAY}</a><br>
           <a href="mailto:${SUPPORT_EMAIL}" style="color:#2E8494;text-decoration:none;">${SUPPORT_EMAIL}</a><br>
           <a href="${SITE}" style="color:#2E8494;text-decoration:none;">smokealarms.powersmartco.com.au</a>
         </div>
@@ -59,7 +57,7 @@ function signatureHtml(key) {
 
 function signatureText(key) {
   const s = resolveSender(key);
-  return `\n\n${s.signName}\n${s.title}\n${PHONE_DISPLAY} | ${SUPPORT_EMAIL}\nsmokealarms.powersmartco.com.au\nPowerSmart Pty Ltd | ABN ${ABN}`;
+  return `\n\n${s.signName}\n${s.title}\n${SUPPORT_EMAIL}\nsmokealarms.powersmartco.com.au\nPowerSmart Pty Ltd | ABN ${ABN}`;
 }
 
 // Full branded wrapper for a free-form message (composer emails).
@@ -75,7 +73,7 @@ function wrapMessageHtml({ senderKey, message }) {
         ${signatureHtml(senderKey)}
       </td></tr>
       <tr><td align="center" style="padding:16px 12px 4px;font-size:10.5px;color:#A5B8BC;line-height:1.6;">
-        PowerSmart Pty Ltd &middot; ABN ${ABN} &middot; ${PHONE_DISPLAY} &middot; <a href="${SITE}" style="color:#A5B8BC;">smokealarms.powersmartco.com.au</a>
+        PowerSmart Pty Ltd &middot; ABN ${ABN} &middot; <a href="${SITE}" style="color:#A5B8BC;">smokealarms.powersmartco.com.au</a>
       </td></tr>
     </table>
   </td></tr></table>
@@ -83,6 +81,6 @@ function wrapMessageHtml({ senderKey, message }) {
 }
 
 module.exports = {
-  SUPPORT_EMAIL, PHONE_DISPLAY, SITE, ABN, SENDERS,
+  SUPPORT_EMAIL, SITE, ABN, SENDERS,
   resolveSender, fromHeader, signatureHtml, signatureText, wrapMessageHtml, escapeHtml,
 };

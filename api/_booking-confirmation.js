@@ -71,10 +71,10 @@ ${quoteBlock}
   </td></tr></table>
 </td></tr>
 ${note ? `<tr><td style="background:#ffffff;padding:14px 32px 0;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;white-space:pre-line;border-left:3px solid #43A8B6;padding-left:12px;">${esc(note)}</p></td></tr>` : ""}
-<tr><td style="background:#ffffff;padding:14px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Need to change the day or slot? Reply to this email or call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0;font-weight:bold;">${Q.PHONE_DISPLAY}</a> at least 24 hours before and we will move you.</p></td></tr>
+<tr><td style="background:#ffffff;padding:14px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Need to change the day or slot? Reply to this email at least 24 hours before and we will move you.</p></td></tr>
 <tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;">
   <p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p>
-  <p style="margin:0;font-size:11px;color:#8AA0A5;">${Q.PHONE_DISPLAY} &middot; ${Q.SUPPORT_EMAIL}</p>
+  <p style="margin:0;font-size:11px;color:#8AA0A5;">${Q.SUPPORT_EMAIL}</p>
 </td></tr>
 </table></td></tr></table></body></html>`;
 
@@ -93,7 +93,7 @@ Before we arrive:
 - Your electrician will text you when they are on the way.
 - You will get your compliance certificate the same day.
 
-${note ? note + "\n\n" : ""}Need to change the day or slot? Reply to this email or call ${Q.PHONE_DISPLAY} at least 24 hours before.
+${note ? note + "\n\n" : ""}Need to change the day or slot? Reply to this email at least 24 hours before.
 
 PowerSmart Pty Ltd | ABN ${Q.ABN}`;
   return { html, text };
@@ -104,6 +104,9 @@ PowerSmart Pty Ltd | ABN ${Q.ABN}`;
 async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = true, sms = true, note = "" }) {
   const fail = (status, message) => Object.assign(new Error(message), { status });
   if (!email && !sms) throw fail(400, "Choose email, SMS or both");
+  // SMS is paused: anything that would have gone by SMS goes by email instead.
+  const smsPaused = !Sms.smsEnabled();
+  if (smsPaused && sms) { email = true; sms = false; }
   if (email && !process.env.RESEND_API_KEY) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
   const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode";
   let job;
@@ -174,7 +177,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
       try {
         const first = String(name || "there").trim().split(/\s+/)[0] || "there";
         const balance = quoteTotal != null ? Math.max(0, quoteTotal - feePaid) : null;
-        const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call 0401 991 420 or reply to this SMS.`;
+        const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, email support@powersmartco.com.au.`;
         result.sms = await Sms.sendLeadSms({ lead: { id: leadId || undefined, phone }, message, key: `booking-${job.id}-${job.scheduled_start}`, author: agent });
       } catch (e) { result.sms = { status: "failed", error: e.message }; }
     }

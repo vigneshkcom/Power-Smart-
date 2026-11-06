@@ -135,7 +135,7 @@
           </button>
           <button class="btn secondary" id="phoneBtn">Accept quote and request a call</button>
         </div>
-        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
+        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the deposit. You can also email <a href="mailto:support@powersmartco.com.au">support@powersmartco.com.au</a>.</p>
         <div class="err" id="err"></div>
 
         <ul class="included">
@@ -199,10 +199,10 @@
   if (name) document.getElementById("head-title").textContent = "Accept your quote, " + name.split(" ")[0];
   if (mode === "install" && calloutIncluded) {
     document.getElementById("intro").textContent = "Please review your quote below. You can pay the deposit securely online or ask our team to call you to arrange payment.";
-    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call 0401 991 420.";
+    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also email support@powersmartco.com.au.";
   } else if (mode === "install") {
     document.getElementById("intro").textContent = "Please review your quote below. You can pay the $50 deposit securely online or ask our team to call you to arrange payment. The deposit covers the electrician call-out fee shown in your quote.";
-    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call 0401 991 420.";
+    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the deposit. You can also email support@powersmartco.com.au.";
   }
   if (mode === "inspect") {
     document.getElementById("intro").textContent = "Please review your inspection quote below. You can pay the inspection fee securely online or ask our team to call you to arrange payment.";
@@ -270,7 +270,7 @@
       .catch(function(error){
         setBusy(false);
         document.getElementById("btnLabel").textContent = "Accept quote and pay online";
-        errBox.textContent = error.message || "We could not save your address. Please call 0401 991 420.";
+        errBox.textContent = error.message || "We could not save your address. Please email support@powersmartco.com.au.";
         errBox.classList.add("show");
       });
   });
@@ -283,7 +283,7 @@
     postAcceptance("phone").then(showPhoneSuccess).catch(function(error){
       setBusy(false);
       phoneBtn.textContent = "Accept quote and request a call";
-      errBox.textContent = error.message || "We could not record your acceptance. Please call 0401 991 420.";
+      errBox.textContent = error.message || "We could not record your acceptance. Please email support@powersmartco.com.au.";
       errBox.classList.add("show");
     });
   });

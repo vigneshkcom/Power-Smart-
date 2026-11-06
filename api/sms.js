@@ -216,6 +216,7 @@ module.exports = async (req, res) => {
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
     if (body.action === 'send') {
+      if (String(process.env.SMS_ENABLED || '').toLowerCase() !== 'true') return res.status(503).json({ error: 'SMS is paused for now (new SIM being set up). Use email instead.' });
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured. Add SMSGATE_USERNAME and SMSGATE_PASSWORD in Vercel.' });
       const phone = cleanPhone(body.phone);
       const message = String(body.message || '').trim();

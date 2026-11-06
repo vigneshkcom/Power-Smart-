@@ -57,6 +57,7 @@ module.exports = async (req, res) => {
       const payment = rows[0], session = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payment.stripe_session_id)}`);
       const updated = await P.reconcile(payment, session);
       if(b.action === 'send_sms' || b.action === 'preview_sms') {
+        if(!Sms.smsEnabled())return res.status(409).json({error:'SMS is paused for now. Send the payment link by email instead.'});
         if(updated.status !== 'sent' || session.status !== 'open' || !session.url)return res.status(409).json({error:updated.status === 'paid' ? 'This payment has already been paid. No SMS was sent.' : 'This payment link has expired. Create a new request before sending SMS.'});
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         if(!lead)return res.status(404).json({error:'Customer not found.'});

@@ -44,7 +44,7 @@ function fixture() {
   }};
   const P = load('_payments.js', { './_supabase': SB });
   const QP = load('_quote-payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_quote': require('../api/_quote') });
-  const Sms={cleanPhone:v=>v,async sendLeadSms(args){smsCalls.push(args);return {status:'submitted',phone:args.lead.phone};}};
+  const Sms={smsEnabled:()=>true,cleanPhone:v=>v,async sendLeadSms(args){smsCalls.push(args);return {status:'submitted',phone:args.lead.phone};}};
   const handler = load('payments.js', { './_supabase': SB, './_stripe': Stripe, './_payments': P, './_sms-outbound':Sms, './_quote-payments':QP });
   async function call(body, extras = {}) {
     let status = 200, data; const response = { setHeader() {}, status(s) { status = s; return this; }, json(d) { data = d; return this; } };

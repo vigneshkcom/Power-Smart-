@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 const SB = require('./_supabase');
 const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
+// SMS is PAUSED (the gateway phone/SIM is being replaced). Everything goes by email instead.
+// To switch SMS back on: set SMS_ENABLED=true in Vercel (and update the SMSGATE_* variables for the new number).
+const SMS_PAUSED_MESSAGE = 'SMS is paused for now, so this was sent by email only.';
+function smsEnabled() { return String(process.env.SMS_ENABLED || '').toLowerCase() === 'true'; }
 function cleanPhone(value) {
   let phone = String(value || '').replace(/[^\d+]/g, '').trim();
   if (/^04\d{8}$/.test(phone)) phone = '+61' + phone.slice(1);
@@ -13,6 +17,7 @@ async function logNote(leadId, author, body) {
   if (!rows?.length) await SB.sb('lead_comments', { method: 'POST', body: { lead_id: leadId, author: author || 'Team', kind: 'sms', body }, prefer: 'return=minimal' });
 }
 async function sendLeadSms({ lead, message, key, author }) {
+  if (!smsEnabled()) return { status: 'skipped', paused: true, error: SMS_PAUSED_MESSAGE };
   const phone = cleanPhone(lead?.phone), text = String(message || '').trim();
   if (!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone))) throw new Error('Add a valid customer mobile number before sending SMS.');
   if (!text || text.length > 1600) throw new Error('SMS must contain between 1 and 1600 characters.');
@@ -60,4 +65,4 @@ async function sendLeadSms({ lead, message, key, author }) {
   try {await logNote(lead.id, author, noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
   return {status:'submitted',phone};
 }
-module.exports = {cleanPhone,sendLeadSms,logNote};
+module.exports = {cleanPhone,sendLeadSms,logNote,smsEnabled,SMS_PAUSED_MESSAGE};

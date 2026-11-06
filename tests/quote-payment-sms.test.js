@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function load(name,mocks,globals={}){
   const module={exports:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../api',name),'utf8'),{
-    module,require:key=>key in mocks ? mocks[key] : require(key.startsWith('.') ? path.join(__dirname,'../api',key) : key),console:{error(){}},URL,URLSearchParams,Buffer,AbortController,setTimeout,clearTimeout,process:{env:{SMSGATE_USERNAME:'test',SMSGATE_PASSWORD:'test',RESEND_API_KEY:'test'}},...globals,
+    module,require:key=>key in mocks ? mocks[key] : require(key.startsWith('.') ? path.join(__dirname,'../api',key) : key),console:{error(){}},URL,URLSearchParams,Buffer,AbortController,setTimeout,clearTimeout,process:{env:{SMS_ENABLED:'true',SMSGATE_USERNAME:'test',SMSGATE_PASSWORD:'test',RESEND_API_KEY:'test'}},...globals,
   },{filename:name});return module.exports;
 }
 function smsFixture({reject=false,timeout=false,optout=false,noteFailure=false}={}){
@@ -57,7 +57,7 @@ function quoteFixture({emailFails=false,smsFails=false,saveFails=false,phone='04
     if(query.startsWith('leads?')){if(opts.method==='PATCH')Object.assign(lead,opts.body);return [lead];}
     if(query==='leads')return [lead];return [];
   }};
-  const Sms={cleanPhone:v=>v||'',async sendLeadSms(args){smsCalls.push(args);if(smsFails)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({lead_id:id,author,body});}};
+  const Sms={smsEnabled:()=>true,cleanPhone:v=>v||'',async sendLeadSms(args){smsCalls.push(args);if(smsFails)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({lead_id:id,author,body});}};
   const Q=load('_quote.js',{}),S={resolveSender:()=>({key:'sunny'}),fromHeader:()=> 'PowerSmart <support@powersmartco.com.au>'};
   class Resend {
     constructor(){this.emails={send:async args=>{emails.push(args);return emailFails?{error:{message:'Rejected'}}:{data:{id:'email-id'}};}};}

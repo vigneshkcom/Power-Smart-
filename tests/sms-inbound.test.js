@@ -17,7 +17,7 @@ function fixture({ webhooks = [], devices = [{ id: 'dev1', lastSeen: new Date().
   const res = () => ({ code: 200, body: null, setHeader() {}, status(c) { this.code = c; return this; }, json(v) { this.body = v; return this; } });
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/sms.js'), 'utf8'), {
     module, require: (k) => (k === './_supabase' ? SB : require(path.join(__dirname, '../api', k))),
-    Buffer, AbortController, setTimeout, clearTimeout, console: { error() {}, log() {} }, process: { env: { SMSGATE_USERNAME: 'u', SMSGATE_PASSWORD: 'p' } },
+    Buffer, AbortController, setTimeout, clearTimeout, console: { error() {}, log() {} }, process: { env: { SMS_ENABLED: 'true', SMSGATE_USERNAME: 'u', SMSGATE_PASSWORD: 'p' } },
     fetch: async (url, options = {}) => {
       calls.push({ url, method: options.method || 'GET', body: options.body ? JSON.parse(options.body) : null });
       if (url === PORTAL_HOOK) {
