@@ -60,3 +60,25 @@ test('a blocked number gets a normal success but nothing is saved or sent', asyn
     assert.equal(r.sent.length, 0); assert.equal(r.notes.length, 0);
   }
 });
+
+test('blocked emails and names are dropped silently too', async () => {
+  const cases = [
+    { name: 'Someone', phone: '0411111111', email: 'Adam@Goldsure.com.au' },
+    { name: 'Someone', phone: '0411111111', email: 'caneva525@gmail.com' },
+    { name: 'Ben Caneva', phone: '0411111111' }, { name: 'Bencaneva', phone: '0411111111' },
+    { name: 'Adam Sicari', phone: '0411111111' }, { name: 'SICARI', phone: '0411111111' },
+    { name: 'Amit Chowdhury', phone: '0411111111' }, { name: 'Amit  Chodwdhary', phone: '0411111111' },
+    { name: 'Amit Choudhary', phone: '0411111111' }, { name: 'amit chaudhary', phone: '0411111111' },
+  ];
+  for (const body of cases) {
+    const r = await run(body);
+    assert.equal(r.code, 200); assert.equal(r.b.ok, true);
+    assert.equal(r.sent.length, 0, JSON.stringify(body));
+  }
+});
+
+test('ordinary enquiries are not blocked', async () => {
+  for (const body of [{ name: 'Amit Patel', phone: '0411111111' }, { name: 'Adam Smith', phone: '0411111111', email: 'adam@example.test' }]) {
+    const r = await run(body); assert.ok(r.sent.length >= 1, JSON.stringify(body));
+  }
+});

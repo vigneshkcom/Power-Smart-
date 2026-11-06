@@ -38,9 +38,9 @@ module.exports = async (req, res) => {
   if (!name || !phone) return res.status(400).json({ error: "Name and phone are required" });
   if (email && !isValidEmail(email)) return res.status(400).json({ error: "Please enter a valid email address" });
 
-  // Blocked numbers (competitors): answer exactly like a normal success, but save and send nothing.
-  if (isBlocked(phone)) {
-    console.log("lead → blocked number ignored");
+  // Blocked competitors (phone, email or name): answer exactly like a normal success, but save and send nothing.
+  if (isBlocked({ name, phone, email })) {
+    console.log("lead → blocked enquiry ignored");
     return res.status(200).json({ ok: true, welcome_sms: { status: "skipped" } });
   }
 
