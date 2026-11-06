@@ -50,7 +50,7 @@ test('note failure reports submitted SMS with a warning, without resending',asyn
 });
 
 function quoteFixture({emailFails=false,smsFails=false,saveFails=false,phone='0400000000'}={}){
-  const smsCalls=[],logs=[],emails=[],notes=[],lead={id:'lead1',name:'Test Customer',email:'test@example.test',phone};
+  const smsCalls=[],logs=[],emails=[],notes=[],lead={id:'lead1',created_at:'2026-11-05T00:00:00Z',name:'Test Customer',email:'test@example.test',phone};
   const SB={configured:()=>true,async sb(query,opts={}){
     if(query==='rpc/next_quote_reference')return 7001;
     if(query==='lead_comments'){notes.push(opts.body);return [];}

@@ -30,7 +30,7 @@ function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, addres
   <div style="font-size:15px;font-weight:bold;color:#0B1B1F;padding-bottom:8px;">Your quote${quoteRef ? ` (${esc(quoteRef)})` : ""}</div>
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;">
     ${row("Total (incl. GST)", fmt(quoteTotal), "#0B1B1F")}
-    ${feePaid ? row("Booking fee paid", "-" + fmt(feePaid), "#32925d") : ""}
+    ${feePaid ? row(feePaid === 50 ? "Deposit received (credited against quote)" : "Electrician call-out fee paid", "-" + fmt(feePaid), "#32925d") : ""}
     <tr><td colspan="2" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:8px 0 0 8px;">Balance due on the day</td><td align="right" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:0 8px 8px 0;">${fmt(balance)}</td></tr>
   </table>
   ${quoteUrl ? `<p style="margin:10px 0 0;font-size:12px;"><a href="${esc(quoteUrl)}" style="color:#398ea0;">View your full quote</a></p>` : ""}
@@ -86,7 +86,7 @@ Your smoke alarm installation is booked in.
 
 Date: ${slot.date}
 Arrival: ${slot.slot} slot - your electrician will arrive between ${slot.window}
-${address ? `Address: ${address}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `Booking fee paid: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
+${address ? `Address: ${address}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `${feePaid === 50 ? "Deposit received (credited against quote)" : "Electrician call-out fee paid"}: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
 Before we arrive:
 - Someone aged 18 or over needs to be home to let us in.
 - Please clear access to the ceiling areas and the switchboard where you can.

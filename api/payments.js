@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const Stripe = require('./_stripe');
+const Fee = require('./_callout-fee');
 const SB = require('./_supabase');
 const P = require('./_payments');
 const Sms = require('./_sms-outbound');
@@ -33,7 +34,7 @@ module.exports = async (req, res) => {
       const email = session.customer_details?.email || session.customer_email || '';
       if (session.payment_status !== 'paid' || session.status !== 'complete' || session.mode !== 'payment' || session.amount_total !== 3500 || session.currency !== 'aud' ||
           email.toLowerCase() !== lead.email.toLowerCase() || session.payment_link !== 'plink_1SWWsTAD1FbYoqscP2NF37oF' ||
-          (session.metadata?.lead_id && session.metadata.lead_id !== leadId)) return res.status(409).json({ error: 'Stripe has not confirmed a matching $35 booking payment for this customer.' });
+          (session.metadata?.lead_id && session.metadata.lead_id !== leadId)) return res.status(409).json({ error: 'Stripe has not confirmed a matching $35 historical electrician call-out payment for this customer.' });
       const existing = await SB.sb(`payment_requests?stripe_session_id=eq.${encodeURIComponent(sessionId)}&select=*&limit=1`);
       if (existing?.[0] && (existing[0].lead_id !== leadId || existing[0].quote_ref !== ref)) return res.status(409).json({ error: 'This Stripe payment belongs to a different customer or quote.' });
       const intentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
@@ -42,12 +43,12 @@ module.exports = async (req, res) => {
       if (intent.status !== 'succeeded' || intent.amount_received !== 3500 || intent.currency !== 'aud' || intent.latest_charge?.paid !== true || intent.latest_charge?.refunded || Number(intent.latest_charge?.amount_refunded || 0) > 0) return res.status(409).json({ error: 'The Stripe receipt is not a successful, unrefunded $35 payment.' });
       const paidAt = new Date((intent.latest_charge?.created || session.created) * 1000).toISOString();
       const row = { lead_id: leadId, quote_ref: ref, customer_email: lead.email, payment_type: 'booking_fee',
-        description: `Booking fee for quote ${ref}`, amount_cents: 3500, amount_paid_cents: 3500, currency: 'aud', status: 'paid',
+        description: `Electrician call-out fee for quote ${ref}`, amount_cents: 3500, amount_paid_cents: 3500, currency: 'aud', status: 'paid',
         stripe_session_id: sessionId, stripe_payment_intent_id: intentId, checkout_url: session.url || 'https://book.stripe.com/14AeVc6Xk57J7QF4CXao802', paid_at: paidAt,
       };
       if (existing?.[0]) await SB.sb(`payment_requests?id=eq.${encodeURIComponent(existing[0].id)}`, { method: 'PATCH', body: row, prefer: 'return=minimal' });
       else await SB.sb('payment_requests?on_conflict=stripe_session_id', { method: 'POST', body: row, prefer: 'resolution=ignore-duplicates,return=minimal' });
-      await P.note(leadId, 'Stripe', `Booking fee paid: $35.00 AUD. Quote ${ref}. Verified historical Stripe payment: ${intentId}. Stripe checkout: ${sessionId}.`);
+      await P.note(leadId, 'Stripe', `Electrician call-out fee paid: $35.00 AUD. Quote ${ref}. Verified historical Stripe payment: ${intentId}. Stripe checkout: ${sessionId}.`);
       return res.status(200).json({ ok: true, payment: row });
     }
     if (['refresh','send_sms','preview_sms'].includes(b.action)) {
@@ -59,8 +60,9 @@ module.exports = async (req, res) => {
         if(updated.status !== 'sent' || session.status !== 'open' || !session.url)return res.status(409).json({error:updated.status === 'paid' ? 'This payment has already been paid. No SMS was sent.' : 'This payment link has expired. Create a new request before sending SMS.'});
         const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`),lead=leads?.[0];
         if(!lead)return res.status(404).json({error:'Customer not found.'});
-        const first=String(lead.name || 'there').trim().split(/\s+/)[0],type=(P.TYPES[payment.payment_type] || 'payment').toLowerCase();
-        const message=`Hi ${first}, please pay your PowerSmart ${type} of $${(payment.amount_cents/100).toFixed(2)} AUD. ${payment.description}. Pay securely here: https://smokealarms.powersmartco.com.au/pay?token=${payment.id} Thank you, PowerSmart.`;
+        const first=String(lead.name || 'there').trim().split(/\s+/)[0],type=(payment.payment_type === 'booking_fee' && payment.amount_cents === 5000 ? 'deposit' : P.TYPES[payment.payment_type] || 'payment').toLowerCase();
+        const description = payment.payment_type === 'booking_fee' ? (payment.amount_cents === 5000 ? 'This comes off your quoted total.' : 'Electrician call-out fee.') : payment.description;
+        const message=`Hi ${first}, please pay your PowerSmart ${type} of $${(payment.amount_cents/100).toFixed(2)} AUD. ${description}. Pay securely here: https://smokealarms.powersmartco.com.au/pay?token=${payment.id} Thank you, PowerSmart.`;
         const phone=Sms.cleanPhone(lead.phone);
         if(!/^\+[1-9]\d{7,14}$/.test(phone) || (phone.startsWith('+61') && !/^\+614\d{8}$/.test(phone)))return res.status(400).json({error:'Add a valid customer mobile number before sending SMS.'});
         if(b.action === 'preview_sms')return res.status(200).json({phone,message,payment:updated});
@@ -85,19 +87,20 @@ module.exports = async (req, res) => {
       await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
       return res.status(200).json({ payment, checkout_url: P.checkoutUrl(payment.checkout_url) });
     }
-    const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,email,quote_ref&limit=1`), lead = leads?.[0];
+    const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,email,quote_ref,created_at&limit=1`), lead = leads?.[0];
     if (!lead) return res.status(404).json({ error: 'Customer not found.' });
     if (b.payment_type === 'booking_fee') {
+      if (amount !== Fee.centsForLead(lead)) return res.status(409).json({ error: `This customer's electrician call-out fee is $${(Fee.centsForLead(lead) / 100).toFixed(2)}.` });
       const paid = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&payment_type=eq.booking_fee&status=eq.paid&select=id&limit=1`);
-      if (paid?.length) return res.status(409).json({ error: 'This customer already has a paid booking fee. Choose another payment type.' });
+      if (paid?.length) return res.status(409).json({ error: 'This customer already has a paid electrician call-out fee. Choose another payment type.' });
     }
     const pending = await SB.sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&payment_type=eq.${encodeURIComponent(b.payment_type)}&status=eq.sent${b.payment_type === 'booking_fee' ? '' : `&amount_cents=eq.${amount}&description=eq.${encodeURIComponent(description)}`}&select=${fields}&order=created_at.desc&limit=10`);
     for (const payment of pending || []) {
       const existing = await Stripe.request(`/checkout/sessions/${encodeURIComponent(payment.stripe_session_id)}`);
       const updated = await P.reconcile(payment, existing);
-      if (updated.status === 'paid' && b.payment_type === 'booking_fee') return res.status(409).json({ error: 'This booking fee has already been paid. Choose another payment type.' });
+      if (updated.status === 'paid' && b.payment_type === 'booking_fee') return res.status(409).json({ error: 'This electrician call-out fee has already been paid. Choose another payment type.' });
       if (existing.status === 'open' && existing.url) {
-        if (payment.amount_cents !== amount || payment.description !== description) return res.status(409).json({ error: 'A booking fee request already exists. Use its link in payment history.' });
+        if (payment.amount_cents !== amount || (b.payment_type !== 'booking_fee' && payment.description !== description)) return res.status(409).json({ error: 'A call-out fee request already exists. Use its link in payment history.' });
         await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
         return res.status(200).json({ payment: updated, checkout_url: P.checkoutUrl(existing.url) });
       }
@@ -107,7 +110,7 @@ module.exports = async (req, res) => {
       success_url: 'https://smokealarms.powersmartco.com.au/api/customer-link?kind=confirmation&session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://smokealarms.powersmartco.com.au/payment-cancelled', client_reference_id: leadId,
       'line_items[0][price_data][currency]': 'aud', 'line_items[0][price_data][unit_amount]': String(amount),
-      'line_items[0][price_data][product_data][name]': `PowerSmart - ${P.TYPES[b.payment_type]}`,
+      'line_items[0][price_data][product_data][name]': b.payment_type === 'booking_fee' && amount === 5000 ? 'PowerSmart smoke alarm deposit' : `PowerSmart - ${P.TYPES[b.payment_type]}`,
       'line_items[0][price_data][product_data][description]': description, 'line_items[0][quantity]': '1',
       'metadata[lead_id]': leadId, 'metadata[quote_ref]': lead.quote_ref || '', 'metadata[payment_type]': b.payment_type,
       'metadata[description]': description, 'payment_intent_data[metadata][lead_id]': leadId,

@@ -7,14 +7,14 @@ const Q = require('../api/_quote');
 function load(name, mocks) {
   const module = {exports:{}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', name), 'utf8'), {
-    module, require:key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : require(key), URL, URLSearchParams, Buffer, Date,
+    module, require:key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : key === './_callout-fee' ? require('../api/_callout-fee') : require(key), URL, URLSearchParams, Buffer, Date,
     console:{error(){}}, process:{env:{}},
   });
   return module.exports;
 }
 function fixture() {
-  const lead = {id:'lead1',email:'test@example.test',quote_ref:'7011'};
-  const rendered = Q.renderQuoteEmail({customerName:'Test',customerEmail:lead.email,ref:'7011',serviceMode:'install',alarmQty:7,controllerQty:1,issueDate:'28 October 2026',validUntil:'27 November 2026'});
+  const lead = {id:'lead1',created_at:'2026-11-05T00:00:00Z',email:'test@example.test',quote_ref:'7011'};
+  const rendered = Q.renderQuoteEmail({customerName:'Test',customerEmail:lead.email,ref:'7011',serviceMode:'install',alarmQty:7,controllerQty:1,calloutFee:35,issueDate:'28 October 2026',validUntil:'27 November 2026'});
   const quote = {id:'8abe9f5b-2495-4ee3-b521-0364df34db00',lead_id:lead.id,quote_ref:'7011',quote_total:623,body_html:rendered.html};
   const payments = [], notes = [], sessions = new Map(), calls = [], dbCalls = [];
   const SB = {configured:()=>true, async sb(query, opts={}) {
@@ -65,6 +65,25 @@ test('quote checkout charges the issued booking fee with customer and quote meta
   assert.equal(f.payments[0].quote_ref,'7011');assert.equal(f.notes.length,1);
 });
 
+test('new quote takes a $50 deposit from its $588 total and Stripe charges exactly $50', async()=>{
+  const f=fixture();
+  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7011',serviceMode:'install',alarmQty:7,controllerQty:1,calloutFee:50});
+  f.quote.body_html=rendered.html;f.quote.quote_total=588;
+  const priced=f.QP.quoteOptions(f.quote).calculation;
+  assert.equal(priced.total,588);assert.equal(priced.payableToday,50);assert.equal(priced.balance,538);
+  assert.equal(priced.lines.some(line=>line.label==='Electrician call-out fee'),false);
+  assert.match(rendered.html,/fee=50/);
+  await f.QP.checkout(f.quote,f.lead);
+  assert.equal(f.payments[0].amount_cents,5000);
+  assert.equal(f.calls.find(call=>call.form).form['line_items[0][price_data][product_data][name]'],'PowerSmart smoke alarm deposit');
+});
+
+test('an existing quote link without a fee parameter preserves the promised $35',()=>{
+  const f=fixture();f.quote.body_html=f.quote.body_html.replace(/&amp;fee=35/,'');
+  assert.equal(f.QP.quoteOptions(f.quote).calculation.payableToday,35);
+  assert.equal(f.QP.quoteOptions(f.quote).calculation.total,623);
+});
+
 test('inspection quotes charge $120 and never use the $35 shared payment link',async()=>{
   const f=fixture();f.quote.body_html=Q.renderQuoteEmail({ref:'7011',customerEmail:f.lead.email,serviceMode:'inspect',alarmQty:0,controllerQty:0}).html;f.quote.quote_total=120;
   await f.QP.checkout(f.quote,f.lead);assert.equal(f.payments[0].amount_cents,12000);assert.equal(f.payments[0].payment_type,'inspection');
@@ -85,7 +104,7 @@ test('quote total is unchanged while the live viewer shows $35 received and $588
   const f=fixture();f.payments.push({id:'payment1',lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'booking_fee',amount_paid_cents:3500});
   const viewer=load('_view-quote.js',{'./_supabase':f.SB,'./_quote-payments':f.QP});
   const result=await invoke(viewer,{method:'GET',query:{token:f.quote.id}});
-  assert.equal(result.status,200);assert.match(result.body,/Booking fee paid/);assert.match(result.body,/\$35\.00/);assert.match(result.body,/Remaining balance/);assert.match(result.body,/\$588\.00/);assert.match(result.body,/\$623\.00/);
+  assert.equal(result.status,200);assert.match(result.body,/Electrician call-out fee paid/);assert.match(result.body,/\$35\.00/);assert.match(result.body,/Remaining balance/);assert.match(result.body,/\$588\.00/);assert.match(result.body,/\$623\.00/);
   assert.doesNotMatch(result.body,/Accept this quote|payable today|Accepting takes you/);assert.match(f.quote.body_html,/Accept this quote/);
   assert.equal(result.headers['Cache-Control'],'no-store');
 });
@@ -120,12 +139,12 @@ test('staff booking checkout reuses its saved link and records Stripe payment be
 
 test('a different-purpose partial credit does not remove the booking payment button',()=>{
   const f=fixture();const html=f.QP.renderPaidQuote(f.quote,[{id:'p1',lead_id:'lead1',quote_ref:'7011',status:'paid',payment_type:'other',amount_paid_cents:1000}]);
-  assert.match(html,/Remaining balance/);assert.match(html,/\$613\.00/);assert.match(html,/Accept this quote/);assert.doesNotMatch(html,/Booking fee paid/);
+  assert.match(html,/Remaining balance/);assert.match(html,/\$613\.00/);assert.match(html,/Accept this quote/);assert.doesNotMatch(html,/Electrician call-out fee paid/);
 });
 
 test('a discounted quote reduces the balance only, and its saved total still verifies for checkout', ()=>{
   const f=fixture();
-  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7012',serviceMode:'install',alarmQty:7,controllerQty:1,discount:50,revised:true,issueDate:'1 November 2026',validUntil:'1 December 2026'});
+  const rendered=Q.renderQuoteEmail({customerName:'Test',customerEmail:f.lead.email,ref:'7012',serviceMode:'install',alarmQty:7,controllerQty:1,discount:50,calloutFee:35,revised:true,issueDate:'1 November 2026',validUntil:'1 December 2026'});
   assert.equal(rendered.quote.total,573);
   assert.equal(rendered.quote.payableToday,35);
   assert.equal(rendered.quote.balance,538);

@@ -160,7 +160,7 @@
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: PRESENTING THE QUOTE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
                     <p>"Based on your information you have provided, you will need <span id="script-qty" class="font-bold">0</span> smoke alarms, and the electrician will confirm exactly how many you need and where in each room they are to be located, to make your house compliant."</p>
-                    <p>"The cost is $79 per smoke alarm payable on the day of installation and a $35 electrician fee which I need to take upfront to secure your booking."</p>
+                    <p>"The cost is $79 per smoke alarm. A $50 deposit secures your electrician and comes off your quoted total. You pay the remaining balance on installation day."</p>
                 </div>
             </div>
 
@@ -168,7 +168,7 @@
                 <h4 class="text-[10px] font-bold text-gray-400 mb-1 uppercase">STEP 3: INSPECTION SERVICE</h4>
                 <div class="space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed">
                     <p>"The inspection cost is <strong>$120 paid upfront</strong> to secure your booking. The electrician will check all alarms for 2027 QLD compliance."</p>
-                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $120 fee</strong>. We only charge the $35 booking fee plus required alarms."</p>
+                    <p>"If the home is not compliant and you choose to make it compliant with us today, we <strong>WAIVE the $120 fee</strong>. The $50 deposit comes off your installation quote."</p>
                 </div>
             </div>
 
@@ -179,7 +179,7 @@
                 </summary>
                 <div class="p-4 pt-2 space-y-2 text-sm italic text-gray-700 font-medium leading-relaxed border-t">
                     <p>"Can we proceed with your contact details starting with; <strong>Your name, Your address, Your email address, Confirmation of your phone number.</strong>" (Create job in Dataforce).</p>
-                    <p>"I need to take the $35 call fee to secure your Electrician booking. Let me know when you are ready so I can <strong class="text-red-600 uppercase">pause the call recording</strong> before we proceed with your card details. Can I please have your card details?"</p>
+                    <p>"The $50 deposit secures your appointment and comes off your quote. Let me know when you are ready so I can <strong class="text-red-600 uppercase">pause the call recording</strong> before we proceed with your card details. Can I please have your card details?"</p>
                 </div>
             </details>
         </div>
@@ -197,8 +197,8 @@
                         <span id="res_ctrlTotal" class="font-bold">$0.00</span>
                     </div>
                     <div class="flex justify-between border-b border-gray-800 pb-1.5">
-                        <span id="lbl-upfront">Booking Fee:</span>
-                        <span id="res-upfront" class="font-bold">$35.00</span>
+                        <span id="lbl-upfront">Deposit payable now:</span>
+                        <span id="res-upfront" class="font-bold">$50.00</span>
                     </div>
                     <div class="flex justify-between text-gray-500 text-[10px] pt-1">
                         <span>Balance Due on Install:</span>
@@ -206,7 +206,7 @@
                     </div>
                     <div class="flex justify-between text-base md:text-lg font-black pt-2 border-t border-gray-800 mt-1">
                         <span>GRAND TOTAL:</span>
-                        <span id="res-total" class="text-powersmart font-bold">$35.00</span>
+                        <span id="res-total" class="text-powersmart font-bold">$50.00</span>
                     </div>
                 </div>
 
@@ -298,8 +298,8 @@
 
 <div class="mt-4 space-y-2 text-[10px] text-gray-700">
     <p class="italic text-[9px]">* This quote is an estimate based on property details provided. On-site assessment by a licensed electrician is required for final compliance certification.</p>
-        <p class="font-semibold">Booking Fee: What is the $35 Booking Fee?</p>
-        <p class="mb-4">This fee is required upfront to 'secure the Electrician' on the installation date, agreed by you. It is fully refundable if for some unlikely reason the installation cannot be completed.</p>
+        <p class="font-semibold">What is the $50 deposit?</p>
+        <p class="mb-4">The deposit secures your electrician and is credited against the quoted total. It is fully refundable if the installation cannot be completed.</p>
         
         <p class="font-semibold uppercase">Queensland Smoke Alarm Legislation:</p>
         <ul style="list-style-type: disc; margin-left: 20px; column-count: 2; column-gap: 40px;">
@@ -311,9 +311,9 @@
             <li>Hard-wired smoke alarms replaced with hard-wired where applicable</li>
         </ul>
 
-        <p class="font-semibold mt-4">Pay Your $35 Booking Fee:</p>
+        <p class="font-semibold mt-4">Pay Your $50 Deposit:</p>
         <p class="text-xs">
-            Visit: <a href="https://book.stripe.com/14AeVc6Xk57J7QF4CXao802" class="text-blue-600 underline">https://book.stripe.com/14AeVc6Xk57J7QF4CXao802</a>
+            Ask PowerSmart for your secure, personalised Stripe payment link.
         </p>
         <p class="text-xs">
             Once payment is made, please email the remittance receipt to <a href="mailto:support@powersmartco.com.au" class="text-blue-600 underline">support@powersmartco.com.au</a> and we will get in touch to book you in. Alternatively Call 0401 991 420 to book in.
@@ -453,11 +453,11 @@ function calculate() {
 
     const PRICE_ALARM = 79;
     const PRICE_CTRL = 35;
-    const FEE_BOOKING = serviceMode === 'install' ? 35 : 120;
+    const FEE_UPFRONT = serviceMode === 'install' ? 50 : 120;
 
     const totalAlarmPrice = alarmCount * PRICE_ALARM;
     const totalCtrlPrice = controllerQty * PRICE_CTRL;
-    const grandTotal = totalAlarmPrice + totalCtrlPrice + FEE_BOOKING;
+    const grandTotal = totalAlarmPrice + totalCtrlPrice + (serviceMode === 'inspect' ? FEE_UPFRONT : 0);
 
     document.getElementById('script-qty').innerText = alarmCount;
     document.getElementById('res_alarmQty').innerText = alarmCount;
@@ -466,9 +466,9 @@ function calculate() {
     document.getElementById('res_ctrlTotal').innerText = formatter.format(totalCtrlPrice);
 
     if (serviceMode === 'install') {
-        document.getElementById('lbl-upfront').innerText = "Booking Fee:";
-        document.getElementById('res-upfront').innerText = "$35.00";
-        document.getElementById('res-balance').innerText = formatter.format(totalAlarmPrice + totalCtrlPrice);
+        document.getElementById('lbl-upfront').innerText = "Deposit Payable Now:";
+        document.getElementById('res-upfront').innerText = "$50.00";
+        document.getElementById('res-balance').innerText = formatter.format(Math.max(0, totalAlarmPrice + totalCtrlPrice - 50));
     } else {
         document.getElementById('lbl-upfront').innerText = "Inspection Fee:";
         document.getElementById('res-upfront').innerText = "$120.00";
@@ -482,7 +482,7 @@ function calculate() {
     const step4Hint = document.getElementById('step4-hint');
     
     // Show/hide hint based on alarm count or inspection mode
-    if (alarmCount > 0 || (serviceMode === 'inspect' && FEE_BOOKING > 0)) {
+    if (alarmCount > 0 || (serviceMode === 'inspect' && FEE_UPFRONT > 0)) {
         step4Hint.classList.add('hidden');
         step4Details.open = true;
     } else {
@@ -506,7 +506,7 @@ function copySMS() {
         if (hasControllers) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
-        breakdown += `\n- Booking Fee: $35.00\n- Total: ${grandTotal}`;
+        breakdown += `\n- Total quote: ${grandTotal}\n- Deposit payable now (credited to total): $50.00`;
     } else {
         breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
@@ -554,7 +554,7 @@ function buildPlainTextQuote() {
         if (controllerQty > 0) {
             breakdown += `\n- Controllers (${controllerQty} x $35.00): ${controllerTotal}`;
         }
-        breakdown += `\n- Booking Fee: $35.00\n- Total: ${grandTotal}`;
+        breakdown += `\n- Total quote: ${grandTotal}\n- Deposit payable now (credited to total): $50.00`;
     } else {
         breakdown = `\n\nLine Item Breakdown:\n- Inspection Fee: $120.00\n- Total: ${grandTotal}`;
     }
@@ -683,7 +683,7 @@ function generatePDF() {
         if (ctrlQty > 0) {
             rows += `<tr><td class="py-2 border-b">Smoke Alarm Controller</td><td class="text-center border-b">${ctrlQty}</td><td class="text-right border-b">$35.00</td><td class="text-right border-b">${formatter.format(ctrlQty * 35)}</td></tr>`;
         }
-        rows += `<tr><td class="py-2 border-b">Electrician Booking Fee</td><td class="text-center border-b">1</td><td class="text-right border-b">$35.00</td><td class="text-right border-b">$35.00</td></tr>`;
+        rows += `<tr><td class="py-2 border-b" colspan="4">$50 deposit payable now; credited against the total above.</td></tr>`;
     } else {
         rows += `<tr><td class="py-2 border-b">Smoke Alarm Inspection Service</td><td class="text-center border-b">1</td><td class="text-right border-b">$120.00</td><td class="text-right border-b">$120.00</td></tr>`;
     }

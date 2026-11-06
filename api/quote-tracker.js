@@ -91,10 +91,12 @@ module.exports = async (req, res) => {
       const accept = text.match(/accept\?([^\s]+)/);
       const params = new URLSearchParams(accept ? accept[1] : "");
       const discount = Math.max(0, Number(params.get("disc")) || 0);
+      const savedFee = params.get("fee") === "50" ? 50 : 35;
       return {
         id: email.id,
         sender: email.sender || "customer_service",
         discount,
+        callout_fee: savedFee,
         created_at: email.created_at,
         ref: email.quote_ref || "",
         total: Number(email.quote_total || 0),
@@ -117,7 +119,7 @@ module.exports = async (req, res) => {
         lead_stage: (lead && lead.stage) || "",
         lead_id: (lead && lead.id) || null,
         payment_status: payment ? payment.status : phonePayment ? "phone" : "",
-        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : phonePayment ? (service === "Inspection" ? 120 : 35) : 0,
+        payment_amount: payment ? Number((payment.status === "paid" ? payment.amount_paid_cents : payment.amount_cents) || 0) / 100 : phonePayment ? (service === "Inspection" ? 120 : savedFee) : 0,
         payment_date: payment ? payment.paid_at || payment.sent_at || null : null,
         subject: email.subject || "",
         body_text: text,

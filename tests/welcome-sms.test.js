@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function load(file,mocks,globals={}){
-  const module={exports:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../api',file),'utf8'),{module,require:k=>k in mocks?mocks[k]:require(k),console:{error(){}},process:{env:{RESEND_API_KEY:'test'}},...globals});return module.exports;
+  const module={exports:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../api',file),'utf8'),{module,require:k=>k in mocks?mocks[k]:require(k.startsWith('.')?path.join(__dirname,'../api',k):k),console:{error(){}},process:{env:{RESEND_API_KEY:'test'}},...globals});return module.exports;
 }
 function fixture({recent=[],failure=false}={}){
   const calls=[],notes=[],queries=[];

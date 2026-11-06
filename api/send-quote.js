@@ -12,6 +12,8 @@ const S = require("./_senders");
 const { logEmail } = require("./_maillog");
 const { randomUUID } = require('crypto');
 const Sms = require('./_sms-outbound');
+const Fee = require('./_callout-fee');
+const QP = require('./_quote-payments');
 
 // Same passcode the pipeline page and /api/send-email use.
 const PORTAL_KEY = "2026";
@@ -152,7 +154,7 @@ module.exports = async (req, res) => {
   try {
     if (reviseId) {
       // Revising: keep the same quote (number, row and online link) and update it in place.
-      existing = (await SB.sb(`sent_emails?id=eq.${reviseId}&kind=eq.quote&status=eq.sent&select=id,lead_id,quote_ref&limit=1`))?.[0];
+      existing = (await SB.sb(`sent_emails?id=eq.${reviseId}&kind=eq.quote&status=eq.sent&select=id,lead_id,quote_ref,quote_total,body_html&limit=1`))?.[0];
       if (!existing || !existing.quote_ref) return res.status(404).json({ error: "The quote to update was not found" });
       ref = existing.quote_ref;
     } else {
@@ -164,6 +166,17 @@ module.exports = async (req, res) => {
 
   if (existing && existing.lead_id) hintLeadId = existing.lead_id;
 
+  let calloutFee = Fee.CURRENT_CENTS / 100;
+  try {
+    if (existing) {
+      calloutFee = QP.quoteOptions(existing).calloutFee;
+    } else {
+      const byId = hintLeadId ? (await SB.sb(`leads?id=eq.${encodeURIComponent(hintLeadId)}&select=id,created_at&limit=1`))?.[0] : null;
+      const byEmail = byId ? null : (await SB.sb(`leads?email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&select=id,created_at&order=updated_at.desc&limit=1`))?.[0];
+      if (byId || byEmail) calloutFee = Fee.centsForLead(byId || byEmail) / 100;
+    }
+  } catch (error) { return res.status(500).json({ error: `Could not verify the customer's call-out fee: ${error.message}` }); }
+
   // Show the property address on the quote when the lead has one saved.
   let address = "";
   if (hintLeadId && SB.configured()) {
@@ -174,7 +187,7 @@ module.exports = async (req, res) => {
   }
 
   const rendered = Q.renderQuoteEmail({
-    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, revised: Boolean(existing),
+    address, customerName, agentName, customerEmail, serviceMode, alarmQty, controllerQty, discount, calloutFee, revised: Boolean(existing),
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 

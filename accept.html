@@ -111,7 +111,7 @@
     </div>
     <div class="card-body">
       <div class="main" id="main">
-        <p class="intro" id="intro">Please review your quote below. You can pay the booking fee securely online or ask our team to call you to arrange payment.</p>
+        <p class="intro" id="intro">Please review your quote below. You can pay the deposit securely online or ask our team to call you to arrange payment.</p>
 
         <div class="rows" id="rows"></div>
 
@@ -135,7 +135,7 @@
           </button>
           <button class="btn secondary" id="phoneBtn">Accept quote and request a call</button>
         </div>
-        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the booking fee. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
+        <p class="subnote">No card available? Choose the call option and our team will contact you to arrange the deposit. You can also call <a href="tel:+61401991420">0401&nbsp;991&nbsp;420</a>.</p>
         <div class="err" id="err"></div>
 
         <ul class="included">
@@ -150,7 +150,7 @@
         <div class="tick"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
         <h2 id="doneTitle">Taking you to secure payment...</h2>
         <p id="doneText">If Stripe doesn't open automatically, tap the button below.</p>
-        <a class="btn" id="payLink" href="https://book.stripe.com/14AeVc6Xk57J7QF4CXao802" target="_blank" rel="noopener" style="text-decoration:none">Continue to payment</a>
+        <a class="btn" id="payLink" href="#" target="_blank" rel="noopener" style="text-decoration:none">Continue to payment</a>
       </div>
     </div>
   </div>
@@ -161,7 +161,7 @@
 (function(){
   "use strict";
   // Pricing must mirror api/_quote.js
-  var PRICE_ALARM = 79, PRICE_CTRL = 35, FEE_BOOKING = 35, FEE_INSPECT = 120;
+  var PRICE_ALARM = 79, PRICE_CTRL = 35, FEE_INSPECT = 120;
 
   var p = new URLSearchParams(location.search);
   var ref = (p.get("ref") || "").slice(0, 40);
@@ -171,6 +171,9 @@
   var mode = p.get("mode") === "inspect" ? "inspect" : "install";
   var alarms = Math.max(0, Math.min(50, parseInt(p.get("alarms"), 10) || 0));
   var ctrl = Math.max(0, Math.min(10, parseInt(p.get("ctrl"), 10) || 0));
+  // Existing quote URLs have no fee parameter and retain their promised $35.
+  var calloutFee = p.get("fee") === "50" ? 50 : 35;
+  var discount = Math.max(0, Number(p.get("disc")) || 0);
 
   var fmt = function(n){ return "$" + Number(n).toLocaleString("en-AU", {minimumFractionDigits:2, maximumFractionDigits:2}); };
   var esc = function(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); };
@@ -183,13 +186,20 @@
   } else {
     lines.push({ label:"Smoke alarms - supplied & installed", qty:alarms, amount:alarms*PRICE_ALARM });
     if (ctrl > 0) lines.push({ label:"Remote controller", qty:ctrl, amount:ctrl*PRICE_CTRL });
-    lines.push({ label:"Booking fee", qty:1, amount:FEE_BOOKING });
-    payableToday = FEE_BOOKING; balance = alarms*PRICE_ALARM + ctrl*PRICE_CTRL;
+    if (calloutFee === 35) lines.push({ label:"Electrician call-out fee", qty:1, amount:calloutFee });
+    payableToday = calloutFee; balance = alarms*PRICE_ALARM + ctrl*PRICE_CTRL;
+    discount = Math.min(discount, calloutFee === 50 ? Math.max(0, balance - calloutFee) : balance);
+    if (discount > 0) { lines.push({ label:"Discount", qty:1, amount:-discount }); balance -= discount; }
+    if (calloutFee === 50) balance -= calloutFee;
   }
   var total = lines.reduce(function(s,l){ return s + l.amount; }, 0);
 
   document.getElementById("head-ref").textContent = ref ? ("Ref: " + ref) : "";
   if (name) document.getElementById("head-title").textContent = "Accept your quote, " + name.split(" ")[0];
+  if (mode === "install" && calloutFee === 35) {
+    document.getElementById("intro").textContent = "Please review your quote below. You can pay the electrician call-out fee securely online or ask our team to call you to arrange payment.";
+    document.querySelector(".subnote").textContent = "No card available? Choose the call option and our team will contact you to arrange the electrician call-out fee. You can also call 0401 991 420.";
+  }
   if (mode === "inspect") {
     document.getElementById("intro").textContent = "Please review your inspection quote below. You can pay the inspection fee securely online or ask our team to call you to arrange payment.";
     document.getElementById("btnLabel").textContent = "Accept quote and pay online";
@@ -199,10 +209,11 @@
     return '<div class="row"><span>' + esc(l.label) + (l.qty > 1 ? ' <span style="color:#8AA0A5">&times; ' + l.qty + '</span>' : '') + '</span><strong>' + fmt(l.amount) + '</strong></div>';
   }).join("");
   rowsHtml += '<div class="row total"><span>Total (incl. GST)</span><strong>' + fmt(total) + '</strong></div>';
-  if (balance > 0) rowsHtml += '<div class="row sub"><span>Payable today</span><strong>' + fmt(payableToday) + '</strong></div>';
+  if (mode === "install") rowsHtml += '<div class="row sub"><span>' + (calloutFee === 50 ? 'Deposit payable today (part of total)' : 'Payable today') + '</span><strong>' + fmt(payableToday) + '</strong></div>' +
+    '<div class="row sub"><span>Balance on installation day</span><strong>' + fmt(balance) + '</strong></div>';
   document.getElementById("rows").innerHTML = rowsHtml;
 
-  document.getElementById("terms").innerHTML = '<strong>Payment terms:</strong> ' + fmt(payableToday) + ' payable today to secure your electrician' +
+  document.getElementById("terms").innerHTML = '<strong>Payment terms:</strong> ' + fmt(payableToday) + (mode === "install" && calloutFee === 50 ? ' deposit payable today. It comes off the quoted total' : ' payable today to secure your electrician') +
     (balance > 0 ? ', with the balance of <strong>' + fmt(balance) + '</strong> payable on installation day' : '') +
     '. Fully refundable if we can’t complete your ' + (mode === "inspect" ? "inspection" : "installation") + '.';
 
@@ -240,7 +251,7 @@
   function showPhoneSuccess(){
     document.getElementById("main").classList.add("hidden");
     document.getElementById("doneTitle").textContent = "Your quote has been accepted";
-    document.getElementById("doneText").textContent = "Thank you. Our team will call you to arrange your booking fee and installation.";
+    document.getElementById("doneText").textContent = "Thank you. Our team will call you to arrange your deposit and installation.";
     document.getElementById("payLink").style.display = "none";
     document.getElementById("done").classList.add("show");
   }

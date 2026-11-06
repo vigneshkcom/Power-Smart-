@@ -81,12 +81,13 @@ function itemsSummary(items) {
 }
 
 // Payments the customer already made in advance (inspection fee, balances…).
-// Booking fees are a separate charge on the quote, so they are not deducted.
+// The new $50 call-out deposit is credited; the historical $35 fee was separate.
 async function prepaid(leadId) {
   if (!leadId) return [];
   try {
-    const rows = await sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.paid&payment_type=neq.booking_fee&select=payment_type,description,amount_cents,amount_paid_cents`);
-    return (rows || []).map((p) => ({ label: p.description || p.payment_type, cents: Number(p.amount_paid_cents || p.amount_cents || 0) }));
+    const rows = await sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.paid&select=payment_type,description,amount_cents,amount_paid_cents`);
+    return (rows || []).filter((p) => p.payment_type !== 'booking_fee' || Number(p.amount_paid_cents || p.amount_cents || 0) === 5000)
+      .map((p) => ({ label: p.payment_type === 'booking_fee' ? 'Electrician call-out deposit' : p.description || p.payment_type, cents: Number(p.amount_paid_cents || p.amount_cents || 0) }));
   } catch (_) { return []; }   // payment tracking not set up yet
 }
 // A job reset for a new electrician but still marked paid (reset before credits existed): carry that payment as a
@@ -178,7 +179,7 @@ async function refreshPayment(job) {
   return job;
 }
 
-// Booking fee already paid by the customer: shown on the invoice screen, never deducted (the quote adds it separately).
+// Upfront call-out payment already paid by the customer. New $50 deposits are deducted by prepaid().
 async function bookingFeePaid(leadId) {
   if (!leadId) return 0;
   try {

@@ -74,7 +74,7 @@
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date sent</th><th>Quote</th><th>Customer</th><th>Agent</th><th>Service</th><th>Quote total</th><th>Received</th><th>Pending</th><th>Quote status</th><th>Booking fee</th><th class="hide-mobile">Pipeline status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Date sent</th><th>Quote</th><th>Customer</th><th>Agent</th><th>Service</th><th>Quote total</th><th>Received</th><th>Pending</th><th>Quote status</th><th>Call-out fee</th><th class="hide-mobile">Pipeline status</th><th>Actions</th></tr></thead>
         <tbody id="quote-body"><tr><td colspan="12" class="loading">Loading quotes...</td></tr></tbody>
       </table>
     </div>
@@ -163,7 +163,7 @@
     var service=q.service==="Inspection"?"Compliance inspection":q.alarm_qty+" smoke alarm"+(q.alarm_qty===1?"":"s")+(q.controller_qty?" and "+q.controller_qty+" controller":"");
     var fee=q.payment_status==="paid"?money(q.payment_amount,true)+" paid":q.payment_status==="phone"?"Phone call requested":q.payment_status?money(q.payment_amount,true)+" link sent":"Not requested";
     var ps=q.payment_summary;
-    var summary=[["Service",service],["Quote status",statusLabels[q.status]||q.status],["Booking fee",fee],["Quote total",money(q.total,true)],["Total received",ps?money(ps.received_cents/100,true):"Unavailable"],["Other payments",ps?money(ps.other_paid_cents/100,true):"Unavailable"]];
+    var summary=[["Service",service],["Quote status",statusLabels[q.status]||q.status],["Electrician call-out fee",fee],["Quote total",money(q.total,true)],["Total received",ps?money(ps.received_cents/100,true):"Unavailable"],["Other payments",ps?money(ps.other_paid_cents/100,true):"Unavailable"]];
     if(ps && ps.overpaid_cents)summary.push(["Credit balance",money(ps.overpaid_cents/100,true)]);
     if(ps && ps.last_paid_at)summary.push(["Last payment",dateText(ps.last_paid_at)]);
     var stageOptions=Object.keys(stageLabels).map(function(value){return '<option value="'+esc(value)+'"'+(q.lead_stage===value?' selected':'')+'>'+esc(stageLabels[value])+'</option>';}).join("");
@@ -190,7 +190,7 @@
     }).catch(function(e){alert(e.message);button.textContent="View current quote";}).finally(function(){button.disabled=false;});
   }
   var ALARM_PRICE=79,CTRL_PRICE=35;
-  function discountCap(q){return q.alarm_qty*ALARM_PRICE+q.controller_qty*CTRL_PRICE;}
+  function discountCap(q){return Math.max(0,q.alarm_qty*ALARM_PRICE+q.controller_qty*CTRL_PRICE-(q.callout_fee===50?50:0));}
   function discountBlocker(q){
     if(q.email_status==="failed")return "This quote was never delivered, so it cannot be revised.";
     if(q.service!=="Installation"||!q.alarm_qty)return "Discounts can only be added to installation quotes.";
@@ -202,7 +202,7 @@
     if(panel.classList.contains("show")){panel.classList.remove("show");return;}
     var blocked=discountBlocker(q);input.value=q.discount||"";input.disabled=send.disabled=Boolean(blocked);
     note.className="note"+(blocked?" err":"");
-    note.textContent=blocked||"Comes off the balance due on installation day (max "+money(discountCap(q),true)+"). The booking fee is unchanged. This quote is updated in place (same quote number, no duplicate) and re-sent to the customer by email and SMS.";
+    note.textContent=blocked||"Comes off the balance due on installation day (max "+money(discountCap(q),true)+"). The electrician call-out fee is unchanged. This quote is updated in place (same quote number, no duplicate) and re-sent to the customer by email and SMS.";
     panel.classList.add("show");input.focus();
   }
   function sendDiscount(){
@@ -210,7 +210,8 @@
     var amount=Math.round(Number($("discount-amount").value)*100)/100,cap=discountCap(q),note=$("discount-note");
     if(!(amount>=0)||amount>cap){note.className="note err";note.textContent="Enter a discount between $0 and "+money(cap,true)+".";return;}
     if(amount===(q.discount||0)){note.className="note err";note.textContent="That is the same as the current quote. Enter a different amount.";return;}
-    var newTotal=discountCap(q)+35-amount;
+    var calloutFee=Number(q.total)-discountCap(q)+Number(q.discount||0);
+    var newTotal=discountCap(q)+calloutFee-amount;
     if(!confirm("Send updated quote to "+(q.customer_name||q.customer_email)+" ("+q.customer_email+")?\n\nDiscount: "+money(amount,true)+"\nNew total: "+money(newTotal,true)+" (was "+money(q.total,true)+")\n\nQuote "+q.ref+" will be updated and re-sent by email and SMS."))return;
     var button=$("discount-send");button.disabled=true;button.textContent="Sending...";
     fetch("/api/send-quote",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify({
@@ -228,7 +229,7 @@
 
   function csvValue(value){var text=String(value==null?"":value);if(/^[=+\-@]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
   function exportCsv(){
-    var rows=[["Date sent","Quote","Customer","Email","Phone","Installation address","Agent","Service","Alarm quantity","Controller quantity","Quote total","Received","Pending","Credit balance","Status","Booking fee","Pipeline stage"]];
+    var rows=[["Date sent","Quote","Customer","Email","Phone","Installation address","Agent","Service","Alarm quantity","Controller quantity","Quote total","Received","Pending","Credit balance","Status","Electrician call-out fee","Pipeline stage"]];
     visible.forEach(function(q){var address=[q.address_line1,[q.address_suburb,q.address_state,q.address_postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");rows.push([dateText(q.created_at),q.ref,q.customer_name,q.customer_email,q.customer_phone,address,q.agent,q.service,q.alarm_qty,q.controller_qty,q.total,q.payment_summary?q.payment_summary.received_cents/100:"",q.payment_summary?q.payment_summary.pending_cents/100:"",q.payment_summary?q.payment_summary.overpaid_cents/100:"",statusLabels[q.status]||q.status,q.payment_status==="paid"?q.payment_amount+" paid":q.payment_status==="phone"?"Phone call requested":q.payment_status||"Not requested",stageLabels[q.lead_stage]||"Not linked"]);});
     var blob=new Blob([rows.map(function(row){return row.map(csvValue).join(",");}).join("\r\n")],{type:"text/csv;charset=utf-8"});var link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="powersmart-quotes-"+new Date().toISOString().slice(0,10)+".csv";link.click();setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
   }

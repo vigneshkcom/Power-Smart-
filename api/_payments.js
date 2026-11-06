@@ -1,6 +1,6 @@
 const SB = require('./_supabase');
 
-const TYPES = { booking_fee: 'Booking fee', inspection: 'Inspection', installation_balance: 'Installation balance', other: 'Pending balance' };
+const TYPES = { booking_fee: 'Electrician call-out fee', inspection: 'Inspection', installation_balance: 'Installation balance', other: 'Pending balance' };
 function amountCents(value) {
   const text = String(value == null ? '' : value).trim();
   if (!/^\d{1,6}(\.\d{1,2})?$/.test(text)) throw new Error('Enter a valid AUD amount with no more than two decimal places.');
@@ -29,7 +29,7 @@ async function reconcile(payment, session, eventId) {
       status: 'paid', amount_paid_cents: session.amount_total, stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null,
       ...(eventId ? { stripe_event_id: eventId } : {}), paid_at: paidAt,
     }, prefer: 'return=minimal' });
-    await note(payment.lead_id, 'Stripe', `${TYPES[payment.payment_type] || 'Payment'} paid: $${(session.amount_total / 100).toFixed(2)} AUD. ${payment.description || 'Booking fee'}. Stripe checkout: ${session.id}.`);
+    await note(payment.lead_id, 'Stripe', `${TYPES[payment.payment_type] || 'Payment'} paid: $${(session.amount_total / 100).toFixed(2)} AUD. ${payment.description || 'Electrician call-out fee'}. Stripe checkout: ${session.id}.`);
     return { ...payment, status: 'paid', amount_paid_cents: session.amount_total, paid_at: paidAt };
   }
   if (session.status === 'expired' && payment.status !== 'paid') {

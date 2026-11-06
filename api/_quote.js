@@ -12,7 +12,7 @@ const QUOTE_VALID_DAYS = 30;
 
 const PRICE_ALARM = 79;
 const PRICE_CTRL = 35;
-const FEE_BOOKING = 35;
+const FEE_CALLOUT = 50;
 const FEE_INSPECT = 120;
 
 const IMG = {
@@ -35,46 +35,50 @@ function normalise(body) {
   const alarmQty = Math.max(0, Math.min(50, parseInt(body.alarmQty, 10) || 0));
   const controllerQty = Math.max(0, Math.min(10, parseInt(body.controllerQty, 10) || 0));
   // Discount in whole dollars (GST-inclusive). Installation quotes only; it comes off the
-  // balance due on the day, never the booking fee. Capped again in buildQuote.
+  // balance due on the day, never the electrician call-out fee. Capped again in buildQuote.
   const raw = Math.round(Number(body.discount) * 100) / 100;
   const discount = serviceMode === "install" && Number.isFinite(raw) ? Math.max(0, Math.min(10000, raw)) : 0;
   return { serviceMode, alarmQty, controllerQty, discount };
 }
 
-function buildQuote({ serviceMode, alarmQty, controllerQty, discount }) {
+function buildQuote({ serviceMode, alarmQty, controllerQty, discount, calloutFee = FEE_CALLOUT }) {
+  if (![35, 50].includes(calloutFee)) throw new Error('Invalid electrician call-out fee.');
   const lines = [];
   let payableToday, balance, waiverNote = "";
   if (serviceMode === "inspect") {
     lines.push({ label: "Smoke alarm compliance inspection", qty: 1, unit: FEE_INSPECT, amount: FEE_INSPECT });
     payableToday = FEE_INSPECT;
     balance = 0;
-    waiverNote = "If your home needs upgrading and you proceed with us, this $120 inspection fee is waived in full. You pay only the $35 booking fee plus the alarms required.";
+    waiverNote = `If your home needs upgrading and you proceed with us, this $120 inspection fee is waived in full. ${calloutFee === 50 ? `A ${fmt(calloutFee)} deposit secures the electrician and comes off your installation quote.` : `Your existing ${fmt(calloutFee)} electrician call-out fee still applies.`}`;
   } else {
     lines.push({ label: "Anka Smoke Alarms - photoelectric, interconnected, supplied & installed", qty: alarmQty, unit: PRICE_ALARM, amount: alarmQty * PRICE_ALARM });
     if (controllerQty > 0) {
       lines.push({ label: "Smoke alarm remote controller (test / hush / locate)", qty: controllerQty, unit: PRICE_CTRL, amount: controllerQty * PRICE_CTRL });
     }
-    lines.push({ label: "Booking fee - secures your licensed electrician", qty: 1, unit: FEE_BOOKING, amount: FEE_BOOKING });
-    payableToday = FEE_BOOKING;
+    // Legacy $35 quotes charged the fee separately. New $50 is a deposit toward
+    // the alarm/controller total, never an extra charge on top of that total.
+    if (calloutFee === 35) lines.push({ label: "Electrician call-out fee", qty: 1, unit: calloutFee, amount: calloutFee });
+    payableToday = calloutFee;
     balance = alarmQty * PRICE_ALARM + controllerQty * PRICE_CTRL;
-    const off = Math.min(Math.max(0, Number(discount) || 0), balance);
+    const off = Math.min(Math.max(0, Number(discount) || 0), calloutFee === 50 ? Math.max(0, balance - calloutFee) : balance);
     if (off > 0) {
       lines.push({ label: "Discount", qty: 1, unit: -off, amount: -off });
       balance -= off;
     }
+    if (calloutFee === 50) balance = Math.max(0, balance - calloutFee);
   }
   const total = lines.reduce((s, l) => s + l.amount, 0);      // GST-inclusive
   const subtotalExGst = total / 1.1;
   const gst = total - subtotalExGst;
   const discountApplied = lines.filter((l) => l.amount < 0).reduce((sum, l) => sum - l.amount, 0);
-  return { lines, total, subtotalExGst, gst, payableToday, balance, waiverNote, discount: discountApplied };
+  return { lines, total, subtotalExGst, gst, payableToday, balance, waiverNote, discount: discountApplied, calloutFee };
 }
 
 function fmtDate(d) {
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, controllerQty, discount, agentName }) {
+function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, controllerQty, discount, calloutFee = FEE_CALLOUT, agentName }) {
   const p = new URLSearchParams({
     ref: ref || "",
     name: customerName || "",
@@ -82,6 +86,7 @@ function acceptUrl({ ref, customerName, customerEmail, serviceMode, alarmQty, co
     mode: serviceMode,
     alarms: String(alarmQty),
     ctrl: String(controllerQty),
+    fee: String(calloutFee),
     ...(discount > 0 ? { disc: String(discount) } : {}),
     agent: agentName || "",
   });
@@ -187,7 +192,7 @@ function renderQuoteEmail(opts) {
       <!-- Payment terms -->
       <tr><td style="background:#ffffff;padding:8px 32px 4px;">
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#F4F9FA;border-radius:10px;padding:14px 18px;font-size:12.5px;color:#41585D;line-height:1.6;">
-          <strong style="color:#0B1B1F;">Payment terms:</strong> ${fmt(q.payableToday)} payable today to secure your licensed electrician${q.balance > 0 ? `, with the balance of <strong>${fmt(q.balance)}</strong> payable on the day of installation` : ""}. The booking fee is fully refundable if we can't complete your ${isInspect ? "inspection" : "installation"}.
+          <strong style="color:#0B1B1F;">Payment terms:</strong> ${isInspect ? `${fmt(q.payableToday)} inspection fee payable today` : q.calloutFee === 50 ? `${fmt(q.payableToday)} deposit payable today, included in the quoted total and credited against your installation balance` : `${fmt(q.payableToday)} electrician call-out fee payable today`}${q.balance > 0 ? `, with the balance of <strong>${fmt(q.balance)}</strong> payable on the day of installation` : ""}. The upfront payment is fully refundable if we can't complete your ${isInspect ? "inspection" : "installation"}.
           ${q.waiverNote ? `<br><br>${q.waiverNote}` : ""}
         </td></tr></table>
       </td></tr>
@@ -197,7 +202,7 @@ function renderQuoteEmail(opts) {
         <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#43A8B6" style="border-radius:999px;">
           <a href="${accept}" target="_blank" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:bold;color:#0B1B1F;text-decoration:none;">Accept this quote &rarr;</a>
         </td></tr></table>
-        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection" : "booking"} fee.<br>Prefer to talk first? Reply to this email with your preferred time and we will call you to book it in.</p>
+        <p style="margin:12px 0 0;font-size:12px;color:#8AA0A5;line-height:1.6;">Accepting takes you to secure payment of your ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutFee === 50 ? "deposit, credited against your quote" : "electrician call-out fee"}.<br>Prefer to talk first? Reply to this email with your preferred time and we will call you to book it in.</p>
       </td></tr>
 
       <!-- Included -->
@@ -247,7 +252,7 @@ Subtotal (excl. GST): ${fmt(q.subtotalExGst)}
 GST (10%): ${fmt(q.gst)}
 Total (incl. GST): ${fmt(q.total)}
 
-Payment terms: ${fmt(q.payableToday)} today to secure your electrician${q.balance > 0 ? `, balance of ${fmt(q.balance)} on installation day` : ""}.
+Payment terms: ${fmt(q.payableToday)} ${isInspect ? "inspection fee" : q.calloutFee === 50 ? "deposit credited against this quote" : "electrician call-out fee"} today${q.balance > 0 ? `, balance of ${fmt(q.balance)} on installation day` : ""}.
 ${q.waiverNote ? q.waiverNote + "\n" : ""}
 Accept this quote: ${accept}
 
@@ -262,6 +267,6 @@ ${SITE}`;
 
 module.exports = {
   SITE, QUOTE_SITE, PHONE_DISPLAY, PHONE_TEL, SUPPORT_EMAIL, ABN, QUOTE_VALID_DAYS,
-  PRICE_ALARM, PRICE_CTRL, FEE_BOOKING, FEE_INSPECT,
+  PRICE_ALARM, PRICE_CTRL, FEE_CALLOUT, FEE_INSPECT,
   fmt, escapeHtml, normalise, buildQuote, fmtDate, acceptUrl, renderQuoteEmail,
 };

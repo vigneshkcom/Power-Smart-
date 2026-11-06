@@ -7,7 +7,7 @@ const vm = require('node:vm');
 function load(name, mocks) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', name), 'utf8'), {
-    module, exports: module.exports, require: key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : require(key),
+    module, exports: module.exports, require: key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : key === './_callout-fee' ? require('../api/_callout-fee') : require(key),
     console: { error() {} }, URL, Buffer, Date, process: { env: {} },
   }, { filename: name });
   return module.exports;
@@ -22,7 +22,7 @@ function fixture() {
       const v = decodeURIComponent(value.slice(value.indexOf('.') + 1));
       return value.startsWith('neq.') ? String(row[key]) !== v : String(row[key]) === v;
     });
-    if (table === 'leads') return [{ id: 'lead1', name: 'Test Customer', email: 'test@example.test', phone:'+61400000000', quote_ref: '7000' }].filter(matches);
+    if (table === 'leads') return [{ id: 'lead1', created_at: '2026-11-05T00:00:00Z', name: 'Test Customer', email: 'test@example.test', phone:'+61400000000', quote_ref: '7000' }].filter(matches);
     if (table === 'sent_emails') return [{ id:'quote1', lead_id:'lead1', quote_ref:'7000', kind:'quote', status:'sent' }].filter(matches);
     const rows = table === 'payment_requests' ? payments : comments;
     if (options.method === 'POST') {
@@ -91,7 +91,7 @@ test('reopening the form reuses an identical pending checkout', async () => {
   assert.equal(result.status,200);assert.equal(f.payments.length,1);assert.equal(f.sessions.size,1);assert.equal(f.comments.length,1);
 });
 test('booking fee confirmed in Stripe blocks another fee before webhook delivery', async () => {
-  const f=fixture(),body={...f.body,payment_type:'booking_fee'};await f.call(body);
+  const f=fixture(),body={...f.body,payment_type:'booking_fee',amount:'35',description:'Electrician call-out fee'};await f.call(body);
   const s=f.sessions.get(f.payments[0].stripe_session_id);s.payment_status='paid';s.status='complete';
   const result=await f.call({...body,request_key:'different-booking-request-key'});
   assert.equal(result.status,409);assert.equal(f.payments[0].status,'paid');assert.equal(f.sessions.size,1);
