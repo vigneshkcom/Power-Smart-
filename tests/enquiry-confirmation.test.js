@@ -20,7 +20,7 @@ test('confirmation email promises a call, asks three questions, and shows the ne
 function run(body, { failCustomer = false } = {}) {
   const sent = [], notes = [], orig = Module._load;
   Module._load = function (r, ...a) {
-    if (r === './_supabase') return { configured: () => true, async sb() { return [{ id: 'L1', name: 'Sarah', stage: 'new_lead' }]; } };
+    if (r === './_supabase') return { configured: () => true, async sb(q) { return String(q).startsWith('leads?or=') ? [] : [{ id: 'L1', name: 'Sarah', stage: 'new_lead' }]; } };
     if (r === './_welcome-sms') return { welcomeLead: async () => ({ status: 'skipped' }) };
     if (r === './_maillog') return { logEmail: async () => true };
     if (r === './_sms-outbound') return { logNote: async (id, who, text) => { notes.push(text); } };

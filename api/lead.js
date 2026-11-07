@@ -16,6 +16,22 @@ const { isBlocked } = require("./_blocked-numbers");
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// Phone forms a stored lead might use for the same mobile: 04xxxxxxxx, +614xxxxxxxx, 614xxxxxxxx and the raw entry.
+function phoneVariants(raw) {
+  const digits = String(raw || "").replace(/[^\d+]/g, "");
+  const set = new Set([digits]);
+  const local = digits.replace(/^\+?61/, "0");
+  if (/^0\d{9}$/.test(local)) { set.add(local); set.add("+61" + local.slice(1)); set.add("61" + local.slice(1)); }
+  return [...set].filter(Boolean);
+}
+// Most recently updated lead with the same email or phone, if any.
+async function findExistingLead({ email, phone }) {
+  const conds = phoneVariants(phone).map((p) => `phone.eq.${encodeURIComponent(p)}`);
+  if (email) conds.push(`email.eq.${encodeURIComponent(email.toLowerCase())}`);
+  if (!conds.length) return null;
+  const rows = await SB.sb(`leads?or=(${conds.join(",")})&select=id,name,phone,email,postcode,stage&order=updated_at.desc&limit=1`);
+  return rows && rows[0] || null;
+}
 function isValidEmail(v) {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
@@ -71,25 +87,39 @@ module.exports = async (req, res) => {
   const text = `New website lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via the landing page.`;
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
-  let savedLead = null;
+  let savedLead = null, repeat = false;
   if (SB.configured()) {
     try {
+      // Same phone or email already in the pipeline: update that lead instead of creating a duplicate.
+      const existing = await findExistingLead({ email, phone });
+      if (existing) {
+        repeat = true; savedLead = existing;
+        const patch = { updated_at: new Date().toISOString() };
+        if (!existing.email && email) patch.email = email.toLowerCase();
+        if (!existing.phone && phone) patch.phone = phone;
+        if (!existing.postcode && postcode) patch.postcode = postcode;
+        const reopened = ["not_interested", "not_reachable"].includes(existing.stage);
+        if (reopened) patch.stage = "new_lead";
+        await SB.sb(`leads?id=eq.${encodeURIComponent(existing.id)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
+        await Sms.logNote(existing.id, "System", `Repeat website enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened ? "; moved back to New Lead" : ""}.`).catch(() => {});
+      } else {
       const inserted = await SB.sb("leads", {
         method: "POST",
         body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source: "Website", stage: "new_lead" },
       });
       savedLead = inserted && inserted[0];
+      }
     } catch (e) { console.error("lead → pipeline insert failed:", e.message); }
   }
 
-  const welcomeSms = savedLead ? await welcomeLead(savedLead) : { status: 'skipped' };
+  const welcomeSms = savedLead && !repeat ? await welcomeLead(savedLead) : { status: 'skipped' };
 
   try {
     const { Resend } = require("resend");
     const resend = new Resend(apiKey);
 
     // Confirmation to the customer (only when they gave an email). Never blocks the team alert.
-    if (email) {
+    if (email && !repeat) {
       try {
         const mail = renderEnquiryConfirmation({ name });
         const { error: custError } = await resend.emails.send({
@@ -109,7 +139,7 @@ module.exports = async (req, res) => {
       from: process.env.RESEND_FROM_EMAIL || `PowerSmart Leads <${SUPPORT_EMAIL}>`,
       to: process.env.NOTIFY_EMAIL || SUPPORT_EMAIL,
       replyTo: email || (process.env.RESEND_REPLY_TO || SUPPORT_EMAIL),
-      subject: `New lead: ${name}${postcode ? " (" + postcode + ")" : ""}`,
+      subject: `${repeat ? "Repeat enquiry" : "New lead"}: ${name}${postcode ? " (" + postcode + ")" : ""}`,
       html,
       text,
     });
