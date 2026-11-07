@@ -35,7 +35,7 @@ test('existing or quote-sent leads do not receive a welcome',async()=>{
 });
 test('website lead is saved before welcome, and welcome failure does not fail the enquiry',async()=>{
   const events=[];const handler=load('lead.js',{
-    './_supabase':{configured:()=>true,async sb(q,o){events.push('saved');assert.equal(o.prefer,undefined);return [{id:'lead1',...o.body}];}},
+    './_supabase':{configured:()=>true,async sb(q,o){if(String(q).startsWith('leads?or='))return [];events.push('saved');assert.equal(o.prefer,undefined);return [{id:'lead1',...o.body}];}},
     './_welcome-sms':{async welcomeLead(lead){events.push('welcome');assert.equal(lead.stage,'new_lead');return {status:'failed',error:'Gateway unavailable'};}},
     resend:{Resend:class{constructor(){this.emails={send:async()=>{events.push('email');return {};}};}}},
   });
