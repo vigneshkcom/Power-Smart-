@@ -112,14 +112,15 @@ module.exports = async (req, res) => {
     } catch (e) { console.error("lead → pipeline insert failed:", e.message); }
   }
 
-  const welcomeSms = savedLead && !repeat ? await welcomeLead(savedLead) : { status: 'skipped' };
+  const welcomeSms = savedLead ? await welcomeLead(savedLead, new Date(), { repeat }) : { status: 'skipped' };
 
   try {
     const { Resend } = require("resend");
     const resend = new Resend(apiKey);
 
     // Confirmation to the customer (only when they gave an email). Never blocks the team alert.
-    if (email && !repeat) {
+    // A repeat enquiry gets the SMS above instead; the email goes out only if SMS is paused.
+    if (email && (!repeat || welcomeSms.paused)) {
       try {
         const mail = renderEnquiryConfirmation({ name });
         const { error: custError } = await resend.emails.send({

@@ -51,3 +51,10 @@ test('staff lead creation triggers welcome, while edits do not',async()=>{
   assert.equal((await call({action:'create',name:'Test',phone:'0400000000'})).welcome_sms.status,'submitted');assert.equal(calls.length,1);
   await call({action:'update',id:'lead1',name:'Changed'});assert.equal(calls.length,1);
 });
+
+test('repeat welcome uses the similar wording, its own dedupe pattern and works on any stage',async()=>{
+  const f=fixture(),r=await f.W.welcomeLead({...f.lead,stage:'quote_sent'},new Date('2026-10-23T11:00:00Z'),{repeat:true});
+  assert.equal(r.status,'submitted');assert.match(f.calls[0].message,/^Hi Anirudh,\n\nThanks for getting in touch with PowerSmart again about your smoke alarms! We've received your new enquiry/);
+  assert.match(f.calls[0].message,/Number of bedrooms/);assert.match(f.calls[0].key,/^welcome-repeat-/);assert.match(decodeURIComponent(f.queries[0]),/Thanks for getting in touch with PowerSmart again/);
+  assert.equal((await f.W.welcomeLead({...f.lead,stage:'quote_sent'})).status,'skipped');
+});
