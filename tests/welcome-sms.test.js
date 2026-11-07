@@ -10,12 +10,12 @@ function fixture({recent=[],failure=false}={}){
   return {W,calls,notes,queries,lead};
 }
 test('uses the exact approved welcome template and first name',()=>{
-  const {W}=fixture();assert.equal(W.welcomeMessage(' Anirudh Test '),'Hi Anirudh, thanks for getting in touch with PowerSmart about your smoke alarms. We’ve received your enquiry and look forward to helping you. Our team will be in touch within the next 24 hours.');assert.match(W.welcomeMessage(''),/^Hi there,/);
+  const {W}=fixture();assert.equal(W.welcomeMessage(' Anirudh Test '),require('../api/_welcome-sms.js') && fs.readFileSync(path.join(__dirname,'welcome-expected.txt'),'utf8').replace(/\n$/,'').replace('Hi Ryan','Hi Anirudh'));assert.match(W.welcomeMessage(''),/^Hi there,/);
 });
 test('new enquiries submit one welcome using a stable normalized-phone key',async()=>{
   const f=fixture(),now=new Date('2026-10-23T11:00:00Z'),r=await f.W.welcomeLead(f.lead,now);
   assert.equal(r.status,'submitted');assert.equal(f.calls.length,1);assert.equal(f.calls[0].author,'System');assert.equal(f.calls[0].key,'welcome-+61400000000-2026-10-23');
-  const q=decodeURIComponent(f.queries[0]);assert.match(q,/created_at=gte.2026-10-22T11:00:00.000Z/);assert.match(q,/message=like.Hi \*, thanks/);
+  const q=decodeURIComponent(f.queries[0]);assert.match(q,/created_at=gte.2026-10-22T11:00:00.000Z/);assert.match(q,/message=like.Hi \*,\n\nThanks for contacting PowerSmart/);
 });
 test('a recent welcome suppresses repeat submissions even if lead name changes',async()=>{
   const f=fixture({recent:[{status:'sent'}]}),r=await f.W.welcomeLead({...f.lead,name:'Different Name'});

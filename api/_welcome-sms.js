@@ -3,7 +3,26 @@ const Sms = require('./_sms-outbound');
 
 function welcomeMessage(name) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'there';
-  return `Hi ${first}, thanks for getting in touch with PowerSmart about your smoke alarms. We’ve received your enquiry and look forward to helping you. Our team will be in touch within the next 24 hours.`;
+  return `Hi ${first},
+
+Thanks for contacting PowerSmart regarding your smoke alarms! We've received your enquiry, and our team will be in touch within the next 24 hours.
+
+Prefer to communicate via SMS? No problem! Simply reply with:
+
+Number of bedrooms
+
+Number of levels (single or double-storey)
+
+Number of hallways
+
+If double-storey, which level the bedrooms are located on
+
+We'll use these details to prepare and send you a quote.
+
+Alternatively, let us know the best time to call, and we'll arrange a callback at a time that suits you.
+
+Kind regards,
+PowerSmart Team`;
 }
 
 // Runs only at lead creation. SMS failures must never reject a saved enquiry.
