@@ -279,6 +279,25 @@ test('completing needs a signature, and cash with a receipt photo counts as paid
   assert.equal(invoiceCalls.at(-1).method, 'cash');
 });
 
+test('part payment in cash is taken off the invoice and the balance goes on a pending invoice', async () => {
+  const t = setup();
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
+  const total = t.job('j1').invoice_items.reduce((n, i) => n + i.amount_cents, 0);
+  const args = { action: 'complete', id: 'j1', paid_in_full: false, method: 'cash', cash_cents: 2000, signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' };
+  assert.equal((await t.call(args)).code, 409, 'cash collected needs a receipt photo');
+  assert.equal((await t.call({ action: 'save', id: 'j1', pay_receipt: '/PowerSmart Jobs/J1001 - Kath/Receipts/receipts-1.jpg' })).code, 200);
+  assert.equal((await t.call({ ...args, cash_cents: total })).code, 400, 'cash equal to the amount due is paid in full, not a part payment');
+  const done = await t.call(args);
+  assert.equal(done.code, 200);
+  const j = t.job('j1');
+  assert.equal(j.pay_status, 'later');
+  assert.equal(j.amount_due_cents, total - 2000);
+  assert.equal(j.prior_paid_cents, 2000);
+  assert.equal(j.prior_pay_method, 'cash');
+  assert.equal(invoiceCalls.at(-1).paid, false, 'a pending invoice is sent');
+  assert.equal(invoiceCalls.at(-1).totals.due, total - 2000);
+});
+
 test('alarm records are saved one by one and validated', async () => {
   const t = setup();
   const ok = await t.call({ action: 'save', id: 'j1', alarm_units: [{ id: 'a', location: 'Hallway', type: 'battery', photo: '' }] });

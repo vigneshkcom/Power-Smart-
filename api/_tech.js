@@ -331,7 +331,7 @@ async function handler(req, res) {
       const items = current.invoice_items || [];
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
       const credits = [...(await prepaid(current.lead_id)), ...priorCredit(current)];
-      const t = totals(items, credits);
+      let t = totals(items, credits);
 
       const signoffName = clean(b.signoff_name, 80), signature = String(b.signature || "");
       if (!signoffName) throw fail(400, "Type your name to sign off the work.");
@@ -348,6 +348,21 @@ async function handler(req, res) {
         if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronize first.");
         f.pay_status = "paid"; f.pay_method = "cash"; f.paid_cents = t.due; f.paid_at = new Date().toISOString();
         payText = `Paid in full by cash: ${money(t.due)}. Receipt photo saved.`;
+      }
+      else if (b.method === "cash" && !paidInFull && Number.isSafeInteger(Number(b.cash_cents)) && Number(b.cash_cents) > 0) {
+        // Part payment in cash: the cash collected is taken off the invoice and the balance goes on a pending invoice.
+        const cash = Number(b.cash_cents);
+        if (cash >= t.due) throw fail(400, "The cash collected must be less than the amount due. If the customer paid in full, choose Yes.");
+        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronize first.");
+        const now = new Date().toISOString();
+        credits.push({ label: "Paid in cash", cents: cash });
+        t = totals(items, credits);
+        Object.assign(f, {
+          amount_due_cents: t.due, pay_status: "later",
+          prior_paid_cents: (current.prior_paid_cents || 0) + cash, prior_pay_method: "cash", prior_paid_by: tech.id || current.electrician_id || null,
+          prior_paid_at: now, prior_receipt: current.pay_receipt || current.prior_receipt || null,
+        });
+        payText = `Part paid in cash: ${money(cash)} collected, receipt photo saved. ${money(t.due)} owing. A pending invoice has been emailed.`;
       }
       else if (paidInFull) throw fail(409, "Choose how the customer paid: card or cash. For card, take the card payment first. For a bank transfer, choose No and the office confirms it once it arrives.");
       else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }

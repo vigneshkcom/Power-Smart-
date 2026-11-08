@@ -1109,7 +1109,7 @@
       (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
-        (j.approved_at ? '<br>Customer approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) : '') : '') +
+        (j.approved_at ? '<br>Invoice approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) : '') : '') +
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
     box.style.display = "";
   }
