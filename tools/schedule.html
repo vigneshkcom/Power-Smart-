@@ -1520,13 +1520,25 @@
   }, 60000);
 
   // ?lead=<id> opens a new job pre-filled from that pipeline lead
+  // ?at=<ISO time> jumps to that day; ?job=<id> also opens that job (used by the pipeline's View job / Go to date buttons)
   function afterFirstLoad(){
-    var leadId = new URLSearchParams(location.search).get("lead");
+    var qs = new URLSearchParams(location.search), leadId = qs.get("lead"), jobId = qs.get("job");
     if (leadId){
       history.replaceState(null, "", location.pathname);
       openNewJob({ leadId: leadId });
+    } else if (jobId){
+      history.replaceState(null, "", location.pathname);
+      var j = findJob(jobId);
+      if (j) openJob(j); else toast("That job isn't on this day. Find it on the schedule.");
     }
   }
+  (function jumpToDay(){
+    var at = new URLSearchParams(location.search).get("at");
+    if (!at) return;
+    var d = new Date(at);
+    if (!isNaN(d.getTime())){ state.start = startOfDay(bt(d)); if (state.view !== "day") state.view = "day"; }
+    if (!new URLSearchParams(location.search).get("job")) history.replaceState(null, "", location.pathname);
+  })();
 
   /* ---------- boot ---------- */
   if (!portalKey()){

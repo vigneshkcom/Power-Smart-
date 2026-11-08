@@ -81,7 +81,19 @@ module.exports = async (req, res) => {
           if (!cur || (t >= now && (Date.parse(cur) < now || t < Date.parse(cur))) || (t < now && Date.parse(cur) < now && t > Date.parse(cur))) nextJob[j.lead_id] = j.scheduled_start;
         });
       } catch (_) { /* schedule info is cosmetic — don't fail the board over it */ }
-      const out = (leads || []).map((l) => ({ ...l, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null, paid_total_cents: received[l.id] ? received[l.id].cents : 0, paid_methods: received[l.id] ? received[l.id].methods : [], scheduled_start: nextJob[l.id] || null }));
+      // Each lead's job (preferring a live visit, else the most recent one) so the board can link to it.
+      const leadJob = {};
+      try {
+        const rows = await sb("jobs?lead_id=not.is.null&status=neq.cancelled&select=id,lead_id,job_no,status,scheduled_start&order=scheduled_start.desc.nullslast&limit=5000");
+        const live = new Set(["scheduled", "en_route", "on_site"]), now = Date.now() - 12 * 3600 * 1000;
+        (rows || []).forEach((j) => {
+          const cur = leadJob[j.lead_id], t = j.scheduled_start ? Date.parse(j.scheduled_start) : 0;
+          const rank = (x, xt) => (live.has(x.status) ? (xt >= now ? 3 : 2) : 1);
+          if (!cur || rank(j, t) > rank(cur, cur._t) || (rank(j, t) === rank(cur, cur._t) && rank(j, t) === 3 && t < cur._t)) leadJob[j.lead_id] = { id: j.id, job_no: j.job_no, status: j.status, scheduled_start: j.scheduled_start, _t: t };
+        });
+        Object.values(leadJob).forEach((j) => { delete j._t; });
+      } catch (_) { /* job links are a convenience — don't fail the board over them */ }
+      const out = (leads || []).map((l) => ({ ...l, job: leadJob[l.id] || null, comment_count: counts[l.id] || 0, payment: latestPayments[l.id] || null, paid_total_cents: received[l.id] ? received[l.id].cents : 0, paid_methods: received[l.id] ? received[l.id].methods : [], scheduled_start: nextJob[l.id] || null }));
       return res.status(200).json({ leads: out, stages: STAGES });
     }
 

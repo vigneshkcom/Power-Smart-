@@ -72,6 +72,7 @@
   .fee-pill{display:inline-block;margin-left:.45rem;padding:.08rem .5rem;border-radius:999px;background:#e8f0fb;color:#235184;font-size:.72em;vertical-align:middle;white-space:nowrap}
   .cardk .foot{display:flex;align-items:center;gap:.55rem;border-top:1px solid var(--line);padding-top:.45rem}
   .chip.sched{background:#e8f0fb;color:#2a5f9e;border-color:#cfe0f5}
+  .jobrow{display:flex;gap:6px;margin:8px 0 2px}.jbtn{border:1px solid #cfe0f5;background:#e8f0fb;color:#2a5f9e;font:inherit;font-size:.7rem;font-weight:700;padding:.3rem .55rem;border-radius:8px;cursor:pointer}.jbtn:hover{background:#d8e7fa}
   .icb{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.7rem;font-weight:600;padding:.15rem .3rem;border-radius:6px;text-decoration:none}
   .icb:hover{background:var(--teal-soft);color:var(--teal-deep)}
   .cardk .age{margin-left:auto;font-size:.66rem;color:var(--muted)}
@@ -754,6 +755,9 @@
         else if (l.payment) chips += '<span class="chip quote">' + (l.payment.status === "paid" ? "Paid " : "Call-out fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
         else if (l.payment_preference === "phone" && l.stage !== "scheduled" && l.stage !== "won") chips += '<span class="chip quote">Payment call requested</span>';
         if (l.scheduled_start) chips += '<span class="chip sched" title="Scheduled visit">&#128197; ' + esc(fmtVisit(l.scheduled_start)) + '</span>';
+        var jobBtns = "";
+        if (l.job) jobBtns = '<div class="jobrow"><button type="button" class="jbtn view-job" title="Open this job in the job schedule">View job J' + esc(String(l.job.job_no)) + '</button>' +
+          (l.job.scheduled_start ? '<button type="button" class="jbtn go-date" title="Go to the scheduled date on the job schedule">&#128197; Go to date</button>' : '') + '</div>';
         var foot = "";
         if (l.phone) foot += '<a class="icb" href="tel:' + esc(l.phone) + '" onclick="event.stopPropagation()" title="Call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>';
         if (l.email) foot += '<button type="button" class="icb email-btn" title="Send branded email"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></button>';
@@ -762,7 +766,15 @@
         if (dest) foot += '<a class="icb" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Driving directions to ' + esc(dest) + '" aria-label="Driving directions"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></a>';
         foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
 
-        card.innerHTML = '<h3>' + esc(l.name) + '<span class="fee-pill" title="Electrician call-out fee">' + fmt$(calloutFeeForLead(l)) + '</span></h3><div class="meta">' + chips + '</div><div class="foot">' + foot + '</div>';
+        card.innerHTML = '<h3>' + esc(l.name) + '<span class="fee-pill" title="Electrician call-out fee">' + fmt$(calloutFeeForLead(l)) + '</span></h3><div class="meta">' + chips + '</div>' + jobBtns + '<div class="foot">' + foot + '</div>';
+        var vj = card.querySelector(".view-job"), gd = card.querySelector(".go-date");
+        function scheduleUrl(withJob){
+          var u = "https://portal.powersmartco.com.au/tools/schedule?";
+          if (l.job.scheduled_start) u += "at=" + encodeURIComponent(l.job.scheduled_start) + "&";
+          return u + (withJob ? "job=" + encodeURIComponent(l.job.id) : "");
+        }
+        if (vj) vj.addEventListener("click", function(e){ e.stopPropagation(); window.location.href = scheduleUrl(true); });
+        if (gd) gd.addEventListener("click", function(e){ e.stopPropagation(); window.location.href = scheduleUrl(false); });
         var emailBtn = card.querySelector(".email-btn");
         if (emailBtn) emailBtn.addEventListener("click", function(e){ e.stopPropagation(); openEmail(l.id); });
         card.addEventListener("click", function(){ openLead(l.id); });
