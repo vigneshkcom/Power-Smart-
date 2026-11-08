@@ -94,26 +94,35 @@ function carryPaymentFields(prev) {
   return f;
 }
 // Everything the previous electrician recorded, so the next one starts a brand-new job. Photos stay in Dropbox.
-function resetFields(prev) {
+function resetFields(prev, { clearPayments = false } = {}) {
   return {
     status: "scheduled", completed_at: null, tech_notes: null,
     invoice_items: null, invoice_total_cents: null, amount_due_cents: null, alarms_installed: null, alarm_type: null, alarm_units: null,
     approved_at: null, signoff_name: null, signoff_signature: null, signoff_at: null, invoice_emailed_at: null, certificate_sent_at: null,
     paid_invoice_emailed_at: null, work_reset_at: new Date().toISOString(),
-    ...carryPaymentFields(prev),
+    ...(clearPayments ? clearedPaymentFields() : carryPaymentFields(prev)),
   };
+}
+// Reverting to Assigned starts the job over completely: nothing received on the job carries forward.
+function clearedPaymentFields() {
+  return { pay_status: "unpaid", pay_session_id: null, paid_cents: null, paid_at: null, pay_method: null, pay_receipt: null,
+    prior_paid_cents: null, prior_pay_method: null, prior_paid_by: null, prior_paid_at: null, prior_receipt: null };
 }
 function hasWork(j) {
   return ["en_route", "on_site", "completed"].includes(j.status) || (j.invoice_items || []).length > 0 || (j.alarm_units || []).length > 0 ||
     Boolean(j.tech_notes) || j.pay_status === "paid" || j.pay_status === "later" || j.pay_status === "pending";
 }
-async function afterReset(job, prev, actor, f, what) {
+async function afterReset(job, prev, actor, f, what, wiped) {
   if (!job.lead_id) return;
   if (prev.status === "completed") {
     try {
       const others = await sb(`jobs?lead_id=eq.${encodeURIComponent(job.lead_id)}&status=eq.completed&id=neq.${encodeURIComponent(job.id)}&select=id&limit=1`);
       if (!others || !others.length) await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&stage=eq.won`, { method: "PATCH", body: { stage: "scheduled" }, prefer: "return=minimal" });
     } catch (e) { console.error("jobs → lead stage revert failed:", e.message); }
+  }
+  if (wiped) {
+    await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} ${what}: it starts over as a brand-new job. The electrician's work and payments recorded on the job were cleared${wiped.cleared ? ` ($${(wiped.cleared / 100).toFixed(2)}${wiped.method ? " " + String(wiped.method).replace("_", " ") : ""} had been recorded)` : ""}; photos were ${wiped.archived ? "moved to the job's Archived folder" : "kept"}.`);
+    return;
   }
   await leadNote(job.lead_id, actor, `↩ Job J${job.job_no} ${what}: the previous electrician's work was cleared so it starts fresh; payments and photos kept${f.prior_paid_cents ? ` ($${(f.prior_paid_cents / 100).toFixed(2)} received stays as credit)` : ""}.`);
 }
@@ -382,18 +391,24 @@ module.exports = async (req, res) => {
     }
 
     // Back to Assigned: wipe the electrician's work (alarms, invoice, notes, sign-off) so another electrician can
-    // start fresh. Payments received and Dropbox photos are kept.
+    // start fresh. Payments recorded on the job are cleared too and the Dropbox photos move to an Archived folder.
     if (b.action === "job_revert") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });
       const prevRows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
       const prev = prevRows && prevRows[0];
       if (!prev) return res.status(404).json({ error: "Job not found" });
-      const f = resetFields(prev);
+      const f = resetFields(prev, { clearPayments: true });
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: f });
       const job = rows && rows[0];
-      if (job) await afterReset(job, prev, actor, f, "reverted to Assigned");
-      return res.status(200).json({ ok: true, job });
+      let archived = 0;
+      if (job) {
+        try { const Dropbox = require("./_dropbox"); if (Dropbox.configured()) archived = await Dropbox.archivePhotos(prev); }
+        catch (e) { console.error("jobs → archive photos failed:", e.message); }
+        const cleared = (prev.paid_cents || 0) + (prev.prior_paid_cents || 0);
+        await afterReset(job, prev, actor, { prior_paid_cents: 0 }, "reverted to Assigned", { archived, cleared, method: prev.pay_method || prev.prior_pay_method });
+      }
+      return res.status(200).json({ ok: true, job, photos_archived: archived });
     }
 
     // Office records the balance of a completed job (pay-later invoice) as received. Full payment releases the certificate.

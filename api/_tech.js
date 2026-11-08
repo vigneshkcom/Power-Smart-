@@ -234,7 +234,10 @@ async function handler(req, res) {
       const Dropbox = require("./_dropbox");
       if (!Dropbox.configured()) return res.status(200).json({ configured: false, photos: [] });
       const own = await ownJob(tech, b.id);
-      if (b.action === "photos") return res.status(200).json({ configured: true, ...(await Dropbox.photosForJob(own)) });
+      if (b.action === "photos") {
+        const got = await Dropbox.photosForJob(own);
+        return res.status(200).json({ configured: true, ...got, photos: (got.photos || []).filter((p) => p.category !== "Archived") });   // old photos of a restarted job stay with the office
+      }
       if (b.action === "photo_link") {
         const folder = await Dropbox.findJobFolder(own);
         return res.status(200).json({ link: await Dropbox.temporaryLink(Dropbox.assertInside(folder, b.path)) });

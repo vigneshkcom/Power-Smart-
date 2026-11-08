@@ -136,9 +136,23 @@ async function photosForJob(job) {
   return { folder, folder_url: "https://www.dropbox.com/home" + encodeURI(folder), photos };
 }
 
+// Moves the job's photo folders (Before/After/Alarms/Receipts/Other) into "Archived/<date time>" inside the job folder,
+// so a job started over has a clean photo set while the old photos are kept. Returns how many folders were moved.
+async function archivePhotos(job) {
+  const folder = await findJobFolder(job);
+  if (!folder) return 0;
+  const entries = (await listAll(folder, false)) || [];
+  const names = new Set(Object.values(CATEGORIES));
+  const subs = entries.filter((e) => e[".tag"] === "folder" && names.has(e.name));
+  if (!subs.length) return 0;
+  const stamp = new Date(Date.now() + 10 * 3600 * 1000).toISOString().replace("T", " ").slice(0, 16).replace(":", "-");   // Brisbane time
+  for (const sub of subs) await rpc("files/move_v2", { from_path: sub.path_display, to_path: `${folder}/Archived/${stamp}/${sub.name}`, autorename: true });
+  return subs.length;
+}
+
 async function temporaryLink(path) {
   const res = await rpc("files/get_temporary_link", { path });
   return res.link;
 }
 
-module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, temporaryLink, assertInside };
+module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside };

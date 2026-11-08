@@ -304,3 +304,20 @@ test('recording a part payment lowers the amount owing and keeps the job pending
   await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_record_payment', id: 'j1', amount: '0', method: 'cash' } }, r);
   assert.equal(r.code, 400, 'amount must be positive');
 });
+
+test('reverting a job to assigned starts it over: work and payments are cleared', async () => {
+  const f = fixture({ id: 'j1', job_no: 1026, lead_id: 'lead1', status: 'completed', pay_status: 'paid', pay_method: 'cash', paid_cents: 7900, pay_receipt: '/PowerSmart Jobs/J1026/Receipts/r.jpg',
+    prior_paid_cents: 5000, prior_pay_method: 'cash', prior_receipt: '/x.jpg', invoice_items: [{ code: 'alarm', qty: 1, amount_cents: 7900 }], alarm_units: [{ id: 'a' }], approved_at: '2026-11-08T01:00:00Z', electrician_id: 't1' });
+  const r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_revert', id: 'j1', actor: 'Sunny' } }, r);
+  assert.equal(r.code, 200);
+  const j = r.body.job;
+  assert.equal(j.status, 'scheduled');
+  assert.equal(j.pay_status, 'unpaid');
+  assert.equal(j.paid_cents, null);
+  assert.equal(j.prior_paid_cents, null, 'no earlier payment is carried over as credit');
+  assert.equal(j.pay_receipt, null);
+  assert.equal(j.invoice_items, null);
+  assert.equal(j.approved_at, null);
+  assert.equal(j.electrician_id, 't1', 'it stays assigned');
+});
