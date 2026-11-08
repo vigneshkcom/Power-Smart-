@@ -3,42 +3,64 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync(require.resolve('../tools/schedule.html'), 'utf8');
-function fixture(compute) {
-  const elements = {};
-  const $ = id => elements[id] ||= {innerHTML:'', classList:{add(){},remove(){}}};
-  const calls = [], marker = {}, polyline = {setMap(map){this.map=map;}};
-  const route = {distanceMeters:12500,durationMillis:3900000,viewport:{},legs:[{durationMillis:600000,distanceMeters:38300,steps:[{instructions:'Turn left <unsafe>',distanceMeters:250}]}],
-    createWaypointAdvancedMarkers:async()=>[marker], createPolylines:()=>[polyline]};
-  const google = {maps:{Map:class {fitBounds(){}},importLibrary:async()=>({Route:{computeRoutes:async request=>{calls.push(request);return compute ? compute(route) : {routes:[route]};}}})}};
-  const context = {google,window:{google},$,state:{techs:[],jobs:[3,1,2].map(n=>({electrician_id:'tech',scheduled_start:`2026-11-05T0${n}:00:00Z`,address:'Stop '+n,job_no:n}))},
-    mapsQuery:j=>j.address,addressLine:j=>j.address,timeText:()=>'',esc:s=>String(s).replaceAll('<','&lt;'),toast(){}};
+
+// openRoute() hands the driving route to the small /tools/route popup window (the route is drawn there).
+function fixture({ popupBlocked = false, jobs } = {}) {
+  const opened = [], toasts = [], focused = [];
+  const win = popupBlocked ? null : { focus() { focused.push(true); } };
+  const context = {
+    window: { open: (...a) => { opened.push(a); return win; }, screenX: 0, screenY: 0, outerWidth: 1400, outerHeight: 900 },
+    state: {
+      techs: [{ id: 'tech', name: 'Jake Turner' }],
+      jobs: jobs || [3, 1, 2].map(n => ({ electrician_id: 'tech', status: 'scheduled', scheduled_start: `2026-11-05T0${n}:00:00Z`, address: 'Stop ' + n, job_no: n })),
+    },
+    mapsQuery: j => (j.address ? j.address + ', QLD, Australia' : ''),
+    toast: m => toasts.push(m),
+  };
   vm.createContext(context);
-  vm.runInContext(html.slice(html.indexOf('  var mapsLoading,'), html.indexOf('  /* ---------- job modal')), context);
-  return {context,elements,calls,marker,polyline};
+  vm.runInContext(html.slice(html.indexOf('  function openRoute('), html.indexOf('  /* ---------- job modal')), context);
+  return { context, opened, toasts, focused };
 }
-const settle = () => new Promise(resolve=>setImmediate(resolve));
-test('route uses enabled Routes API in schedule order and displays directions, pins and totals', async()=>{
-  const f=fixture(); f.context.openRoute('tech'); await settle();
-  assert.equal(f.calls[0].origin,'Stop 1'); assert.equal(f.calls[0].destination,'Stop 3');
-  assert.equal(f.calls[0].intermediates[0].location,'Stop 2');
-  assert.equal(f.calls[0].travelMode,'DRIVING'); assert.equal(f.calls[0].optimizeWaypointOrder,false);
-  assert.ok(f.calls[0].fields.includes('legs'));
-  assert.ok(f.calls[0].fields.every(field=>!field.startsWith('legs.')), 'Maps JavaScript accepts the legs field, not nested leg field masks');
-  assert.match(f.elements['route-stops'].innerHTML,/A<\/b><strong>J1.*Driving time: 10 mins · 38.3 km.*B<\/b><strong>J2/);
-  assert.equal(f.elements['route-panel'].innerHTML,'');
-  assert.equal(f.elements['route-sum'].hidden,true);
-  assert.ok(f.marker.map); assert.ok(f.polyline.map);
-  f.context.closeRoute(); assert.equal(f.marker.map,null); assert.equal(f.polyline.map,null);
+const payloadOf = url => JSON.parse(decodeURIComponent(url.split('?d=')[1]));
+
+test('route opens the popup with the electrician\'s stops in schedule order', () => {
+  const f = fixture();
+  f.context.openRoute('tech');
+  assert.equal(f.opened.length, 1);
+  const [url, name, features] = f.opened[0];
+  assert.match(url, /^\/tools\/route\?d=/);
+  assert.equal(name, 'ps_route');
+  assert.match(features, /popup=yes,width=520,height=760/);
+  const payload = payloadOf(url);
+  assert.equal(payload.title, 'Driving route · Jake Turner');
+  assert.deepEqual(payload.stops.map(s => s.label), ['J1', 'J2', 'J3']);
+  assert.deepEqual(payload.stops.map(s => s.q), ['Stop 1, QLD, Australia', 'Stop 2, QLD, Australia', 'Stop 3, QLD, Australia']);
+  assert.equal(f.focused.length, 1, 'popup is focused');
 });
-test('closing popup ignores a late route response', async()=>{
-  let finish; const f=fixture(route=>new Promise(resolve=>{finish=()=>resolve({routes:[route]});}));
-  f.context.openRoute('tech'); await settle(); f.context.closeRoute(); finish(); await settle();
-  assert.equal(f.elements['route-sum'].hidden,true); assert.equal(f.marker.map,undefined);
+
+test('cancelled jobs, other electricians\' jobs and jobs without an address are left out', () => {
+  const base = { electrician_id: 'tech', status: 'scheduled', scheduled_start: '2026-11-05T01:00:00Z' };
+  const f = fixture({ jobs: [
+    { ...base, address: 'Keep', job_no: 1 },
+    { ...base, address: 'Cancelled', job_no: 2, status: 'cancelled' },
+    { ...base, address: 'Someone else', job_no: 3, electrician_id: 'other' },
+    { ...base, address: '', job_no: 4 },
+  ] });
+  f.context.openRoute('tech');
+  assert.deepEqual(payloadOf(f.opened[0][0]).stops.map(s => s.label), ['J1']);
 });
-test('no route and API errors provide the Google Maps fallback', async()=>{
-  for(const compute of [()=>({routes:[]}),()=>{throw new Error('Denied');}]){
-    const f=fixture(compute); f.context.openRoute('tech'); await settle();
-    assert.match(f.elements['route-panel'].innerHTML,/Open in Google Maps/);
-    assert.equal(f.elements['route-sum'].hidden,true);
-  }
+
+test('no stops shows a message and opens nothing', () => {
+  const f = fixture({ jobs: [] });
+  f.context.openRoute('tech');
+  assert.equal(f.opened.length, 0);
+  assert.match(f.toasts[0], /No jobs with addresses/);
+});
+
+test('a blocked popup falls back to a normal tab', () => {
+  const f = fixture({ popupBlocked: true });
+  f.context.openRoute('tech');
+  assert.equal(f.opened.length, 2);
+  assert.equal(f.opened[1][1], '_blank');
+  assert.equal(f.opened[1][0], f.opened[0][0]);
 });
