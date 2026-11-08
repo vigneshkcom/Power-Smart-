@@ -382,6 +382,7 @@
         <button class="del" id="jm-delete">Delete job</button>
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="jm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
+        <button class="btn btn-ghost" id="jm-recordpay" style="display:none" title="Record a payment received so far (a part payment keeps the rest pending)">Record payment</button>
         <button class="btn btn-ghost" id="jm-markpaid" style="display:none" title="Record that the balance owing on this completed job has been received. This sends the compliance certificate.">Mark paid in full</button>
         <button class="btn btn-ghost" id="jm-sendcert" style="display:none">Send certificate</button>
         <button class="btn btn-ghost" id="jm-revert" title="Clear the electrician's work (alarms, invoice, notes, sign-off). Payments and photos are kept.">Revert to assigned</button>
@@ -1061,7 +1062,7 @@
     updateConfirmUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
-    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
+    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
     $("jm-report").style.display = "none";
@@ -1108,6 +1109,7 @@
       (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
       (items.length ? '<br>Invoice <b>' + money(j.invoice_total_cents) + '</b>: ' + esc(items.map(function(i){ return i.qty + " × " + i.label; }).join(", ")) +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
+        (j.prior_paid_cents > 0 ? " · received so far " + money(j.prior_paid_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
         (j.approved_at ? '<br>Invoice approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) : '') : '') +
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
@@ -1181,6 +1183,7 @@
     $("jm-revert").style.display = j.status === "cancelled" ? "none" : "";
     $("jm-invoice").style.display = j.status === "completed" ? "" : "none";
     $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
+    $("jm-recordpay").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none");
     $("jm-sendcert").style.display = certReady ? "" : "none";
     $("jm-sendcert").textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate";
@@ -1261,6 +1264,25 @@
   $("jm-invoice").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
     window.open("/invoice?token=" + encodeURIComponent(j.id), "_blank", "noopener");
+  });
+  $("jm-recordpay").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    var owing = (j.amount_due_cents || 0) / 100;
+    var amt = (prompt("J" + j.job_no + " owes $" + owing.toFixed(2) + ".\nHow much has the customer paid? (e.g. 290)", owing.toFixed(2)) || "").trim().replace(/[$,]/g, "");
+    if (!amt) return;
+    var n = Number(amt);
+    if (!(n > 0)) { toast("Enter an amount, for example 290.00"); return; }
+    if (n > owing + 0.001) { toast("That is more than the $" + owing.toFixed(2) + " owing"); return; }
+    var m = (prompt("How was the $" + n.toFixed(2) + " received?\nType: bank transfer, cash or card", "bank transfer") || "").trim().toLowerCase().replace(" ", "_");
+    if (!m) return;
+    if (["bank_transfer", "cash", "card"].indexOf(m) < 0){ toast("Type bank transfer, cash or card"); return; }
+    var rest = owing - n;
+    if (!confirm("Record $" + n.toFixed(2) + " received for J" + j.job_no + "?\n\n" + (rest > 0.001 ? "$" + rest.toFixed(2) + " will stay pending." : "This clears the balance: the paid tax invoice and compliance certificate will be emailed to " + (j.email || "the customer") + " now."))) return;
+    jobsApi({ action:"job_record_payment", id: j.id, amount: n.toFixed(2), method: m }).then(function(r){
+      closeJob();
+      toast(r.paid_in_full ? "Paid in full. Tax invoice and certificate emailed." : "Payment recorded. $" + (r.owing_cents / 100).toFixed(2) + " still owing.");
+      return reload();
+    }).catch(function(err){ toast(err.message); });
   });
   $("jm-markpaid").addEventListener("click", function(){
     var j = state.editing; if (!j) return;

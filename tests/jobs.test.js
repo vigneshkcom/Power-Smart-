@@ -287,3 +287,20 @@ test('changing only the time, or assigning a fresh job, does not wipe anything',
   await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', electrician_id: 't2' } }, r);
   assert.equal(r.body.job.work_reset_at, undefined);
 });
+
+test('recording a part payment lowers the amount owing and keeps the job pending', async () => {
+  const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', status: 'completed', pay_status: 'later', amount_due_cents: 48000, prior_paid_cents: 0 });
+  let r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_record_payment', id: 'j1', amount: '290.00', method: 'bank_transfer', actor: 'Sunny' } }, r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.paid_in_full, false);
+  assert.equal(r.body.job.pay_status, 'later');
+  assert.equal(r.body.job.amount_due_cents, 19000);
+  assert.equal(r.body.job.prior_paid_cents, 29000);
+  r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_record_payment', id: 'j1', amount: '500', method: 'cash' } }, r);
+  assert.equal(r.code, 400, 'cannot record more than is owing');
+  r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_record_payment', id: 'j1', amount: '0', method: 'cash' } }, r);
+  assert.equal(r.code, 400, 'amount must be positive');
+});

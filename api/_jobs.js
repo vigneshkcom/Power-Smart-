@@ -412,6 +412,38 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, job, invoice, certificate });
     }
 
+    // Record a payment (part or all) against the balance owing on a completed job. A part payment lowers the
+    // amount owing and keeps the job pending; paying the rest marks it paid and releases the certificate.
+    if (b.action === "job_record_payment") {
+      const id = clean(b.id, 40);
+      const method = String(b.method || "");
+      if (!["bank_transfer", "cash", "card"].includes(method)) return res.status(400).json({ error: "Choose how the payment was received" });
+      const cents = Math.round(Number(b.amount) * 100);
+      if (!Number.isSafeInteger(cents) || cents <= 0) return res.status(400).json({ error: "Enter the amount received, for example 290.00" });
+      const prev = (await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`))?.[0];
+      if (!prev) return res.status(404).json({ error: "Job not found" });
+      if (prev.status !== "completed" || prev.pay_status !== "later") return res.status(409).json({ error: "Payments can only be recorded on a completed job with an invoice owing." });
+      const owing = prev.amount_due_cents || 0;
+      if (cents > owing) return res.status(400).json({ error: `That is more than the $${(owing / 100).toFixed(2)} owing.` });
+      const money = (c) => `$${(c / 100).toFixed(2)}`;
+      const now = new Date().toISOString();
+      if (cents === owing) {
+        const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&pay_status=eq.later&amount_due_cents=eq.${owing}`, { method: "PATCH", body: { pay_status: "paid", pay_method: method, paid_cents: cents, paid_at: now } });
+        const job = rows && rows[0];
+        if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+        await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} final payment of ${money(cents)} received (${method.replace("_", " ")}). Paid in full.`, "payment");
+        const { invoice, certificate } = await require("./_after-payment").releaseAfterPayment(job.id, { agent: actor });
+        return res.status(200).json({ ok: true, job, invoice, certificate, paid_in_full: true });
+      }
+      const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&pay_status=eq.later&amount_due_cents=eq.${owing}`, { method: "PATCH", body: {
+        amount_due_cents: owing - cents, prior_paid_cents: (prev.prior_paid_cents || 0) + cents,
+        prior_pay_method: method, prior_paid_at: now, prior_paid_by: prev.prior_paid_by || prev.electrician_id || null } });
+      const job = rows && rows[0];
+      if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+      await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} part payment of ${money(cents)} received (${method.replace("_", " ")}). ${money(owing - cents)} still owing.`, "payment");
+      return res.status(200).json({ ok: true, job, owing_cents: owing - cents, paid_in_full: false });
+    }
+
     // (Re)send the compliance certificate PDF for a completed, fully paid job.
     if (b.action === "certificate_send") {
       const id = clean(b.id, 40);
