@@ -72,6 +72,7 @@
   .fee-pill{display:inline-block;margin-left:.45rem;padding:.08rem .5rem;border-radius:999px;background:#e8f0fb;color:#235184;font-size:.72em;vertical-align:middle;white-space:nowrap}
   .cardk .foot{display:flex;align-items:center;gap:.55rem;border-top:1px solid var(--line);padding-top:.45rem}
   .chip.sched{background:#e8f0fb;color:#2a5f9e;border-color:#cfe0f5}
+  .chk{display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.85rem;margin-top:.4rem;cursor:pointer}.chk input{width:18px;height:18px;margin:0}
   .jobrow{display:flex;gap:6px;margin:8px 0 2px}.jbtn{border:1px solid #cfe0f5;background:#e8f0fb;color:#2a5f9e;font:inherit;font-size:.7rem;font-weight:700;padding:.3rem .55rem;border-radius:8px;cursor:pointer}.jbtn:hover{background:#d8e7fa}
   .icb{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.7rem;font-weight:600;padding:.15rem .3rem;border-radius:6px;text-decoration:none}
   .icb:hover{background:var(--teal-soft);color:var(--teal-deep)}
@@ -324,6 +325,9 @@
           <div class="field"><label>Source</label><input id="lm-source" placeholder="Website / Facebook / Google…"></div>
           <div class="field"><label>Stage</label><select id="lm-stage"></select></div>
           <div class="field"><label>Agent</label><input id="lm-agent" readonly></div>
+          <div class="field full" id="lm-send-row"><label>When you save</label>
+            <label class="chk"><input type="checkbox" id="lm-send-sms" checked> Send the welcome SMS</label>
+            <label class="chk"><input type="checkbox" id="lm-send-email" checked> Send the enquiry confirmation email</label></div>
           <div class="section-label">Installation address</div>
           <div class="field full" id="lm-addr-find"></div>
           <div class="field full addr-card">
@@ -828,7 +832,7 @@
     var l = leads.find(function(x){ return x.id === id; });
     if (!l) return;
     loadReminders(id);
-    $("lm-addr2").style.display = "";
+    $("lm-addr2").style.display = ""; $("lm-send-row").style.display = "none";
     $("lm-title").textContent = l.name;
     $("lm-name").value = l.name || "";
     $("lm-phone").value = l.phone || "";
@@ -956,6 +960,7 @@
   function openNewLead(){
     currentId = null; anotherAddressOf = null;
     $("lm-addr2").style.display = "none";
+    $("lm-send-row").style.display = ""; $("lm-send-sms").checked = true; $("lm-send-email").checked = true;
     $("lm-reminders").hidden=true;
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
@@ -980,6 +985,7 @@
     if (!l) return;
     openNewLead();
     anotherAddressOf = { id: l.id, name: l.name };
+    $("lm-send-sms").checked = false; $("lm-send-email").checked = false;
     $("lm-title").textContent = "Add another address · " + l.name;
     $("lm-name").value = l.name || ""; $("lm-phone").value = l.phone || ""; $("lm-email").value = l.email || "";
     $("lm-source").value = l.source || "Phone"; $("lm-agent").value = currentAgent();
@@ -1015,7 +1021,7 @@
         if (l && l.stage !== stage) return api("POST", { action:"move", id:currentId, stage:stage });
       });
     } else {
-      var extra = anotherAddressOf ? { skip_welcome: true } : {};
+      var extra = { send_sms: $("lm-send-sms").checked && !anotherAddressOf, send_email: $("lm-send-email").checked && !anotherAddressOf };
       p = api("POST", Object.assign({ action:"create", stage: stageSel.value }, fields, extra)).then(function(d){
         if (anotherAddressOf && d && d.lead && d.lead.id) return api("POST", { action:"comment", lead_id:d.lead.id, author:currentAgent(), kind:"note", body:"Another address for " + anotherAddressOf.name + " (separate quote and payments)." }).catch(function(){}).then(function(){ return d; });
         return d;
@@ -1027,6 +1033,10 @@
         if(d.welcome_sms.warning || d.welcome_sms.error)welcomeNotice=" Welcome SMS issue: "+(d.welcome_sms.warning || d.welcome_sms.error);
         else if(d.welcome_sms.status === "submitted")welcomeNotice=" Welcome SMS submitted.";
         else if(d.welcome_sms.duplicate)welcomeNotice=" Welcome SMS was already submitted recently.";
+      }
+      if(d && d.confirmation_email){
+        if(d.confirmation_email.status === "sent")welcomeNotice+=" Confirmation email sent.";
+        else if(d.confirmation_email.status === "failed")welcomeNotice+=" Confirmation email failed: "+d.confirmation_email.error;
       }
       closeModal();return load();
     })

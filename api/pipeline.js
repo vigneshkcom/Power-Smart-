@@ -126,8 +126,28 @@ module.exports = async (req, res) => {
         },
       });
       const lead = rows && rows[0];
-      const welcomeSms = b.skip_welcome === true ? { status: 'skipped' } : await welcomeLead(lead);
-      return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms });
+      // The staff form has tick boxes for each message; callers that don't send them keep the old behaviour (SMS yes, email no).
+      const sendSms = b.skip_welcome !== true && b.send_sms !== false;
+      const welcomeSms = sendSms ? await welcomeLead(lead) : { status: 'skipped' };
+      let confirmationEmail = { status: 'skipped' };
+      if (b.send_email === true && lead && lead.email) {
+        try {
+          if (!process.env.RESEND_API_KEY) throw new Error("Email service is not configured (missing RESEND_API_KEY)");
+          const { Resend } = require("resend"), S = require("./_senders"), { logEmail } = require("./_maillog");
+          const mail = require("./_enquiry-confirmation").renderEnquiryConfirmation({ name: lead.name });
+          const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
+            from: S.fromHeader("customer_service"), to: lead.email,
+            replyTo: "support@powersmartco.com.au", subject: mail.subject, html: mail.html, text: mail.text,
+          });
+          if (error) throw new Error(error.message || "Email provider rejected the request");
+          await logEmail({ kind: "email", sender: "customer_service", agent: clean(b.agent, 120) || "Team", to_email: lead.email, to_name: lead.name, subject: mail.subject, body_html: mail.html, body_text: mail.text, lead_id: lead.id, status: "sent" }).catch(() => {});
+          confirmationEmail = { status: 'sent' };
+        } catch (e) {
+          console.error("pipeline → confirmation email failed:", e.message);
+          confirmationEmail = { status: 'failed', error: e.message };
+        }
+      }
+      return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms, confirmation_email: confirmationEmail });
     }
 
     if (action === "move") {
