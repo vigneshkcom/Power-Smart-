@@ -198,7 +198,7 @@ async function jobDetail(job) {
   let items = job.invoice_items || [];
   if (job.status !== "completed" && !hasUnits) items = items.filter((i) => !ALARM_CODES.includes(i.code));
   return {
-    job, quote, credits, items, booking_fee_cents: bookingFee, totals: totals(items, credits),
+    job, quote, credits, items, booking_fee_cents: bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
     alarm_codes: ALARM_CODES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
   };
 }
@@ -365,6 +365,7 @@ async function handler(req, res) {
         payText = `Part paid in cash: ${money(cash)} collected, receipt photo saved. ${money(t.due)} owing. A pending invoice has been emailed.`;
       }
       else if (paidInFull) throw fail(409, "Choose how the customer paid: card or cash. For card, take the card payment first. For a bank transfer, choose No and the office confirms it once it arrives.");
+      else if (b.method === "bank_transfer") { f.pay_status = "later"; payText = `Bank transfer: ${money(t.due)} owing. A pending invoice with the bank details has been emailed; the compliance certificate follows once the payment is received.`; }
       else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }
 
       const done = await patchJob(current.id, f);

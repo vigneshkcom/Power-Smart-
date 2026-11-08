@@ -77,7 +77,7 @@ function setup() {
   });
   const Stripe = fakeStripe();
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; } } };
+  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '27-010-3472' } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
@@ -296,6 +296,18 @@ test('part payment in cash is taken off the invoice and the balance goes on a pe
   assert.equal(j.prior_pay_method, 'cash');
   assert.equal(invoiceCalls.at(-1).paid, false, 'a pending invoice is sent');
   assert.equal(invoiceCalls.at(-1).totals.due, total - 2000);
+});
+
+test('bank transfer sends a pending invoice and holds the compliance certificate until payment', async () => {
+  const t = setup();
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
+  const detail = await t.call({ action: 'job', id: 'j1' });
+  assert.equal(detail.data.bank.bsb.length > 0, true, 'bank details are returned for the app to show');
+  const done = await t.call({ action: 'complete', id: 'j1', paid_in_full: false, method: 'bank_transfer', signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' });
+  assert.equal(done.code, 200);
+  assert.equal(t.job('j1').pay_status, 'later');
+  assert.equal(invoiceCalls.at(-1).paid, false);
+  assert.equal(done.data.certificate.status, 'skipped', 'no certificate until the payment is received');
 });
 
 test('alarm records are saved one by one and validated', async () => {

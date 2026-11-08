@@ -551,7 +551,7 @@
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
     var missing = dirty || syncing ? "Tap Synchronize first. The job can't be completed until it is synchronized." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
-      !completeState.payReady ? (!pay.method ? "Choose credit card or cash." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
+      !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing;
   }
@@ -717,12 +717,16 @@
       else if (cardPaid) html += '<div class="ok-banner">Paid ' + money(j.paid_cents || due) + ' by card</div>';
       else {
         html += '<div class="q">How is the customer paying?</div><div class="seg" data-seg="method">' +
-          [["card", "Credit card"], ["cash", "Cash"]].map(function(m){
+          [["card", "Credit card"], ["cash", "Cash"], ["bank_transfer", "Bank transfer"]].map(function(m){
             return '<button data-v="' + m[0] + '" class="' + (pay.method === m[0] ? "on" : "") + '">' + m[1] + '</button>'; }).join("") + '</div>';
         if (pay.method === "card"){
           html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">Take card payment ' + money(due) + '</button>' +
             (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
             '<p class="muted">Opens the secure Stripe page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
+        } else if (pay.method === "bank_transfer"){
+          var bk = cur.bank || {};
+          html += '<div class="stack" style="margin-top:10px"><div class="draft" style="line-height:1.8">Account name: <strong>' + esc(bk.name || "") + '</strong><br>BSB: <strong>' + esc(bk.bsb || "") + '</strong><br>Account number: <strong>' + esc(bk.account || "") + '</strong><br>Reference: <strong>J' + esc(String(j.job_no)) + '</strong><br>Amount: <strong>' + money(due) + '</strong></div>' +
+            '<p class="muted">Show the customer these details. Completing the job emails them a pending invoice with the same details and a Pay by card link. The compliance certificate is only sent once the payment is received (automatically if they pay by card, or when the office confirms the bank transfer).</p></div>';
         } else if (pay.method === "cash"){
           html += '<div class="q">Has the customer paid in full?</div>' +
             '<div class="seg" data-seg="full"><button data-v="yes" class="' + (pay.full === true ? "on" : "") + '">Yes</button><button data-v="no" class="' + (pay.full === false ? "on" : "") + '">No</button></div>';
@@ -750,7 +754,7 @@
 
     // 4. work sign off
     var haveRc = !!(pay.receiptKey || j.pay_receipt), cashOk = pay.method === "cash" && ((pay.full === true && haveRc) || (pay.full === false && cashCents() >= 0 && cashCents() < due && (cashCents() === 0 || haveRc)));
-    var payReady = due <= 0 || paid || cashOk;
+    var payReady = due <= 0 || paid || cashOk || pay.method === "bank_transfer";
     html += '<div class="card"><h2><span class="n">4</span>Work sign off</h2>' +
       '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronized.</p>' +
         '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronizing…" : "Open work sign off") + '</button></div>' +
@@ -837,7 +841,7 @@
     if (t.id === "so-clear"){ sigData = null; persistDraft(); keepScroll(renderJob); return; }
     if (t.closest("[data-sync]")){ syncJob().catch(function(){}); return; }
     if (t.id === "complete"){
-      if (!confirm(pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
+      if (!confirm(pay.method === "bank_transfer" ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + " with the bank transfer details?" : pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
       t.disabled = true; t.textContent = "Completing…";
       Promise.resolve().then(function(){ if (dirty) throw new Error("Synchronize first"); return call("complete", { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method, cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
         var inv = d.invoice || {};
