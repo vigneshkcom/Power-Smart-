@@ -517,8 +517,7 @@
       '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>Hardwired</option></select></div>' +
       '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" capture="environment" hidden' + (d.busy ? " disabled" : "") + '></label>' +
-        '<label class="btn btn-ghost" style="min-height:46px;margin:0">Choose from library<input id="d-file-lib" type="file" accept="image/*" hidden' + (d.busy ? " disabled" : "") + '></label></div></div>' +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" capture="environment" hidden' + (d.busy ? " disabled" : "") + '></label></div></div>' +
       '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
   }
   // Alarm invoice lines always follow the alarms recorded one by one.
@@ -858,7 +857,7 @@
         return queuePhoto("receipt", data, null).then(function(rec){ if (oldKey) dropPhoto(oldKey); pay.receiptKey = rec.key; markDirty(); });
       }).catch(function(err){ toast(err.message); }).then(function(){ keepScroll(renderJob); });
     }
-    if ((id === "d-file" || id === "d-file-lib") && e.target.files.length){
+    if (id === "d-file" && e.target.files.length){
       var file = e.target.files[0]; draft.busy = true; keepScroll(renderJob);
       var old = draft.photoKey;
       shrink(file).then(function(data){
