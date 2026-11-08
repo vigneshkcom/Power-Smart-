@@ -758,7 +758,7 @@
       '<div class="field"><label for="so-name">Electrician name</label><input id="so-name" value="' + esc(soName || (me && me.name) || "") + '" autocomplete="off"></div>' +
       '<div class="field" style="margin-top:10px"><label>Signature</label><canvas id="so-sig" width="600" height="180"></canvas>' +
       '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
-      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm the work is complete.</label>' +
+      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm that the installed smoke alarms are compliant and the work is complete.</label>' +
       '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice") + '</button>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
       '<p class="muted" id="so-hint" style="margin-top:8px"></p></div></div>';
