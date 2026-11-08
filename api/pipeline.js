@@ -126,7 +126,7 @@ module.exports = async (req, res) => {
         },
       });
       const lead = rows && rows[0];
-      const welcomeSms = await welcomeLead(lead);
+      const welcomeSms = b.skip_welcome === true ? { status: 'skipped' } : await welcomeLead(lead);
       return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms });
     }
 

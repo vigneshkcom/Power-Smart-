@@ -365,6 +365,7 @@
           <button class="btn btn-ghost" id="lm-quote" title="Build and email a smoke alarm quote to this customer">Send quote</button>
           <button class="btn btn-ghost" id="lm-email" title="Send a branded email to this customer">Send email</button>
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
+          <button class="btn btn-ghost" id="lm-addr2" title="Add a separate lead and quote for this customer at a different address (payments stay apart)">Add another address</button>
           <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
           <details class="menu"><summary class="btn btn-ghost">Quote &amp; payment</summary><div class="menu-pop">
             <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for this customer's electrician call-out fee">Send call-out fee</button>
@@ -827,6 +828,7 @@
     var l = leads.find(function(x){ return x.id === id; });
     if (!l) return;
     loadReminders(id);
+    $("lm-addr2").style.display = "";
     $("lm-title").textContent = l.name;
     $("lm-name").value = l.name || "";
     $("lm-phone").value = l.phone || "";
@@ -952,7 +954,8 @@
   });
 
   function openNewLead(){
-    currentId = null;
+    currentId = null; anotherAddressOf = null;
+    $("lm-addr2").style.display = "none";
     $("lm-reminders").hidden=true;
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
@@ -970,7 +973,20 @@
     $("lm-name").focus();
   }
 
-  function closeModal(){ $("lead-overlay").classList.remove("show"); currentId = null; }
+  // "Add another address": a new, separate lead (own quote and payments) for an existing customer, name/phone/email copied.
+  var anotherAddressOf = null;
+  function openAnotherAddress(){
+    var l = leads.find(function(x){ return x.id === currentId; });
+    if (!l) return;
+    openNewLead();
+    anotherAddressOf = { id: l.id, name: l.name };
+    $("lm-title").textContent = "Add another address · " + l.name;
+    $("lm-name").value = l.name || ""; $("lm-phone").value = l.phone || ""; $("lm-email").value = l.email || "";
+    $("lm-source").value = l.source || "Phone"; $("lm-agent").value = currentAgent();
+    var f = $("lm-addr-find") && $("lm-addr-find").querySelector("input"); if (f) f.focus();
+    toast("Enter the new address, then Save. Then send a quote from the new lead.");
+  }
+  function closeModal(){ $("lead-overlay").classList.remove("show"); currentId = null; anotherAddressOf = null; }
   $("lm-close").addEventListener("click", closeModal);
   $("lm-cancel").addEventListener("click", closeModal);
   $("lead-overlay").addEventListener("click", function(e){ if (e.target === this) closeModal(); });
@@ -999,7 +1015,11 @@
         if (l && l.stage !== stage) return api("POST", { action:"move", id:currentId, stage:stage });
       });
     } else {
-      p = api("POST", Object.assign({ action:"create", stage: stageSel.value }, fields));
+      var extra = anotherAddressOf ? { skip_welcome: true } : {};
+      p = api("POST", Object.assign({ action:"create", stage: stageSel.value }, fields, extra)).then(function(d){
+        if (anotherAddressOf && d && d.lead && d.lead.id) return api("POST", { action:"comment", lead_id:d.lead.id, author:currentAgent(), kind:"note", body:"Another address for " + anotherAddressOf.name + " (separate quote and payments)." }).catch(function(){}).then(function(){ return d; });
+        return d;
+      });
     }
     var wasExisting = Boolean(currentId), welcomeNotice = "";
     p.then(function(d){
@@ -1288,6 +1308,7 @@
   }
   function closeSms(){$("sms-overlay").classList.remove("show");smsLeadId=null;smsPhone="";}
   $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
+  $("lm-addr2").addEventListener("click", function(){ if (currentId) openAnotherAddress(); });
   $("lm-job").addEventListener("click", function(){ if (currentId) window.location.href = "https://portal.powersmartco.com.au/tools/schedule?lead=" + encodeURIComponent(currentId); });
   $("sms-close").addEventListener("click",closeSms);$("sms-cancel").addEventListener("click",closeSms);$("sms-overlay").addEventListener("click",function(e){if(e.target===this)closeSms();});
   $("sms-message").addEventListener("input",updateSmsCount);
