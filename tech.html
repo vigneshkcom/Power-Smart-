@@ -84,16 +84,22 @@
   .daynav button{width:44px;height:44px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:1.1rem;font-weight:800;color:var(--teal-deep)}
   .daynav .lbl{flex:1;text-align:center;font-weight:800}
   .daynav .lbl small{display:block;font-size:.72rem;color:var(--muted);font-weight:600}
-  .jcard{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-left:6px solid var(--teal);border-radius:16px;padding:14px;margin-bottom:10px}
-  .jcard .top{display:flex;justify-content:space-between;align-items:center;font-size:.8rem;font-weight:700;color:var(--body)}
-  .jcard .name{font-size:1.02rem;font-weight:800;margin:4px 0 2px}
-  .jcard .addr{font-size:.85rem;color:var(--body)}
-  .jcard .meta{font-size:.75rem;color:var(--muted);margin-top:6px}
-  .chip{display:inline-block;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep)}
-  .st-en_route{border-left-color:#4F86E8}.chip.st-en_route{background:#E4EDFC;color:#2B5DB8}
-  .st-on_site{border-left-color:#8B68D6}.chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
-  .st-partial{border-left-color:#F2B01E}.chip.st-partial{background:#FDF1CF;color:#8A6200}
-  .st-completed{border-left-color:#E39A55}.chip.st-completed{background:#FBEBDC;color:#9A5A1C}
+  .jcard{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(11,27,31,.06);cursor:pointer}
+  .jcard:active{background:#F6FAFA}
+  .jcard .jtop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .jcard .jtime{font-size:1.1rem;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+  .jcard .jsub{font-size:.74rem;font-weight:700;color:var(--muted);margin-top:2px}
+  .jcard .name{font-size:1.05rem;font-weight:800;margin:12px 0 4px}
+  .jcard .addr{display:flex;gap:6px;align-items:flex-start;font-size:.88rem;color:var(--body);line-height:1.35}
+  .jcard .addr svg{flex:none;margin-top:2px;color:var(--teal-deep)}
+  .jcard .jact{display:flex;gap:8px;margin-top:14px}
+  .jcard .jbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:46px;border-radius:12px;font:inherit;font-size:.9rem;font-weight:800;text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .jcard .jbtn.nav{background:var(--ink);border-color:var(--ink);color:#fff;flex:1.4}
+  .chip{display:inline-block;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);white-space:nowrap}
+  .chip.st-en_route{background:#E4EDFC;color:#2B5DB8}
+  .chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
+  .chip.st-partial{background:#FDF1CF;color:#8A6200}
+  .chip.st-completed{background:#FBEBDC;color:#9A5A1C}
   .empty{text-align:center;padding:40px 10px;color:var(--muted)}
   .next{display:block;width:100%;text-align:left;background:var(--teal-soft);border-radius:14px;padding:12px 14px;margin-top:-20px;font-size:.88rem;color:var(--teal-deep)}
   .next b{display:block;color:var(--ink);font-size:.98rem}
@@ -302,18 +308,30 @@
       $("jobs").innerHTML = jobs.length ? jobs.map(function(j){
         var s = new Date(j.scheduled_start), e = new Date(+s + (j.duration_min || 60) * 6e4);
         var sk = statusKey(j);
-        return '<button class="jcard st-' + esc(sk) + '" data-job="' + esc(j.id) + '">' +
-          '<div class="top"><span>' + timeLabel(s) + ' – ' + timeLabel(e) + ' · J' + esc(j.job_no) + '</span><span class="chip st-' + esc(sk) + '">' + esc(STATUS[sk] || sk) + '</span></div>' +
+        var full = [j.address, j.suburb, j.postcode].filter(Boolean).join(", "), tel = j.phone ? String(j.phone).replace(/[^\d+]/g, "") : "";
+        var pin = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+        var navIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4.5 20.3 12 17l7.5 3.3z"/></svg>';
+        return '<div class="jcard" role="button" tabindex="0" data-job="' + esc(j.id) + '">' +
+          '<div class="jtop"><div class="jtime">' + timeLabel(s) + ' – ' + timeLabel(e) + '</div><span class="chip st-' + esc(sk) + '">' + esc(STATUS[sk] || sk) + '</span></div>' +
+          '<div class="jsub">J' + esc(j.job_no) + (TYPES[j.work_type] ? " · " + esc(TYPES[j.work_type]) : "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div>' +
           '<div class="name">' + esc(j.customer_name) + '</div>' +
-          '<div class="addr">' + esc([j.address, j.suburb, j.postcode].filter(Boolean).join(", ") || "No address") + '</div>' +
-          '<div class="meta">' + esc(TYPES[j.work_type] || "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div></button>';
+          '<div class="addr">' + pin + '<span>' + esc(full || "No address") + '</span></div>' +
+          ((full || tel) ? '<div class="jact">' +
+            (full ? '<a class="jbtn nav" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(full + ", QLD, Australia") + '">' + navIcon + ' Navigate</a>' : '') +
+            (tel ? '<a class="jbtn" href="tel:' + esc(tel) + '">Call</a>' : '') + '</div>' : '') +
+          '</div>';
       }).join("") : '<div class="empty">No jobs booked for this day.</div><div id="next-job"></div>';
       if (!jobs.length) showNextJob();
     }).catch(function(e){ $("jobs").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
   $("jobs").addEventListener("click", function(e){
     var n = e.target.closest("[data-goto]"); if (n){ day = startOfDay(new Date(n.dataset.goto)); loadList(); return; }
+    if (e.target.closest("a")) return;   // Navigate / Call open their own app
     var b = e.target.closest("[data-job]"); if (b) openJob(b.dataset.job);
+  });
+  $("jobs").addEventListener("keydown", function(e){
+    if (e.key !== "Enter" && e.key !== " ") return;
+    var b = e.target.closest("[data-job]"); if (b && e.target === b){ e.preventDefault(); openJob(b.dataset.job); }
   });
   // Empty day: point to the next booked job (next 90 days).
   function showNextJob(){
