@@ -94,7 +94,7 @@
   .jcard .addr svg{flex:none;margin-top:2px;color:var(--teal-deep)}
   .jcard .jact{display:flex;gap:8px;margin-top:14px}
   .jcard .jbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:46px;border-radius:12px;font:inherit;font-size:.9rem;font-weight:800;text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--ink)}
-  .jcard .jbtn.nav{background:var(--ink);border-color:var(--ink);color:#fff;flex:1.4}
+  .jcard .jbtn.nav{background:var(--teal);border-color:var(--teal);color:var(--ink);flex:1.4}
   .chip{display:inline-block;font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);white-space:nowrap}
   .chip.st-en_route{background:#E4EDFC;color:#2B5DB8}
   .chip.st-on_site{background:#EEE8FA;color:#5E3FA8}
@@ -183,7 +183,7 @@
     <div class="row" style="margin-bottom:12px">
       <button class="btn btn-ghost" id="cal-btn" aria-expanded="false">Calendar</button>
       <button class="btn btn-ghost" id="d-today">Today</button>
-      <button class="btn btn-dark" id="d-route" title="Driving route for the day, from where you are now"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4.5 20.3 12 17l7.5 3.3z"/></svg>Route</button>
+      <button class="btn btn-primary" id="d-route" title="Driving route for the day, from where you are now"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4.5 20.3 12 17l7.5 3.3z"/></svg>Route</button>
     </div>
     <div class="card cal" id="cal" hidden>
       <div class="cal-head"><button id="cal-prev" aria-label="Previous month">‹</button><b id="cal-title"></b><button id="cal-next" aria-label="Next month">›</button></div>
@@ -680,7 +680,7 @@
       '<div class="muted" style="margin:-6px 0 12px">' + (j.scheduled_start ? s.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + " · " + timeLabel(s) : "") +
         " · " + esc(TYPES[j.work_type] || "") + (cur.quote ? " · Quote " + esc(cur.quote.ref) : "") + '</div>' +
       '<div class="row">' +
-        (addr ? '<a class="btn btn-dark" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr + ", QLD, Australia") + '">Navigate</a>' : '') +
+        (addr ? '<a class="btn btn-primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr + ", QLD, Australia") + '">Navigate</a>' : '') +
         (j.phone ? '<a class="btn btn-ghost" href="tel:' + esc(j.phone.replace(/[^\d+]/g, "")) + '">Call</a>' : '') +
       '</div>' + (j.notes ? '<div class="notes"><b>Office notes</b>\n' + esc(j.notes) + '</div>' : '') + '</div>';
 
