@@ -512,7 +512,7 @@
         <div class="qbox" id="q-sum"></div>
 
         <div class="fgrid" style="margin-top:.9rem">
-          <div class="field"><label>To</label><input id="q-to" type="email"></div>
+          <div class="field"><label>To <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)">(email, optional if they have a mobile)</span></label><input id="q-to" type="email"></div>
           <div class="field"><label>Send as</label>
             <select id="q-sendas">
               <option value="customer_service">Customer Service</option>
@@ -1525,7 +1525,7 @@
   $("q-send").addEventListener("click", function(){
     var l = leads.find(function(x){ return x.id === quoteLeadId; });
     var to = $("q-to").value.trim();
-    if (!to){ toast("Enter the customer's email address"); $("q-to").focus(); return; }
+    if (!to && !(l && l.phone)){ toast("Enter an email address, or add a mobile number to the customer first"); $("q-to").focus(); return; }
     var c = quoteCalc();
     if (quoteMode === "install" && c.alarms < 1){ toast("Enter the property details first. The quote needs at least 1 alarm."); $("q-bed").focus(); return; }
     var addr = $("q-addr-wrap").style.display === "none" ? null : {
@@ -1539,7 +1539,7 @@
       method: "POST",
       headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
       body: JSON.stringify({
-        customerEmail: to, customerName: l ? l.name : "", agentName: currentAgent(),
+        customerEmail: to, customerPhone: (!to && l && l.phone) ? l.phone : undefined, customerName: l ? l.name : "", agentName: currentAgent(),
         sendAs: $("q-sendas").value, serviceMode: quoteMode,
         alarmQty: quoteMode === "install" ? c.alarms : 0, controllerQty: quoteMode === "install" ? c.ctrl : 0,
         leadId: quoteLeadId
@@ -1550,7 +1550,7 @@
       }); })
       .then(function(d){
         closeQuote();
-        toast("Quote " + d.ref + " emailed to " + to + (d.sms && d.sms.status === "submitted" ? ". " + (d.sms.warning || "Quote SMS submitted.") : ". SMS issue: " + (d.sms && d.sms.error || "SMS was not sent.")));
+        toast("Quote " + d.ref + (to ? " emailed to " + to : " texted to the customer (no email address)") + (d.sms && d.sms.status === "submitted" ? ". " + (d.sms.warning || "Quote SMS submitted.") : ". SMS issue: " + (d.sms && d.sms.error || "SMS was not sent.")));
         return load();   // card moves to Quote Sent with its quote ref
       })
       .catch(function(err){ toast("Couldn't send: " + err.message); })

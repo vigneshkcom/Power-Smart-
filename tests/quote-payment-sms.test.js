@@ -57,13 +57,13 @@ function quoteFixture({emailFails=false,smsFails=false,saveFails=false,phone='04
     if(query.startsWith('leads?')){if(opts.method==='PATCH')Object.assign(lead,opts.body);return [lead];}
     if(query==='leads')return [lead];return [];
   }};
-  const Sms={smsEnabled:()=>true,cleanPhone:v=>v||'',async sendLeadSms(args){smsCalls.push(args);if(smsFails)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({lead_id:id,author,body});}};
+  const Sms={smsEnabled:()=>true,cleanPhone:v=>{const d=String(v||'').replace(/\D/g,'');return /^04\d{8}$/.test(d)?'+61'+d.slice(1):(v||'');},async sendLeadSms(args){smsCalls.push(args);if(smsFails)throw Error('Customer opted out');return {status:'submitted'};},async logNote(id,author,body){notes.push({lead_id:id,author,body});}};
   const Q=load('_quote.js',{}),S={resolveSender:()=>({key:'sunny'}),fromHeader:()=> 'PowerSmart <support@powersmartco.com.au>'};
   class Resend {
     constructor(){this.emails={send:async args=>{emails.push(args);return emailFails?{error:{message:'Rejected'}}:{data:{id:'email-id'}};}};}
   }
   const handler=load('send-quote.js',{'./_quote':Q,'./_supabase':SB,'./_senders':S,'./_sms-outbound':Sms,'./_maillog':{async logEmail(row){logs.push(row);return !saveFails;}},resend:{Resend}});
-  async function call(headers={'x-portal-key':'2026'}){let status=200,data;await handler({method:'POST',headers,body:{leadId:'lead1',customerName:lead.name,customerEmail:lead.email,agentName:'Sunny',alarmQty:4,controllerQty:0}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
+  async function call(headers={'x-portal-key':'2026'},extra={}){let status=200,data;await handler({method:'POST',headers,body:{leadId:'lead1',customerName:lead.name,customerEmail:lead.email,agentName:'Sunny',alarmQty:4,controllerQty:0,...extra}}, {setHeader(){},status(n){status=n;return this;},json(d){data=d;return this;}});return {status,data};}
   return {call,smsCalls,logs,emails,notes};
 }
 test('successful quote email triggers a text with the exact saved full quote URL',async()=>{
@@ -96,4 +96,16 @@ test('short payment link redirects only to a valid Stripe host and does not reop
   const token='8abe9f5b-2495-4ee3-b521-0364df34db00';assert.equal((await publicCall(handler,token)).status,302);
   row.status='paid';assert.match((await publicCall(handler,token)).body,/already been received/);
   row.status='expired';assert.equal((await publicCall(handler,token)).status,410);
+});
+
+test('staff can send a quote with no email address: only the text goes, and it does not mention an email',async()=>{
+  const f=quoteFixture(),r=await f.call({'x-portal-key':'2026'},{customerEmail:''});
+  assert.equal(r.status,200);assert.equal(r.data.emailed,false);assert.equal(f.emails.length,0,'no email is sent');
+  assert.equal(f.smsCalls.length,1);assert.doesNotMatch(f.smsCalls[0].message,/emailed/);assert(f.smsCalls[0].message.includes('View your quote here: '+r.data.quote_url));
+  assert.equal(f.logs[0].to_email,'');assert(f.notes.some(n=>/sent by SMS \(no email address\)/.test(n.body||'')));
+});
+test('a quote with no email and no mobile number is refused, and so is any no-email request without staff access',async()=>{
+  const f=quoteFixture({phone:''}),r=await f.call({'x-portal-key':'2026'},{customerEmail:''});
+  assert.equal(r.status,400);assert.match(r.data.error,/email address or a mobile number/);assert.equal(f.smsCalls.length,0);
+  const g=quoteFixture(),u=await g.call({},{customerEmail:''});assert.equal(u.status,400);assert.match(u.data.error,/valid customer email/);
 });
