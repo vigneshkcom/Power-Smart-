@@ -44,11 +44,7 @@ test('a failed quote text throws with the reason so the staff see it', async () 
   assert.equal(f.rows[0].status, 'failed');
 });
 
-test('the SIM slot is only sent when SMSGATE_SIM_NUMBER is set', async () => {
-  const none = fixture(); await none.send();
-  assert.equal(none.posts[0].simNumber, undefined);
-  const two = fixture({ env: { SMSGATE_SIM_NUMBER: '2' } }); await two.send();
-  assert.equal(two.posts[0].simNumber, 2);
-  const junk = fixture({ env: { SMSGATE_SIM_NUMBER: 'abc' } }); await junk.send();
-  assert.equal(junk.posts[0].simNumber, undefined);
+test('no SIM slot is ever sent: the phone uses its only SIM', async () => {
+  const f = fixture(); await f.send();
+  assert.equal(f.posts[0].simNumber, undefined);
 });

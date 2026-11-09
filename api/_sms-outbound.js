@@ -4,8 +4,6 @@ const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
 // SMS is PAUSED (the gateway phone/SIM is being replaced). Everything goes by email instead.
 // To switch SMS back on: set SMS_ENABLED=true in Vercel (and update the SMSGATE_* variables for the new number).
 const SMS_PAUSED_MESSAGE = 'SMS is paused for now, so this was sent by email only.';
-// Optional: which SIM the gateway phone sends from (SMSGATE_SIM_NUMBER = 1 or 2 in Vercel). Unset = the phone's default SIM.
-function simField() { const n = parseInt(process.env.SMSGATE_SIM_NUMBER, 10); return n >= 1 && n <= 3 ? { simNumber: n } : {}; }
 // What the gateway says happened to a message: Pending/Processed (the phone has not sent it yet), Sent, Delivered, Failed.
 const STATE_MAP = { pending: 'queued', processed: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed' };
 async function gatewayState(id) {
@@ -60,7 +58,7 @@ async function sendLeadSms({ lead, message, key, author }) {
     response = await fetch('https://api.sms-gate.app/3rdparty/v1/messages', {
       method:'POST', signal:controller.signal,
       headers:{Authorization:'Basic '+Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64'),'Content-Type':'application/json'},
-      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},ttl:3600,...simField(),...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
+      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},ttl:3600,...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
     });
   } catch(e) {
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'unknown'},prefer:'return=minimal'});

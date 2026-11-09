@@ -283,7 +283,7 @@ module.exports = async (req, res) => {
       const msgId = require('crypto').randomUUID();
       const response = await gateway('/messages', {
         method: 'POST', headers: headers(),
-        body: JSON.stringify({ id: msgId, phoneNumbers: [phone], textMessage: { text: message }, ttl: 3600, ...(parseInt(process.env.SMSGATE_SIM_NUMBER, 10) >= 1 && parseInt(process.env.SMSGATE_SIM_NUMBER, 10) <= 3 ? { simNumber: parseInt(process.env.SMSGATE_SIM_NUMBER, 10) } : {}), ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
+        body: JSON.stringify({ id: msgId, phoneNumbers: [phone], textMessage: { text: message }, ttl: 3600, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
       });
       const result = await readGatewayResponse(response);
       if (!response.ok) return res.status(502).json(gatewayError(response.status, result));
