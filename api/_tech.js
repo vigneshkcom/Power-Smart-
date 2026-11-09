@@ -348,7 +348,7 @@ async function handler(req, res) {
       if (t.due <= 0) { f.pay_status = "none"; payText = "Nothing to pay on site."; }
       else if (current.pay_status === "paid") { f.pay_status = "paid"; f.pay_method = current.pay_method || "card"; payText = `Paid in full by ${METHOD_LABEL[f.pay_method] || "card"}: ${money(current.paid_cents || t.due)}.`; }
       else if (paidInFull && b.method === "cash") {
-        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronize first.");
+        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronise first.");
         f.pay_status = "paid"; f.pay_method = "cash"; f.paid_cents = t.due; f.paid_at = new Date().toISOString();
         payText = `Paid in full by cash: ${money(t.due)}. Receipt photo saved.`;
       }
@@ -356,7 +356,7 @@ async function handler(req, res) {
         // Part payment in cash: the cash collected is taken off the invoice and the balance goes on a pending invoice.
         const cash = Number(b.cash_cents);
         if (cash >= t.due) throw fail(400, "The cash collected must be less than the amount due. If the customer paid in full, choose Yes.");
-        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronize first.");
+        if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronise first.");
         const now = new Date().toISOString();
         credits.push({ label: "Paid in cash", cents: cash });
         t = totals(items, credits);

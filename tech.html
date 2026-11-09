@@ -164,7 +164,7 @@
   .jsync.dirty{background:var(--amber);color:var(--ink)}
   .jsync.busy{background:rgba(255,255,255,.14);color:#fff;opacity:.85}
   .jsteps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-  .jstep{display:flex;flex-direction:column;gap:6px;font-size:.68rem;font-weight:700;color:rgba(255,255,255,.62)}
+  .jstep{background:none;border:0;text-align:left;cursor:pointer;padding:4px 0 2px;display:flex;flex-direction:column;gap:6px;font-size:.68rem;font-weight:700;color:rgba(255,255,255,.62)}
   .jstep i{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.25)}
   .jstep.done{color:#B8F0D2}.jstep.done i{background:#4ADE80}
   .jstep.now{color:#fff}.jstep.now i{background:var(--teal-bright)}
@@ -197,6 +197,8 @@
   .sig-hint{position:absolute;left:0;right:0;bottom:22px;text-align:center;color:var(--muted);font-size:.85rem;font-weight:600;pointer-events:none}
   .sig-hint[hidden]{display:none}
   .sig-actions{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px}
+  .card[id^=sec-]{scroll-margin-top:128px}
+  .jstep:focus-visible,.jsync:focus-visible{outline:2px solid #fff;outline-offset:2px}
 </style>
 </head>
 <body>
@@ -246,7 +248,7 @@
       <div class="jbar-top">
         <button class="back" id="j-back" aria-label="Back to jobs"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <h1 id="j-title">Job</h1>
-        <button class="jsync ok" id="j-sync" type="button" title="Synchronize this job with the office"><span class="dot"></span><span id="j-sync-txt">Synced</span></button>
+        <button class="jsync ok" id="j-sync" type="button" title="Synchronise this job with the office"><span class="dot"></span><span id="j-sync-txt">Synchronise</span></button>
         <span class="chip" id="j-chip"></span>
       </div>
       <div class="jsteps" id="j-steps"></div>
@@ -277,7 +279,7 @@
   var API = "/api/pipeline?resource=tech";
   var LS = "powersmart_tech";
   var $ = function(id){ return document.getElementById(id); };
-  // Open jobs with synchronized alarms or invoice lines show as Partial (same rule as the office schedule).
+  // Open jobs with synchronised alarms or invoice lines show as Partial (same rule as the office schedule).
   function statusKey(j){
     if (j.status === "completed" || j.status === "cancelled") return j.status;
     return (Array.isArray(j.alarm_units) && j.alarm_units.length) || (Array.isArray(j.invoice_items) && j.invoice_items.length) ? "partial" : j.status;
@@ -482,13 +484,13 @@
         var restored = restoreDraft();
         renderJob();
         if (offline) toast("No signal: showing the last saved copy of this job");
-        else if (restored) toast("Restored your unsynchronized changes");
+        else if (restored) toast("Restored your unsynchronised changes");
         if (!offline) loadPhotos();
         if (after) after();
       });
     }).catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
-  $("j-back").addEventListener("click", function(){ if (dirty) toast("Your changes are stored on this phone. Synchronize when you have signal."); loadList(); });
+  $("j-back").addEventListener("click", function(){ if (dirty) toast("Your changes are stored on this phone. Synchronise when you have signal."); loadList(); });
 
   function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
   function isAlarm(code){ return cur.alarm_codes.indexOf(code) >= 0; }
@@ -497,7 +499,7 @@
     return locked ? '<b>× ' + q + '</b>' : '<div class="step" data-code="' + esc(code) + '"><button data-d="-1" aria-label="Less">−</button><span>' + q + '</span><button data-d="1" aria-label="More">+</button></div>';
   }
 
-  /* ---------- local-first storage: nothing is sent until the electrician taps Synchronize ---------- */
+  /* ---------- local-first storage: nothing is sent until the electrician taps Synchronise ---------- */
   var DRAFT_PREFIX = "psdraft_", CACHE_PREFIX = "pscache_", dirty = false, syncing = false, localRecs = [];
   function draftKey(){ return DRAFT_PREFIX + cur.job.id; }
   function persistDraft(){
@@ -505,7 +507,7 @@
     try {
       localStorage.setItem(draftKey(), JSON.stringify({ dirty: dirty, units: unitList(), items: wireItems(), notes: cur.job.tech_notes || "", approved_at: cur.job.approved_at || null,
         pay: pay, soName: soName, soOk: soOk, sigData: sigData, resetAt: cur.job.work_reset_at || null, at: Date.now() }));
-    } catch(e){ toast("This phone is out of storage space. Synchronize now."); }
+    } catch(e){ toast("This phone is out of storage space. Synchronise now."); }
   }
   function markDirty(){ dirty = true; persistDraft(); renderSyncBar(); }
   function restoreDraft(){
@@ -525,7 +527,7 @@
   }
   function clearDraft(id){ try { localStorage.removeItem(DRAFT_PREFIX + id); localStorage.removeItem(CACHE_PREFIX + id); } catch(e){} }
 
-  // Photos wait in IndexedDB on the phone (too big for localStorage) until they are synchronized.
+  // Photos wait in IndexedDB on the phone (too big for localStorage) until they are synchronised.
   var idbP = null;
   function idb(){
     if (!idbP) idbP = new Promise(function(resolve, reject){
@@ -549,24 +551,24 @@
   function dropPhoto(key){ localRecs = localRecs.filter(function(r){ return r.key !== key; }); return idbDel(key).catch(function(){}); }
 
   function syncBarHtml(){
-    if (syncing) return '<div class="sync warn"><span>⏳ Synchronizing…</span></div>';
-    if (dirty) return '<div class="sync warn"><span>Not synchronized. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronize</button></div>';
+    if (syncing) return '<div class="sync warn"><span>⏳ Synchronising…</span></div>';
+    if (dirty) return '<div class="sync warn"><span>Not synchronised. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronise</button></div>';
     return "";
   }
   function renderSyncBar(){
     renderHeaderSync();
     var el = $("sync-bar"); if (el) el.innerHTML = syncBarHtml();
-    var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : "";
+    var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronise</button>' : "";
     var lock = $("so-lock"), form = $("so-form");
     if (lock && form){
       lock.hidden = !(dirty || syncing); form.hidden = dirty || syncing;
-      var ob = $("so-open"); if (ob){ ob.disabled = syncing; ob.textContent = syncing ? "Synchronizing…" : "Open work sign off"; }
+      var ob = $("so-open"); if (ob){ ob.disabled = syncing; ob.textContent = syncing ? "Synchronising…" : "Open work sign off"; }
     }
     updateComplete();
   }
   // Uploads queued photos, then saves the whole job in one go. On any failure everything stays on the phone.
   function syncJob(){
-    if (syncing) return Promise.reject(new Error("Already synchronizing"));
+    if (syncing) return Promise.reject(new Error("Already synchronising"));
     syncing = true; renderSyncBar();
     var id = cur.job.id, receiptPath = null;
     return idbForJob(id).then(function(recs){
@@ -587,10 +589,10 @@
     }).then(function(d){
       cur = d; dirty = false; if (receiptPath) delete pay.receiptKey; persistDraft();
       try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){}
-      syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronized");
+      syncing = false; delete photoCache[id]; keepScroll(renderJob); loadPhotos(); toast("Synchronised");
     }).catch(function(err){
       syncing = false; persistDraft(); renderSyncBar();
-      toast("Couldn't synchronize: " + err.message + ". Your work is safe on this phone. Try again with signal.");
+      toast("Couldn't synchronise: " + err.message + ". Your work is safe on this phone. Try again with signal.");
       throw err;
     });
   }
@@ -673,7 +675,7 @@
   function updateComplete(){
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = dirty || syncing ? "Tap Synchronize first. The job can't be completed until it is synchronized." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = dirty || syncing ? "Tap Synchronise first. The job can't be completed until it is synchronised." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
@@ -687,16 +689,23 @@
       !!(completeState && completeState.alarms), (cur.items || []).length > 0 || unitList().length > 0, !!cur.job.approved_at, !!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))
     ];
     var now = flags.indexOf(false);
+    var keys = ["alarms", "invoice", "approval", "signoff"];
     box.innerHTML = ["Alarms", "Invoice", "Approval", "Sign off"].map(function(n, i){
-      return '<div class="jstep' + (flags[i] ? " done" : i === now ? " now" : "") + '"><i></i>' + n + '</div>';
+      return '<button type="button" class="jstep' + (flags[i] ? " done" : i === now ? " now" : "") + '" data-sec="' + keys[i] + '" aria-label="Go to ' + n + '"><i></i>' + n + '</button>';
     }).join("");
   }
+  // Tapping a step in the header scrolls to that section.
+  $("j-steps").addEventListener("click", function(e){
+    var b = e.target.closest("[data-sec]"); if (!b) return;
+    var el = $("sec-" + b.dataset.sec); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   // The Sync button next to the status in the header.
   function renderHeaderSync(){
     var b = $("j-sync"); if (!b) return;
     b.className = "jsync " + (syncing ? "busy" : dirty ? "dirty" : "ok");
     b.disabled = syncing;
-    $("j-sync-txt").textContent = syncing ? "Syncing…" : dirty ? "Sync now" : "Synced";
+    $("j-sync-txt").textContent = syncing ? "Synchronising…" : "Synchronise";
+    b.title = syncing ? "Synchronising…" : dirty ? "Work is waiting on this phone. Tap to synchronise." : "Everything is synchronised. Tap to synchronise again.";
   }
   $("j-sync").addEventListener("click", function(){ if (cur && !syncing) syncJob().catch(function(){}); });
 
@@ -707,7 +716,7 @@
     var queued = localRecs.filter(function(r){ return !r.unitId && !(draft && draft.photoKey === r.key); });
     var out = "";
     if (queued.length){
-      out += '<div class="ph-cap">Waiting to synchronize (' + queued.length + ')</div>';
+      out += '<div class="ph-cap">Waiting to synchronise (' + queued.length + ')</div>';
       queued.forEach(function(r){ out += '<button type="button" disabled><img src="data:image/jpeg;base64,' + r.data + '" alt="Waiting photo"></button>'; });
     }
     if (!p) return out || '<div class="muted">' + (dirty ? "No photos yet." : "Loading photos…") + '</div>';
@@ -751,7 +760,7 @@
     var cat = $("ph-cat").value, list = Array.prototype.slice.call(files), saved = 0, status = $("ph-status");
     function next(){
       if (!list.length){
-        status.textContent = saved + " photo" + (saved === 1 ? "" : "s") + " stored on this phone. Tap Synchronize to upload.";
+        status.textContent = saved + " photo" + (saved === 1 ? "" : "s") + " stored on this phone. Tap Synchronise to upload.";
         if (saved) markDirty();
         if ($("ph-grid")) $("ph-grid").innerHTML = photoGrid();
         return Promise.resolve();
@@ -804,7 +813,7 @@
 
     html += '<div id="sync-bar">' + syncBarHtml() + '</div>';
 
-    // (no status buttons: the job moves to Partial when synchronized and Completed at sign-off)
+    // (no status buttons: the job moves to Partial when synchronised and Completed at sign-off)
 
     // 1. smoke alarms, added one at a time with a photo
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
@@ -814,7 +823,7 @@
     if (cur.quote && cur.quote.alarm_qty) bookedParts.push(cur.quote.alarm_qty + " smoke alarm" + (cur.quote.alarm_qty === 1 ? "" : "s"));
     if (cur.quote && cur.quote.controller_qty) bookedParts.push(cur.quote.controller_qty + " remote controller" + (cur.quote.controller_qty === 1 ? "" : "s"));
     else if (!bookedParts.length && j.alarms) bookedParts.push(j.alarms + " smoke alarms");
-    html += '<div class="card"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Smoke alarms</h2>' +
+    html += '<div class="card" id="sec-alarms"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Smoke alarms</h2>' +
       (bookedParts.length ? '<div class="booked">Booked: ' + esc(bookedParts.join(", ")) + '</div>' : '');
     units.forEach(function(u, i){
       var th = u.photoKey ? localThumb(u.photoKey) : thumbFor(u.photo);
@@ -837,7 +846,7 @@
       if (it.code === "other") return line(esc(it.label), it.qty, it.amount_cents, paid ? "" : '<button class="del" data-del="' + i + '">Remove</button>');
       return line(esc(short(it.label)), stepper(it.code, it.qty, paid), it.amount_cents);
     }).join("");
-    html += '<div class="card"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
+    html += '<div class="card" id="sec-invoice"><h2><span class="n">2</span>Invoice<span class="side">Prices incl. GST</span></h2>' +
       (cur.items.length ? '<div class="inv"><div class="inv-row inv-h"><div class="d">Description</div><div class="q">Qty</div><div class="a">Amount</div></div>' + rowsHtml + '</div>' : '<p class="muted">Alarms and items appear here as you add them.</p>') +
       (paid ? '' : '<details style="margin-top:8px"><summary class="link" style="cursor:pointer">+ Add item</summary>' +
         extras.filter(function(p){ return itemQty(p.code) === 0; }).map(function(p){
@@ -853,7 +862,7 @@
     // 3. payment details
     var cardPaid = paid && (!j.pay_method || j.pay_method === "card");
     if (paid){ pay.full = true; pay.method = j.pay_method || "card"; }
-    html += '<div class="card"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Payment details</h2>';
+    html += '<div class="card" id="sec-approval"><h2><span class="n' + (approved ? " ok" : "") + '">' + (approved ? "✓" : "3") + '</span>Payment details</h2>';
     if (!alarmsDone()) html += '<div class="warn-banner">Add the smoke alarms first.</div>';
     if (!approved){
       html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
@@ -902,9 +911,9 @@
     // 4. work sign off
     var haveRc = !!(pay.receiptKey || j.pay_receipt), cashOk = pay.method === "cash" && ((pay.full === true && haveRc) || (pay.full === false && cashCents() >= 0 && cashCents() < due && (cashCents() === 0 || haveRc)));
     var payReady = due <= 0 || paid || cashOk || pay.method === "bank_transfer";
-    html += '<div class="card"><h2><span class="n">4</span>Work sign off</h2>' +
-      '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronized.</p>' +
-        '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronizing…" : "Open work sign off") + '</button></div>' +
+    html += '<div class="card" id="sec-signoff"><h2><span class="n">4</span>Work sign off</h2>' +
+      '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronised.</p>' +
+        '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronising…" : "Open work sign off") + '</button></div>' +
       '<div id="so-form"' + (dirty || syncing ? " hidden" : "") + '>' +
       '<div class="field"><label for="so-name">Electrician name</label><input id="so-name" value="' + esc(soName || (me && me.name) || "") + '" autocomplete="off"></div>' +
       '<div class="field" style="margin-top:10px"><label>Signature</label>' +
@@ -913,7 +922,7 @@
           '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button>'
         : '<button type="button" class="signbox" id="so-sign"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4zM13.5 6.5l4 4"/></svg>Tap to sign</button>') + '</div>' +
       '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm that the installed smoke alarms are compliant and the work is complete.</label>' +
-      '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
+      '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronise</button>' : '') + '</div>' +
       '</div></div>' +
       '<div class="stickybar"><button class="btn btn-green" id="complete" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice") + '</button>' +
       '<p class="nexthint" id="so-hint"></p></div>';
@@ -947,7 +956,7 @@
       return;
     }
     if (t.id === "pay"){
-      t.disabled = true; t.textContent = dirty ? "Synchronizing…" : "Opening secure payment…";
+      t.disabled = true; t.textContent = dirty ? "Synchronising…" : "Opening secure payment…";
       ensureSynced().then(function(){ return call("pay", { id: cur.job.id }); }).then(function(d){
         if (d.paid){ openJob(cur.job.id); return; }
         window.location.href = d.url;
@@ -985,7 +994,7 @@
       persistDraft(); keepScroll(renderJob); return;
     }
     if (t.id === "so-open"){
-      if (!confirm("This job isn't synchronized yet. Synchronize now to open work sign off?")) return;
+      if (!confirm("This job isn't synchronised yet. Synchronise now to open work sign off?")) return;
       syncJob().catch(function(){});
       return;
     }
@@ -995,7 +1004,7 @@
     if (t.id === "complete"){
       if (!confirm(pay.method === "bank_transfer" ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + " with the bank transfer details?" : pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
       t.disabled = true; t.textContent = "Completing…";
-      Promise.resolve().then(function(){ if (dirty) throw new Error("Synchronize first"); return call("complete", { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method, cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
+      Promise.resolve().then(function(){ if (dirty) throw new Error("Synchronise first"); return call("complete", { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method, cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
         var inv = d.invoice || {};
         $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
           ({ paid:"paid in full.", later: money(cur.totals.due) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
@@ -1047,7 +1056,7 @@
   function wireItems(){
     return cur.items.map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
   }
-  // Prices items locally for an instant update; the server re-prices when the job is synchronized.
+  // Prices items locally for an instant update; the server re-prices when the job is synchronised.
   function applyItems(items){
     var rank = function(i){ var n = cur.catalogue.map(function(c){ return c.code; }).indexOf(i.code); return n < 0 ? 99 : n; };
     items = items.slice().sort(function(a, b){ return rank(a) - rank(b); });
