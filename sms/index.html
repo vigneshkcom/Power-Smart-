@@ -102,7 +102,9 @@
   .bubble{max-width:min(72%,560px);padding:.55rem .85rem;border-radius:14px;font-size:.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
   .bubble{cursor:pointer}.bubble.sel{outline:2px solid #43A8B6;outline-offset:2px}
   .bubble .del{display:none;margin-top:.45rem;border:0;border-radius:999px;background:#c0392b;color:#fff;font:inherit;font-size:.72rem;font-weight:700;padding:.25rem .7rem;cursor:pointer}
-  .bubble.sel .del{display:inline-block;margin-right:.4rem}.bubble .del.resend{background:#43A8B6}
+  .bubble.sel .del{display:inline-block;margin-right:.4rem}
+  .bubble .rs{display:block;margin-top:.45rem;background:none;border:0;color:#fff;opacity:.8;text-decoration:underline;font:inherit;font-size:.74rem;font-weight:700;cursor:pointer;padding:0}
+  .bubble .rs:hover{opacity:1}.bubble .rs.bad{background:#fff;color:#c0392b;opacity:1;padding:.25rem .7rem;border-radius:999px;text-decoration:none}
   .bubble.in{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
   .bubble.out{align-self:flex-end;background:var(--teal-dark);color:#fff;border-bottom-right-radius:4px}
   .stamp{display:block;font-size:.62rem;opacity:.7;margin-top:.2rem}
@@ -321,7 +323,7 @@ function renderMessages(messages, keepScroll) {
     const stuck = m.direction === 'outbound' && ['queued', 'pending', 'failed', 'unknown'].includes(m.status);
     const stLabel = { queued: 'not sent by the phone yet', pending: 'sending…', failed: 'failed', unknown: 'delivery unknown' }[m.status] || m.status;
     const locked = m.status === 'optout' || m.status === 'optin';
-    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${stuck ? `<button type="button" class="del resend" data-resend="${esc(m.id)}">Resend</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
+    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${m.direction === 'outbound' ? `<button type="button" class="rs ${stuck ? 'bad' : ''}" data-resend="${esc(m.id)}" title="Send this message again">${stuck ? '⚠ Not sent · Resend' : '↻ Resend'}</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
   });
   box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;
