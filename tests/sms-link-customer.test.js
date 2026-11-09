@@ -2,7 +2,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 
 // Real api/sms.js with a small in-memory leads / quotes / comments store.
 function fixture(leads) {
-  const module = { exports: {} }, comments = [], writes = [], msgs = [{ id: 'm1', status: 'received' }, { id: 'm2', status: 'sent' }, { id: 'm3', status: 'optout' }];
+  const module = { exports: {} }, comments = [], writes = [], msgs = [{ id: 'm1', status: 'received', phone: '+61451898761' }, { id: 'm2', status: 'sent', phone: '+61451898761' }, { id: 'm3', status: 'optout', phone: '+61451898761' }, { id: 'm4', status: 'sent', phone: '+61411334646' }, { id: 'm5', status: null, phone: '+61411334646' }];
   const SB = { configured: () => true, async sb(q, o = {}) {
     if (q.startsWith('leads?') && !o.method) {
       if (q.includes('or=(')) { const needle = decodeURIComponent(q.split('*')[1] || '').toLowerCase(); return leads.filter((l) => (l.name + l.email + l.phone).toLowerCase().includes(needle)); }
@@ -14,6 +14,12 @@ function fixture(leads) {
     if (q === 'lead_comments') { comments.push(o.body); return []; }
     if (q.startsWith('sent_emails?lead_id=eq.')) return q.includes('lead_id=eq.l1&') ? [{ id: '8abe9f5b-2495-4ee3-b521-0364df34db00' }] : [];
     if (q.startsWith('sms_messages?id=eq.')) { const id = /id=eq\.([^&]+)/.exec(q)[1]; const i = msgs.findIndex((m) => m.id === id); if (o.method === 'DELETE') { if (i >= 0) msgs.splice(i, 1); return []; } return i >= 0 ? [msgs[i]] : []; }
+    if (q.startsWith('sms_messages?phone_number=eq.')) {
+      const phone = decodeURIComponent(/phone_number=eq\.([^&]+)/.exec(q)[1]);
+      const mine = msgs.filter((m) => m.phone === phone);
+      if (o.method === 'DELETE') { const gone = mine.filter((m) => m.status !== 'optout' && m.status !== 'optin'); gone.forEach((m) => msgs.splice(msgs.indexOf(m), 1)); return gone; }
+      return mine;
+    }
     if (q.startsWith('sms_messages')) return [];
     return [];
   } };
@@ -71,9 +77,22 @@ test('a customer can be created from a number, and customers can be searched', a
 test('a message can be deleted, but a STOP/START consent message cannot', async () => {
   const f = fixture(base());
   let r = await f.call('POST', {}, { action: 'delete_message', id: 'm2' });
-  assert.equal(r.code, 200); assert.equal(f.msgs.length, 2); assert.equal(f.msgs.some((m) => m.id === 'm2'), false);
+  assert.equal(r.code, 200); assert.equal(f.msgs.length, 4); assert.equal(f.msgs.some((m) => m.id === 'm2'), false);
   r = await f.call('POST', {}, { action: 'delete_message', id: 'm3' });
-  assert.equal(r.code, 409); assert.match(r.body.error, /STOP \/ START/); assert.equal(f.msgs.length, 2, 'the opt-out record is kept');
+  assert.equal(r.code, 409); assert.match(r.body.error, /STOP \/ START/); assert.equal(f.msgs.length, 4, 'the opt-out record is kept');
   assert.equal((await f.call('POST', {}, { action: 'delete_message', id: 'nope' })).code, 404);
   assert.equal((await f.call('POST', {}, { action: 'delete_message', id: '' })).code, 400);
+});
+
+test('deleting whole conversations removes every message for those numbers but keeps STOP/START records', async () => {
+  const f = fixture(base());
+  let r = await f.call('POST', {}, { action: 'delete_conversations', phones: ['0411 334 646'] });
+  assert.equal(r.code, 200); assert.equal(r.body.deleted, 2, 'including a message with no status'); assert.equal(r.body.kept_consent_records, 0);
+  assert.equal(f.msgs.filter((m) => m.phone === '+61411334646').length, 0);
+  r = await f.call('POST', {}, { action: 'delete_conversations', phones: ['+61451898761', '+61451898761'] });
+  assert.equal(r.body.conversations, 1, 'the same number twice counts once');
+  assert.equal(r.body.deleted, 2); assert.equal(r.body.kept_consent_records, 1);
+  assert.deepEqual(f.msgs.map((m) => m.id), ['m3'], 'only the opt-out record is left');
+  assert.equal((await f.call('POST', {}, { action: 'delete_conversations', phones: [] })).code, 400);
+  assert.equal((await f.call('POST', {}, { action: 'delete_conversations', phones: ['abc'] })).code, 400);
 });

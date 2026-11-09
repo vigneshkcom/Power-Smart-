@@ -297,6 +297,21 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true });
     }
 
+    // Delete whole conversations from the inbox (and from Supabase). STOP / START messages are the customer's consent
+    // record and are kept, so a customer who opted out can never be texted again by accident.
+    if (body.action === 'delete_conversations') {
+      const phones = [...new Set((Array.isArray(body.phones) ? body.phones : []).map(cleanPhone).filter((p) => /^\+[1-9]\d{7,14}$/.test(p)))].slice(0, 100);
+      if (!phones.length) return res.status(400).json({ error: 'Choose at least one conversation to delete.' });
+      let deleted = 0, kept = 0;
+      for (const phone of phones) {
+        const removed = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&or=(status.is.null,status.not.in.(optout,optin))`, { method: 'DELETE', prefer: 'return=representation' });
+        deleted += Array.isArray(removed) ? removed.length : 0;
+        const left = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&select=id`);
+        kept += Array.isArray(left) ? left.length : 0;
+      }
+      return res.status(200).json({ ok: true, conversations: phones.length, deleted, kept_consent_records: kept });
+    }
+
     if (body.action === 'connect') {
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
       try { return res.status(200).json({ ok: true, webhook: await ensureWebhook() }); }
