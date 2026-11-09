@@ -27,6 +27,34 @@ async function leadNamesByPhone() {
   return names;
 }
 
+// What the gateway says happened to a message: Pending/Processed (not yet sent by the phone), Sent, Delivered, Failed.
+// Accepting a request is not the same as the phone sending it, so the inbox shows the real state. Never throws.
+const STATE_MAP = { pending: 'queued', processed: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed' };
+async function gatewayState(gateId) {
+  if (!gateId) return null;
+  try {
+    const r = await gateway(`/messages/${encodeURIComponent(gateId)}`, { headers: headers() });
+    if (!r.ok) return null;
+    const d = await readGatewayResponse(r);
+    const rec = Array.isArray(d.recipients) && d.recipients[0] ? d.recipients[0] : {};
+    const raw = String(d.state || d.status || rec.state || '').toLowerCase();
+    const status = STATE_MAP[raw];
+    return status ? { status, raw, error: String(rec.error || d.error || '').slice(0, 200) } : null;
+  } catch (_) { return null; }
+}
+// Brings recent outbound messages in a conversation up to date with the gateway (and saves any change).
+async function refreshOutbound(rows) {
+  const cutoff = Date.now() - 3 * 86400000;
+  const todo = (rows || []).filter((m) => m.direction === 'outbound' && m.sms_gate_id && ['queued', 'sent', 'pending', 'unknown'].includes(m.status) && Date.parse(m.created_at) > cutoff).slice(-6);
+  await Promise.all(todo.map(async (m) => {
+    const st = await gatewayState(m.sms_gate_id);
+    if (st && st.status !== m.status) {
+      m.status = st.status;
+      await sb(`sms_messages?id=eq.${encodeURIComponent(m.id)}`, { method: 'PATCH', body: { status: st.status }, prefer: 'return=minimal' }).catch(() => {});
+    }
+  }));
+}
+
 // Customers (pipeline leads) whose saved mobile is this number, newest first, each with their latest sent quote link.
 async function leadsForPhone(phone) {
   const key = phoneKey(phone);
@@ -219,6 +247,7 @@ module.exports = async (req, res) => {
         const phone = cleanPhone(req.query.phone);
         if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
         const rows = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&order=created_at.asc&select=id,phone_number,message,direction,status,created_at`);
+        try { await refreshOutbound(rows); } catch (e) { console.error('[SMS] status refresh failed:', e.message); }
         const names = await leadNamesByPhone();
         let leads = [];
         try { leads = await leadsForPhone(phone); } catch (e) { console.error('[SMS] lead lookup failed:', e.message); }
@@ -251,15 +280,22 @@ module.exports = async (req, res) => {
       if (message.length > 1600) return res.status(400).json({ error: 'Message is too long.' });
       const consent = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&status=in.(optout,optin)&order=created_at.desc&limit=1&select=status`);
       if (consent && consent[0] && consent[0].status === 'optout') return res.status(403).json({ error: 'This contact opted out. They must reply START before another SMS can be sent.' });
+      const msgId = require('crypto').randomUUID();
       const response = await gateway('/messages', {
         method: 'POST', headers: headers(),
-        body: JSON.stringify({ phoneNumbers: [phone], textMessage: { text: message }, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
+        body: JSON.stringify({ id: msgId, phoneNumbers: [phone], textMessage: { text: message }, ttl: 3600, ...(process.env.SMSGATE_DEVICE_ID ? { deviceId: process.env.SMSGATE_DEVICE_ID } : {}) }),
       });
       const result = await readGatewayResponse(response);
       if (!response.ok) return res.status(502).json(gatewayError(response.status, result));
-      const gatewayId = String(result.id || result.messageId || (result.messages && result.messages[0] && result.messages[0].id) || '');
-      const saved = await insertMessage({ phone_number: phone, message, direction: 'outbound', status: 'sent', sms_gate_id: gatewayId || null });
-      return res.status(200).json({ ok: true, message: saved });
+      const gatewayId = String(result.id || result.messageId || (result.messages && result.messages[0] && result.messages[0].id) || msgId);
+      // Accepted by the gateway is not sent by the phone: look at what the gateway says for a few seconds.
+      let state = null;
+      for (let i = 0; i < 3 && !(state && state.status !== 'queued'); i++) { await new Promise((r) => setTimeout(r, i === 0 ? 1200 : 1500)); state = await gatewayState(gatewayId); }
+      const status = state ? state.status : 'sent';
+      const saved = await insertMessage({ id: msgId, phone_number: phone, message, direction: 'outbound', status, sms_gate_id: gatewayId });
+      const warning = status === 'queued' ? "The SMS gateway has the message but the gateway phone hasn't sent it yet. Check the SMS Gate app on that phone is open, online and allowed to send texts."
+        : status === 'failed' ? 'The gateway phone could not send this message' + (state && state.error ? ': ' + state.error : '.') : '';
+      return res.status(200).json({ ok: true, message: saved, delivery: status, warning });
     }
 
     // Connect this number to a customer: save it as the customer's mobile, so their texts, quotes and card line up.

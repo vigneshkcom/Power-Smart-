@@ -102,7 +102,7 @@
   .bubble{max-width:min(72%,560px);padding:.55rem .85rem;border-radius:14px;font-size:.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
   .bubble{cursor:pointer}.bubble.sel{outline:2px solid #43A8B6;outline-offset:2px}
   .bubble .del{display:none;margin-top:.45rem;border:0;border-radius:999px;background:#c0392b;color:#fff;font:inherit;font-size:.72rem;font-weight:700;padding:.25rem .7rem;cursor:pointer}
-  .bubble.sel .del{display:inline-block}
+  .bubble.sel .del{display:inline-block;margin-right:.4rem}.bubble .del.resend{background:#43A8B6}
   .bubble.in{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
   .bubble.out{align-self:flex-end;background:var(--teal-dark);color:#fff;border-bottom-right-radius:4px}
   .stamp{display:block;font-size:.62rem;opacity:.7;margin-top:.2rem}
@@ -318,8 +318,10 @@ function renderMessages(messages, keepScroll) {
     const label = dayLabel(m.created_at);
     if (label !== lastDay) { html += `<div class="day">${esc(label)}</div>`; lastDay = label; }
     const bad = m.status && !['sent', 'received', 'delivered'].includes(m.status);
+    const stuck = m.direction === 'outbound' && ['queued', 'pending', 'failed', 'unknown'].includes(m.status);
+    const stLabel = { queued: 'not sent by the phone yet', pending: 'sending…', failed: 'failed', unknown: 'delivery unknown' }[m.status] || m.status;
     const locked = m.status === 'optout' || m.status === 'optin';
-    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(m.status)}</span>` : ''}</span></div>`;
+    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${stuck ? `<button type="button" class="del resend" data-resend="${esc(m.id)}">Resend</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
   });
   box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;
@@ -350,6 +352,16 @@ async function openThread(phone, silent) {
 
 /* ---------- delete a message: click it, then Delete message ---------- */
 $('messages').addEventListener('click', async e => {
+  const rs = e.target.closest('[data-resend]');
+  if (rs && active) {
+    const text = rs.closest('.bubble').firstChild.textContent;
+    if (!confirm('Send this message again?\n\n' + text.slice(0, 160))) return;
+    try {
+      const r = await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send', phone: active, message: text }) });
+      toast(r.warning || 'Message sent again'); lastSig = ''; await load(); await openThread(active, true);
+    } catch (err) { toast(showError(err)); }
+    return;
+  }
   const del = e.target.closest('[data-del]');
   if (del) {
     if (!confirm('Delete this message from the inbox?\n\nThe customer keeps their copy, and a note about it on their customer card is not removed.')) return;

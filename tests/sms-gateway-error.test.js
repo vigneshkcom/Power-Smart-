@@ -3,7 +3,7 @@ const {readGatewayResponse,gatewayError}=require('../api/_sms-gateway-error');
 function fixture({status=502,body='',networkError=null}={}) {
   const calls=[],writes=[],module={exports:{}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../api/sms.js'),'utf8'),{
-    module,require:key=>key==='./_supabase'?{configured:()=>true,sb:async(q,opts)=>{if(opts?.method==='POST'){writes.push(opts.body);return [opts.body];}return [];}}:require(path.join(__dirname,'../api',key)),
+    module,require:key=>key==='./_supabase'?{configured:()=>true,sb:async(q,opts)=>{if(opts?.method==='POST'){writes.push(opts.body);return [opts.body];}return [];}}:require(key.startsWith('.')?path.join(__dirname,'../api',key):key),
     Buffer,AbortController,setTimeout,clearTimeout,console:{error(){}},process:{env:{SMS_ENABLED:'true',SMSGATE_USERNAME:'test-user',SMSGATE_PASSWORD:'test-pass'}},
     fetch:async(url,options)=>{calls.push({url,options});if(networkError)throw networkError;return new Response(body,{status});}
   });

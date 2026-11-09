@@ -1361,13 +1361,14 @@
   });
   $("sms-send").addEventListener("click",function(){
     var message=$("sms-message").value.trim();if(!message){toast("Write an SMS message");return;}
-    var button=this,original=button.textContent,leadId=smsLeadId,phone=smsPhone;button.disabled=true;button.textContent="Sending...";
+    var button=this,original=button.textContent,leadId=smsLeadId,phone=smsPhone,smsWarning="";button.disabled=true;button.textContent="Sending...";
     smsApi("/api/sms",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"send",phone:phone,message:message})})
-      .then(function(){
+      .then(function(r){
         var author=currentAgent();
-        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:"SMS sent to "+phone+": "+message}).catch(function(){return null;});
+        smsWarning=(r&&r.warning)||"";
+        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:(smsWarning?"SMS submitted to ":"SMS sent to ")+phone+": "+message+(smsWarning?" ("+smsWarning+")":"")}).catch(function(){return null;});
       })
-      .then(function(){$("sms-message").value="";$("sms-template").value="";updateSmsCount();toast("SMS sent to "+phone);return loadSmsThread();})
+      .then(function(){$("sms-message").value="";$("sms-template").value="";updateSmsCount();toast(smsWarning?("Not sent yet: "+smsWarning):("SMS sent to "+phone));return loadSmsThread();})
       .then(function(){return load();})
       .catch(function(e){toast("Could not send SMS: "+e.message+(e.detail ? " "+e.detail : ""));})
       .finally(function(){button.disabled=false;button.textContent=original;});
