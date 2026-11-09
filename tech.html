@@ -20,13 +20,15 @@
     --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
     --amber:#F5B841;--red:#C95555;--green:#2F9E6E;}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  html,body{overscroll-behavior-y:contain}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{position:fixed;inset:0;min-height:0}
   body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#EDF3F4;min-height:100vh;-webkit-tap-highlight-color:transparent}
   button,input,select,textarea{font:inherit;color:inherit}
   button{cursor:pointer;border:none;background:none}
   a{color:inherit}
-  .app{max-width:560px;margin:0 auto;padding:0 16px calc(96px + env(safe-area-inset-bottom))}
-  .view{display:none}.view.show{display:block}
+  .app{max-width:560px;margin:0 auto;padding:0 16px;height:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+  .view{display:none;padding-bottom:calc(96px + env(safe-area-inset-bottom))}.view.show{display:block}
+  #v-job{padding-bottom:0}
 
   /* header */
   .bar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);margin:0 -16px 14px;padding:10px 16px;display:flex;align-items:center;gap:10px}
@@ -182,7 +184,7 @@
   .cust .row .btn-ghost{border:2px solid var(--teal-deep);color:var(--ink)}
   .cust .notes{background:#FFF4D6;color:#5C4000;border-radius:10px;padding:10px 12px;font-size:.82rem;line-height:1.45;margin-top:14px;white-space:pre-wrap}
   .cust .notes b{display:block;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
-  .stickybar{position:sticky;bottom:0;z-index:4;margin:0 -16px calc(-96px - env(safe-area-inset-bottom));padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .stickybar{position:sticky;bottom:0;z-index:4;margin:0 -16px;padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
   .stickybar .btn{min-height:56px;font-size:1.02rem;font-weight:800}
   .stickybar .nexthint{text-align:center;font-size:.8rem;font-weight:600;color:#5C4000;min-height:1.2em}
   .signbox{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:132px;border:2px dashed var(--teal-deep);border-radius:12px;background:var(--paper);color:var(--teal-deep);font-size:1rem;font-weight:800}
@@ -200,6 +202,7 @@
   .sig-actions{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px}
   .card[id^=sec-]{scroll-margin-top:128px}
   .jstep:focus-visible,.jsync:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  .appver{text-align:center;font-size:.68rem;color:var(--muted);margin:18px 0 0}
 </style>
 </head>
 <body>
@@ -241,6 +244,7 @@
       <div class="cal-grid" id="cal-grid"></div>
     </div>
     <div id="jobs"><div class="loading">Loading…</div></div>
+    <p class="appver" id="appver"></p>
   </section>
 
   <!-- job -->
@@ -295,10 +299,13 @@
   function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function timeLabel(d){ var h = d.getHours(); return (h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h < 12 ? "am" : "pm"); }
   function toast(msg){ var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200); }
-  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); window.scrollTo(0, 0); if (v !== "v-job") rememberView({ job: null }); }
+  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job") rememberView({ job: null }); }
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
+  var APP_VERSION = "2026-11-09.5";   // shown under the job list so you can tell which copy of the app a phone is running
+  $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
+  function scroller(){ return document.querySelector(".app"); }
   function rememberView(patch){
     try {
       var v = JSON.parse(localStorage.getItem(VIEW_LS) || "{}") || {};
@@ -314,7 +321,7 @@
     var y0 = 0;
     document.addEventListener("touchstart", function(e){ y0 = e.touches.length === 1 ? e.touches[0].clientY : 0; }, { passive: true });
     document.addEventListener("touchmove", function(e){
-      if (e.touches.length !== 1 || window.scrollY > 0 || e.touches[0].clientY <= y0 + 4) return;
+      if (e.touches.length !== 1 || scroller().scrollTop > 0 || e.touches[0].clientY <= y0 + 4) return;
       if (e.target.closest && e.target.closest(".sigmodal, textarea, input, select")) return;
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
@@ -1076,7 +1083,7 @@
     }
   });
 
-  function keepScroll(fn){ var y = window.scrollY; fn(); window.scrollTo(0, y); }
+  function keepScroll(fn){ var a = scroller(), y = a.scrollTop; fn(); a.scrollTop = y; }
   function wireItems(){
     return cur.items.map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
   }
