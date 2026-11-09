@@ -4,6 +4,19 @@ const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
 // SMS is PAUSED (the gateway phone/SIM is being replaced). Everything goes by email instead.
 // To switch SMS back on: set SMS_ENABLED=true in Vercel (and update the SMSGATE_* variables for the new number).
 const SMS_PAUSED_MESSAGE = 'SMS is paused for now, so this was sent by email only.';
+// Optional: which SIM the gateway phone sends from (SMSGATE_SIM_NUMBER = 1 or 2 in Vercel). Unset = the phone's default SIM.
+function simField() { const n = parseInt(process.env.SMSGATE_SIM_NUMBER, 10); return n >= 1 && n <= 3 ? { simNumber: n } : {}; }
+// What the gateway says happened to a message: Pending/Processed (the phone has not sent it yet), Sent, Delivered, Failed.
+const STATE_MAP = { pending: 'queued', processed: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed' };
+async function gatewayState(id) {
+  try {
+    const r = await fetch(`https://api.sms-gate.app/3rdparty/v1/messages/${encodeURIComponent(id)}`, { headers: { Authorization: 'Basic ' + Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64') } });
+    if (!r.ok) return null;
+    const d = await readGatewayResponse(r), rec = Array.isArray(d.recipients) && d.recipients[0] ? d.recipients[0] : {};
+    const status = STATE_MAP[String(d.state || d.status || rec.state || '').toLowerCase()];
+    return status ? { status, error: String(rec.error || d.error || '').slice(0, 200) } : null;
+  } catch (_) { return null; }
+}
 function smsEnabled() { return String(process.env.SMS_ENABLED || '').toLowerCase() === 'true'; }
 function cleanPhone(value) {
   let phone = String(value || '').replace(/[^\d+]/g, '').trim();
@@ -47,7 +60,7 @@ async function sendLeadSms({ lead, message, key, author }) {
     response = await fetch('https://api.sms-gate.app/3rdparty/v1/messages', {
       method:'POST', signal:controller.signal,
       headers:{Authorization:'Basic '+Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64'),'Content-Type':'application/json'},
-      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},ttl:3600,...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
+      body:JSON.stringify({id, phoneNumbers:[phone],textMessage:{text},ttl:3600,...simField(),...(process.env.SMSGATE_DEVICE_ID ? {deviceId:process.env.SMSGATE_DEVICE_ID} : {})}),
     });
   } catch(e) {
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'unknown'},prefer:'return=minimal'});
@@ -61,8 +74,20 @@ async function sendLeadSms({ lead, message, key, author }) {
     await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status},prefer:'return=minimal'});
     throw new Error(info.error + ' ' + info.detail);
   }
-  await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status:'sent',sms_gate_id:String(result.id || result.messageId || id)},prefer:'return=minimal'});
-  try {await logNote(lead.id, author, noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
-  return {status:'submitted',phone};
+  const gateId = String(result.id || result.messageId || id);
+  // Accepted by the gateway is not sent by the phone: look at what the gateway says for a moment.
+  const wait = Number(process.env.SMS_STATE_WAIT_MS == null ? 1500 : process.env.SMS_STATE_WAIT_MS);
+  let state = null;
+  for (let i = 0; i < 2 && !(state && state.status !== 'queued'); i++) {
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    state = await gatewayState(gateId);
+    if (!state) break;                                   // gateway gives no state: treat as submitted
+  }
+  const status = state ? state.status : 'sent';
+  await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status,sms_gate_id:gateId},prefer:'return=minimal'});
+  if (status === 'failed') throw new Error('The gateway phone could not send this text' + (state.error ? ': ' + state.error : '.') + ' Resend it from the SMS inbox.');
+  const queuedWarning = status === 'queued' ? "The SMS gateway has this text but the gateway phone has not sent it yet. Check the SMS Gate app on that phone is open, online and allowed to send texts, then use Resend in the SMS inbox if it does not go." : '';
+  try {await logNote(lead.id, author, queuedWarning ? noteBody + ' (not sent by the phone yet)' : noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
+  return {status:'submitted',phone,...(queuedWarning ? {warning:queuedWarning,delivery:'queued'} : {})};
 }
 module.exports = {cleanPhone,sendLeadSms,logNote,smsEnabled,SMS_PAUSED_MESSAGE};

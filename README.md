@@ -89,6 +89,7 @@ Environment variables (Vercel → Settings → Environment Variables):
 | `SMSGATE_USERNAME` | for SMS | SMS Gate Cloud Server username from the gateway phone |
 | `SMSGATE_PASSWORD` | for SMS | SMS Gate Cloud Server password from the gateway phone |
 | `SMSGATE_DEVICE_ID` | for SMS | SMS Gate device ID from the gateway phone |
+| `SMSGATE_SIM_NUMBER` | no | `1` or `2`: which SIM the gateway phone sends from. Leave it unset to use the phone's default SIM. If texts stop leaving a dual-SIM phone, set this to the slot holding the PowerSmart number and redeploy. |
 
 ## Sales pipeline (/tools/pipeline)
 
