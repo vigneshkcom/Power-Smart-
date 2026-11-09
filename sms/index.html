@@ -320,10 +320,12 @@ function renderMessages(messages, keepScroll) {
     const label = dayLabel(m.created_at);
     if (label !== lastDay) { html += `<div class="day">${esc(label)}</div>`; lastDay = label; }
     const bad = m.status && !['sent', 'received', 'delivered'].includes(m.status);
-    const stuck = m.direction === 'outbound' && ['queued', 'pending', 'failed', 'unknown'].includes(m.status);
-    const stLabel = { queued: 'not sent by the phone yet', pending: 'sending…', failed: 'failed', unknown: 'delivery unknown' }[m.status] || m.status;
+    // Only call a message "not sent" when the gateway says Failed, or it has waited for the phone for over 15 minutes.
+    const waitedLong = (m.status === 'queued' || m.status === 'pending') && Date.now() - Date.parse(m.created_at) > 15 * 60000;
+    const stuck = m.direction === 'outbound' && (m.status === 'failed' || waitedLong);
+    const stLabel = m.status === 'failed' ? 'failed' : waitedLong ? 'not confirmed by the phone' : (m.status === 'queued' || m.status === 'pending') ? 'sending…' : m.status === 'unknown' ? 'delivery unknown' : m.status;
     const locked = m.status === 'optout' || m.status === 'optin';
-    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${m.direction === 'outbound' ? `<button type="button" class="rs ${stuck ? 'bad' : ''}" data-resend="${esc(m.id)}" title="Send this message again">${stuck ? '⚠ Not sent · Resend' : '↻ Resend'}</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
+    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${m.direction === 'outbound' ? `<button type="button" class="rs ${stuck ? 'bad' : ''}" data-resend="${esc(m.id)}" title="Send this message again">${m.status === 'failed' ? '⚠ Failed · Resend' : stuck ? '⚠ Not confirmed · Resend' : '↻ Resend'}</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
   });
   box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;

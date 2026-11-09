@@ -33,12 +33,18 @@ test('a message the phone has actually sent is stored as sent, and uses the same
   assert.equal(f.msgs[0].status, 'sent'); assert.equal(f.msgs[0].sms_gate_id, f.posts[0].id);
 });
 
-test('a message still waiting on the gateway is NOT reported as sent', async () => {
+test('a message still Pending a few seconds after sending is normal: no warning, stored as queued', async () => {
   const f = fixture(['Pending']);
   const r = await send(f);
-  assert.equal(r.code, 200); assert.equal(r.body.delivery, 'queued');
-  assert.match(r.body.warning, /gateway phone hasn't sent it yet/);
+  assert.equal(r.code, 200); assert.equal(r.body.delivery, 'queued'); assert.equal(r.body.warning, '');
   assert.equal(f.msgs[0].status, 'queued');
+});
+
+test('Processed (the phone has taken it) counts as sent', async () => {
+  const f = fixture(['Processed']);
+  const r = await send(f);
+  assert.equal(r.body.delivery, 'sent'); assert.equal(r.body.warning, '');
+  assert.equal(f.msgs[0].status, 'sent');
 });
 
 test('a failed message says so, with the reason', async () => {
@@ -52,8 +58,8 @@ test('opening the conversation brings stuck messages up to date, and an unreadab
   const f = fixture(['Pending']);
   await send(f);                                  // stays queued
   assert.equal(f.msgs[0].status, 'queued');
-  const states = ['Delivered'];
+  const states = ['Processed'];
   const g = fixture(states); g.msgs.push({ id: 'x1', phone_number: '+61451898761', message: 'earlier', direction: 'outbound', status: 'queued', sms_gate_id: 'x1', created_at: new Date().toISOString() });
   const r = await g.call('GET', { action: 'conversation', phone: '+61451898761' });
-  assert.equal(r.body.messages[0].status, 'delivered'); assert.equal(g.msgs[0].status, 'delivered', 'saved too');
+  assert.equal(r.body.messages[0].status, 'sent'); assert.equal(g.msgs[0].status, 'sent', 'a message wrongly shown as waiting is corrected and saved');
 });

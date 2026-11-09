@@ -5,7 +5,9 @@ const { readGatewayResponse, gatewayError } = require('./_sms-gateway-error');
 // To switch SMS back on: set SMS_ENABLED=true in Vercel (and update the SMSGATE_* variables for the new number).
 const SMS_PAUSED_MESSAGE = 'SMS is paused for now, so this was sent by email only.';
 // What the gateway says happened to a message: Pending/Processed (the phone has not sent it yet), Sent, Delivered, Failed.
-const STATE_MAP = { pending: 'queued', processed: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed' };
+// "Processed" means the phone has taken the message and handed it to Android to send; only Pending means it has not
+// reached the phone yet. The phone does not always report "Sent" back, so Processed counts as sent.
+const STATE_MAP = { pending: 'queued', processed: 'sent', sent: 'sent', delivered: 'delivered', failed: 'failed' };
 async function gatewayState(id) {
   try {
     const r = await fetch(`https://api.sms-gate.app/3rdparty/v1/messages/${encodeURIComponent(id)}`, { headers: { Authorization: 'Basic ' + Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64') } });
@@ -84,8 +86,7 @@ async function sendLeadSms({ lead, message, key, author }) {
   const status = state ? state.status : 'sent';
   await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status,sms_gate_id:gateId},prefer:'return=minimal'});
   if (status === 'failed') throw new Error('The gateway phone could not send this text' + (state.error ? ': ' + state.error : '.') + ' Resend it from the SMS inbox.');
-  const queuedWarning = status === 'queued' ? "The SMS gateway has this text but the gateway phone has not sent it yet. Check the SMS Gate app on that phone is open, online and allowed to send texts, then use Resend in the SMS inbox if it does not go." : '';
-  try {await logNote(lead.id, author, queuedWarning ? noteBody + ' (not sent by the phone yet)' : noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
-  return {status:'submitted',phone,...(queuedWarning ? {warning:queuedWarning,delivery:'queued'} : {})};
+  try {await logNote(lead.id, author, noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
+  return {status:'submitted',phone};
 }
 module.exports = {cleanPhone,sendLeadSms,logNote,smsEnabled,SMS_PAUSED_MESSAGE};

@@ -29,7 +29,9 @@ async function leadNamesByPhone() {
 
 // What the gateway says happened to a message: Pending/Processed (not yet sent by the phone), Sent, Delivered, Failed.
 // Accepting a request is not the same as the phone sending it, so the inbox shows the real state. Never throws.
-const STATE_MAP = { pending: 'queued', processed: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed' };
+// "Processed" means the phone has taken the message and handed it to Android to send; only Pending means it has not
+// reached the phone yet. The phone does not always report "Sent" back, so Processed counts as sent.
+const STATE_MAP = { pending: 'queued', processed: 'sent', sent: 'sent', delivered: 'delivered', failed: 'failed' };
 async function gatewayState(gateId) {
   if (!gateId) return null;
   try {
@@ -293,8 +295,8 @@ module.exports = async (req, res) => {
       for (let i = 0; i < 3 && !(state && state.status !== 'queued'); i++) { await new Promise((r) => setTimeout(r, i === 0 ? 1200 : 1500)); state = await gatewayState(gatewayId); }
       const status = state ? state.status : 'sent';
       const saved = await insertMessage({ id: msgId, phone_number: phone, message, direction: 'outbound', status, sms_gate_id: gatewayId });
-      const warning = status === 'queued' ? "The SMS gateway has the message but the gateway phone hasn't sent it yet. Check the SMS Gate app on that phone is open, online and allowed to send texts."
-        : status === 'failed' ? 'The gateway phone could not send this message' + (state && state.error ? ': ' + state.error : '.') : '';
+      // Only a definite failure is reported: a message still Pending a few seconds after sending is normal.
+      const warning = status === 'failed' ? 'The gateway phone could not send this message' + (state && state.error ? ': ' + state.error : '.') : '';
       return res.status(200).json({ ok: true, message: saved, delivery: status, warning });
     }
 

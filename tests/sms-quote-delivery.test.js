@@ -30,12 +30,18 @@ test('a quote text the phone has sent is reported as submitted with no warning',
   assert.equal(f.rows[0].status, 'sent');
 });
 
-test('a quote text still waiting on the gateway phone is flagged, not silently called sent', async () => {
+test('a quote text still Pending right after sending is normal: no warning, stored as queued', async () => {
   const f = fixture({ states: ['Pending'] });
   const r = await f.send();
-  assert.equal(r.status, 'submitted'); assert.equal(r.delivery, 'queued'); assert.match(r.warning, /has not sent it yet/);
+  assert.equal(r.status, 'submitted'); assert.equal(r.warning, undefined);
   assert.equal(f.rows[0].status, 'queued');
-  assert.match(f.notes[0].body, /not sent by the phone yet/);
+  assert.doesNotMatch(f.notes[0].body, /not sent/);
+});
+
+test('Processed (the phone has taken it) counts as sent for quote texts too', async () => {
+  const f = fixture({ states: ['Processed'] });
+  const r = await f.send();
+  assert.equal(r.warning, undefined); assert.equal(f.rows[0].status, 'sent');
 });
 
 test('a failed quote text throws with the reason so the staff see it', async () => {
