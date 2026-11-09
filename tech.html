@@ -35,7 +35,7 @@
   .link{font-size:.78rem;font-weight:700;color:var(--teal-deep);text-decoration:underline}
 
   .btn{display:flex;align-items:center;justify-content:center;gap:.45rem;font-weight:700;font-size:.95rem;min-height:50px;padding:.7rem 1.1rem;border-radius:14px;width:100%;text-decoration:none;transition:transform .12s ease,background .15s ease}
-  .btn:active{transform:scale(.98)}
+  .btn:active{transform:scale(.98)}.btn[hidden]{display:none}
   .btn-primary{background:var(--teal);color:var(--ink)}
   .btn-dark{background:var(--ink);color:#fff}
   .btn-ghost{border:1.5px solid var(--line);background:#fff;color:var(--body)}
@@ -183,6 +183,7 @@
     <div class="row" style="margin-bottom:12px">
       <button class="btn btn-ghost" id="cal-btn" aria-expanded="false">Calendar</button>
       <button class="btn btn-ghost" id="d-today">Today</button>
+      <button class="btn btn-dark" id="d-route" title="Driving route for the day, from where you are now"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4.5 20.3 12 17l7.5 3.3z"/></svg>Route</button>
     </div>
     <div class="card cal" id="cal" hidden>
       <div class="cal-head"><button id="cal-prev" aria-label="Previous month">‹</button><b id="cal-title"></b><button id="cal-next" aria-label="Next month">›</button></div>
@@ -305,6 +306,8 @@
     }).then(function(d){
       if (d.tech) me.name = d.tech.name;
       var jobs = d.jobs || [];
+      dayJobs = jobs;
+      $("d-route").hidden = !routeStops(jobs).length;
       $("jobs").innerHTML = jobs.length ? jobs.map(function(j){
         var s = new Date(j.scheduled_start), e = new Date(+s + (j.duration_min || 60) * 6e4);
         var sk = statusKey(j);
@@ -386,6 +389,23 @@
   $("d-prev").addEventListener("click", function(){ day = addDays(day, -1); loadList(); });
   $("d-next").addEventListener("click", function(){ day = addDays(day, 1); loadList(); });
   $("d-today").addEventListener("click", function(){ day = startOfDay(new Date()); loadList(); });
+  // Driving route for the day: every job still to do, in time order, starting from where the electrician is now.
+  // (Google Maps uses the phone's current location when no start point is given; it takes at most 9 stops between the start and the end.)
+  var dayJobs = [];
+  function routeStops(jobs){
+    return (jobs || []).filter(function(j){ return j.status !== "completed" && j.status !== "cancelled" && j.scheduled_start && [j.address, j.suburb].filter(Boolean).length; })
+      .sort(function(a, b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); });
+  }
+  function routeAddr(j){ return [j.address, j.suburb, j.postcode].filter(Boolean).join(", ") + ", QLD, Australia"; }
+  $("d-route").addEventListener("click", function(){
+    var stops = routeStops(dayJobs);
+    if (!stops.length){ toast("No jobs with an address left to drive to on this day."); return; }
+    var use = stops.slice(0, 10), last = use[use.length - 1], mid = use.slice(0, -1);
+    var url = "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(routeAddr(last)) +
+      (mid.length ? "&waypoints=" + mid.map(function(j){ return encodeURIComponent(routeAddr(j)); }).join("%7C") : "");
+    if (stops.length > use.length) toast("Showing the first 10 jobs of " + stops.length + ".");
+    window.open(url, "_blank", "noopener");
+  });
 
   /* ---------- job ---------- */
   function openJob(id, after){
