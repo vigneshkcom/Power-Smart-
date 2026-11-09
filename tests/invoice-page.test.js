@@ -57,3 +57,15 @@ test('the pending invoice email has the pay link, bank details and reference; th
   const paid = renderInvoice({ ...args, paid: true, due: 0 });
   assert.ok(!paid.html.includes('083-004') && paid.html.includes('view invoice'));
 });
+
+test('the emailed invoice shows a Bill to address when one is saved', () => {
+  const { renderInvoice } = require('../api/_job-invoice');
+  const base = { name: 'Kath Gillespie', jobNo: 1001, items: [{ label: 'Smoke alarm', qty: 1, amount_cents: 7900 }], total: 7900, credits: [], due: 7900, paid: false, address: '4 Oconnell Rd, Purga 4306', date: '9 Nov 2026', bookingFee: 0, invoiceUrl: 'https://x/invoice?token=1' };
+  const withBill = renderInvoice({ ...base, billingAddress: 'PO Box 12, Logan QLD 4114' });
+  assert.match(withBill.html, /Bill to: Kath Gillespie, PO Box 12, Logan QLD 4114/);
+  assert.match(withBill.html, /Property: 4 Oconnell Rd/);
+  assert.match(withBill.text, /Bill to: Kath Gillespie, PO Box 12, Logan QLD 4114/);
+  const without = renderInvoice(base);
+  assert.doesNotMatch(without.html, /Bill to:/);
+  assert.match(without.html, /Property: 4 Oconnell Rd/);
+});

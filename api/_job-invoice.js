@@ -11,7 +11,7 @@ const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const BANK = { name: "PowerSmart Pty Ltd", bsb: "083-004", account: "27-010-3472" };
 const METHOD = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
 
-function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, date, bookingFee, invoiceUrl }) {
+function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const rows = (items || []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
   const creditRows = (credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
@@ -40,7 +40,7 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
   <td valign="middle"><img src="${Q.SITE}/assets/logo/power-smart-logo-full-colour.png" alt="Power Smart Co" width="190" style="display:block;width:190px;height:auto;"></td>
   <td valign="middle" align="right"><div style="font-size:18px;font-weight:bold;color:#0B1B1F;letter-spacing:1px;">${title}</div><div style="font-size:12px;color:#6B8288;padding-top:4px;">Invoice: <strong style="color:#41585D;">J${esc(jobNo)}</strong> &middot; ${esc(date)}</div></td>
 </tr></table></td></tr>
-<tr><td style="background:#ffffff;padding:22px 32px 4px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">Hi ${esc(first)},<br><br>${lead}</p>${address ? `<p style="margin:10px 0 0;font-size:12px;color:#6B8288;">Property: ${esc(address)}</p>` : ""}</td></tr>
+<tr><td style="background:#ffffff;padding:22px 32px 4px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">Hi ${esc(first)},<br><br>${lead}</p>${billingAddress ? `<p style="margin:10px 0 0;font-size:12px;color:#6B8288;">Bill to: ${esc(name || "")}, ${esc(billingAddress)}</p>` : ""}${address ? `<p style="margin:${billingAddress ? "4px" : "10px"} 0 0;font-size:12px;color:#6B8288;">Property: ${esc(address)}</p>` : ""}</td></tr>
 <tr><td style="background:#ffffff;padding:16px 32px 4px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;color:#41585D;">
   <tr><td style="padding:0 12px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Description</td><td align="center" style="padding:0 8px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Qty</td><td align="right" style="padding:0 12px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Amount</td></tr>
   ${rows}
@@ -59,6 +59,7 @@ Invoice J${jobNo} - ${date}
 Hi ${first},
 
 ${lead.replace(/<[^>]+>/g, "")}
+${billingAddress ? `\nBill to: ${name || ""}, ${billingAddress}` : ""}${address ? `\nProperty: ${address}` : ""}
 
 ${(items || []).map((i) => `- ${i.label} x ${i.qty}: ${fmt(i.amount_cents)}`).join("\n")}
 
@@ -71,6 +72,17 @@ PowerSmart Pty Ltd | ABN ${Q.ABN}`;
   return { html, text };
 }
 
+// The customer's billing address from their lead (empty = same as the property). Never throws: works before
+// supabase/billing-address.sql has been run, it just returns nothing.
+async function billingAddressFor(job) {
+  if (!job || !job.lead_id) return "";
+  try {
+    const r = (await SB.sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&select=billing_line1,billing_suburb,billing_state,billing_postcode&limit=1`))?.[0];
+    if (!r || !r.billing_line1) return "";
+    return [r.billing_line1, [r.billing_suburb, r.billing_state, r.billing_postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  } catch (_) { return ""; }
+}
+
 // Emails the invoice. Never throws: returns { status: 'sent' | 'skipped' | 'failed', ... }.
 async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, paid, method, agent }) {
   const to = String(job.email || (lead && lead.email) || "").trim().toLowerCase();
@@ -78,7 +90,8 @@ async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, p
   if (!process.env.RESEND_API_KEY) return { status: "failed", error: "Email service is not configured." };
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const date = Q.fmtDate(new Date());
-  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, date, bookingFee, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
+  const billingAddress = await billingAddressFor(job);
+  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
   const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
   try {
     const { Resend } = require("resend");
@@ -92,4 +105,4 @@ async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, p
   } catch (e) { return { status: "failed", error: e.message }; }
 }
 
-module.exports = { renderInvoice, sendJobInvoice, BANK };
+module.exports = { renderInvoice, sendJobInvoice, billingAddressFor, BANK };

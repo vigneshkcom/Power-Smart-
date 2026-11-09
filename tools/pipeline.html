@@ -339,6 +339,16 @@
               <div class="field"><label>Postcode</label><input id="lm-address-postcode" maxlength="12"></div>
             </div>
           </div>
+          <div class="section-label">Billing address <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)">(for the invoice)</span></div>
+          <div class="field full">
+            <label class="chk" style="margin-top:0"><input type="checkbox" id="lm-bill-same" checked> Same as the installation address</label>
+            <div class="fgrid" id="lm-bill-fields" hidden style="margin-top:.5rem">
+              <div class="field full"><label>Unit and street</label><input id="lm-billing-line1" data-address-autofill data-address-compact data-address-suburb="lm-billing-suburb" data-address-state="lm-billing-state" data-address-postcode="lm-billing-postcode" placeholder="e.g. PO Box 12 or 4/112 High Street"></div>
+              <div class="field"><label>Suburb</label><input id="lm-billing-suburb"></div>
+              <div class="field"><label>State</label><input id="lm-billing-state" maxlength="20"></div>
+              <div class="field"><label>Postcode</label><input id="lm-billing-postcode" maxlength="12"></div>
+            </div>
+          </div>
         </div>
         <div class="fgrid fgrid3" id="lm-quote-row" style="display:none;margin-top:.7rem">
           <div class="field"><label>Quote ref</label><input id="lm-qref" readonly style="background:#F8FBFB"></div>
@@ -842,6 +852,7 @@
     $("lm-address-suburb").value = l.address_suburb || "";
     $("lm-address-state").value = l.address_state || "";
     $("lm-address-postcode").value = l.address_postcode || l.postcode || "";
+    setBilling(l);
     resetAddrEditor();
     $("lm-source").value = l.source || "";
     $("lm-agent").value = currentAgent();
@@ -961,6 +972,7 @@
     currentId = null; anotherAddressOf = null;
     $("lm-addr2").style.display = "none";
     $("lm-send-row").style.display = ""; $("lm-send-sms").checked = true; $("lm-send-email").checked = true;
+    setBilling(null);
     $("lm-reminders").hidden=true;
     $("lm-title").textContent = "Add lead";
     ["lm-name","lm-phone","lm-email","lm-postcode","lm-agent","lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).value = ""; });
@@ -979,7 +991,17 @@
   }
 
   // "Add another address": a new, separate lead (own quote and payments) for an existing customer, name/phone/email copied.
-  var anotherAddressOf = null;
+  var anotherAddressOf = null, hadBilling = false;
+  function billingFieldsShow(){ $("lm-bill-fields").hidden = $("lm-bill-same").checked; }
+  $("lm-bill-same").addEventListener("change", function(){ billingFieldsShow(); if (!this.checked){ var f = $("lm-billing-line1"); if (f && !f.value){ f.focus(); } } });
+  function setBilling(l){
+    var any = !!(l && (l.billing_line1 || l.billing_suburb || l.billing_postcode));
+    hadBilling = any;
+    $("lm-bill-same").checked = !any;
+    $("lm-billing-line1").value = (l && l.billing_line1) || ""; $("lm-billing-suburb").value = (l && l.billing_suburb) || "";
+    $("lm-billing-state").value = (l && l.billing_state) || ""; $("lm-billing-postcode").value = (l && l.billing_postcode) || "";
+    billingFieldsShow();
+  }
   function openAnotherAddress(){
     var l = leads.find(function(x){ return x.id === currentId; });
     if (!l) return;
@@ -1012,6 +1034,13 @@
       source: $("lm-source").value.trim(),
       agent: $("lm-agent").value.trim()
     };
+    if (!$("lm-bill-same").checked){
+      fields.billing_line1 = $("lm-billing-line1").value.trim(); fields.billing_suburb = $("lm-billing-suburb").value.trim();
+      fields.billing_state = $("lm-billing-state").value.trim(); fields.billing_postcode = $("lm-billing-postcode").value.trim();
+      if (!fields.billing_line1 || !fields.billing_suburb || !fields.billing_postcode){ toast("Enter the full billing address, or tick Same as the installation address"); btn.disabled = false; return; }
+    } else if (hadBilling){
+      fields.billing_line1 = ""; fields.billing_suburb = ""; fields.billing_state = ""; fields.billing_postcode = "";   // back to "same as installation"
+    }
     if (!fields.name){ toast("Name is required"); btn.disabled = false; return; }
     var p;
     if (currentId){

@@ -44,6 +44,7 @@
   .terms strong{color:var(--ink)}
   .address-box{margin:20px 0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#FAFCFC}
   .address-box h2{font-size:1rem;margin-bottom:4px}
+  .bill-same{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:600;margin-bottom:12px;cursor:pointer}.bill-same input{width:18px;height:18px}
   .address-box>p{font-size:.78rem;color:var(--muted);margin-bottom:13px}
   .address-grid{display:grid;grid-template-columns:1fr 110px 110px;gap:10px}
   .address-field{display:flex;flex-direction:column;gap:5px}.address-field.full{grid-column:1/-1}
@@ -125,6 +126,18 @@
             <div class="address-field suburb"><label for="addressSuburb">Suburb</label><input id="addressSuburb" autocomplete="address-level2" required></div>
             <div class="address-field"><label for="addressState">State</label><select id="addressState" autocomplete="address-level1" required><option value="QLD">QLD</option><option value="NSW">NSW</option><option value="VIC">VIC</option><option value="ACT">ACT</option><option value="SA">SA</option><option value="WA">WA</option><option value="TAS">TAS</option><option value="NT">NT</option></select></div>
             <div class="address-field"><label for="addressPostcode">Postcode</label><input id="addressPostcode" inputmode="numeric" autocomplete="postal-code" maxlength="4" pattern="[0-9]{4}" required></div>
+          </div>
+        </section>
+
+        <section class="address-box" aria-labelledby="billing-title">
+          <h2 id="billing-title">Billing address</h2>
+          <p>Where should we address your invoice?</p>
+          <label class="bill-same"><input type="checkbox" id="billingSame" checked> Same as the installation address</label>
+          <div class="address-grid hidden" id="billingFields">
+            <div class="address-field full"><label for="billingLine1">Street address</label><input id="billingLine1" data-address-autofill data-address-compact data-address-suburb="billingSuburb" data-address-state="billingState" data-address-postcode="billingPostcode" autocomplete="billing address-line1" placeholder="Unit and street number"></div>
+            <div class="address-field suburb"><label for="billingSuburb">Suburb</label><input id="billingSuburb" autocomplete="billing address-level2"></div>
+            <div class="address-field"><label for="billingState">State</label><select id="billingState" autocomplete="billing address-level1"><option value="QLD">QLD</option><option value="NSW">NSW</option><option value="VIC">VIC</option><option value="ACT">ACT</option><option value="SA">SA</option><option value="WA">WA</option><option value="TAS">TAS</option><option value="NT">NT</option></select></div>
+            <div class="address-field"><label for="billingPostcode">Postcode</label><input id="billingPostcode" inputmode="numeric" autocomplete="billing postal-code" maxlength="4" pattern="[0-9]{4}"></div>
           </div>
         </section>
 
@@ -233,13 +246,21 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl, paymentMethod:paymentMethod,
         addressLine1:document.getElementById("addressLine1").value.trim(), addressSuburb:document.getElementById("addressSuburb").value.trim(),
-        addressState:document.getElementById("addressState").value, addressPostcode:document.getElementById("addressPostcode").value.trim() })
+        addressState:document.getElementById("addressState").value, addressPostcode:document.getElementById("addressPostcode").value.trim(),
+        billingSame:document.getElementById("billingSame").checked,
+        billingLine1:document.getElementById("billingLine1").value.trim(), billingSuburb:document.getElementById("billingSuburb").value.trim(),
+        billingState:document.getElementById("billingState").value, billingPostcode:document.getElementById("billingPostcode").value.trim() })
     }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(!r.ok) throw new Error(d.error || "Could not accept the quote"); return d; }); });
   }
 
+  document.getElementById("billingSame").addEventListener("change",function(){document.getElementById("billingFields").classList.toggle("hidden",this.checked);});
   function validateAddress(){
     var ids=["addressLine1","addressSuburb","addressState","addressPostcode"];
     for(var i=0;i<ids.length;i++){var field=document.getElementById(ids[i]);if(!field.checkValidity()){field.reportValidity();field.focus();return false;}}
+    if(!document.getElementById("billingSame").checked){
+      var bids=["billingLine1","billingSuburb","billingState","billingPostcode"];
+      for(var j=0;j<bids.length;j++){var bf=document.getElementById(bids[j]);if(!bf.value.trim()||!bf.checkValidity()){bf.setCustomValidity(bf.value.trim()?"":"Please complete the billing address");bf.reportValidity();bf.setCustomValidity("");bf.focus();return false;}}
+    }
     return true;
   }
 

@@ -5,13 +5,13 @@ const Q = require("./_quote");
 const SB = require("./_supabase");
 const Stripe = require("./_stripe");
 const { checkoutUrl } = require("./_payments");
-const { BANK } = require("./_job-invoice");
+const { BANK, billingAddressFor } = require("./_job-invoice");
 
 const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const CSP = "default-src 'none'; img-src https://smokealarms.powersmartco.com.au https://portal.powersmartco.com.au data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 
-function page(job, thanks) {
+function page(job, thanks, billingAddress) {
   const items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
   const total = job.invoice_total_cents || items.reduce((n, i) => n + (i.amount_cents || 0), 0);
   const owing = job.pay_status === "later" ? Math.max(0, job.amount_due_cents || 0) : 0;
@@ -37,7 +37,7 @@ function page(job, thanks) {
 .btn{display:block;text-align:center;background:#43A8B6;color:#0B1B1F;font-weight:bold;text-decoration:none;padding:14px;border-radius:999px;font-size:16px}.or{margin:16px 0 6px;font-size:13px;font-weight:bold}.bank td{border:none;padding:3px 0;font-size:14px}.note{font-size:12px;color:#6B8288;margin:12px 0 0}
 .ft{text-align:center;font-size:12px;color:#6B8288;padding:16px 26px 22px;border-top:1px solid #E5EEEF}</style></head><body><div class="w"><div class="card">
 <div class="hd"><img src="${Q.SITE}/assets/logo/power-smart-logo-full-colour.png" alt="Power Smart Co"><div><b>${paid ? "TAX INVOICE (PAID)" : "INVOICE"}</b><span>J${esc(job.job_no)} &middot; ${esc(Q.fmtDate(new Date(job.completed_at || Date.now())))}</span></div></div>
-<div class="bd">${banner}<p style="margin:0 0 14px;font-size:14px;">${esc(job.customer_name || "")}${address ? `<br><span style="color:#6B8288;font-size:12px;">${esc(address)}</span>` : ""}</p>
+<div class="bd">${banner}<p style="margin:0 0 14px;font-size:14px;">${esc(job.customer_name || "")}${billingAddress ? `<br><span style="color:#6B8288;font-size:12px;">Bill to: ${esc(billingAddress)}</span>` : ""}${address ? `<br><span style="color:#6B8288;font-size:12px;">${billingAddress ? "Property: " : ""}${esc(address)}</span>` : ""}</p>
 <table><tr><th>Description</th><th class="c">Qty</th><th class="r">Amount</th></tr>${rows}
 <tr class="tot"><td colspan="2">Total (incl. GST)</td><td class="r">${fmt(total)}</td></tr><tr class="sub"><td colspan="2">Includes GST of ${fmt(Math.round(total / 11))}</td><td></td></tr>
 ${credit ? `<tr class="sub"><td colspan="2">Less paid in advance</td><td class="r">-${fmt(credit)}</td></tr>` : ""}
@@ -67,7 +67,7 @@ module.exports = async (req, res) => {
       res.setHeader("Location", checkoutUrl(session.url)); return res.status(302).end();
     }
     res.setHeader("Content-Type", "text/html; charset=utf-8"); res.setHeader("Content-Security-Policy", CSP);
-    return res.status(200).send(page(job, String(req.query.thanks || "") === "1"));
+    return res.status(200).send(page(job, String(req.query.thanks || "") === "1", await billingAddressFor(job)));
   } catch (e) { console.error("invoice page failed:", e.message); return res.status(503).send("Your invoice is temporarily unavailable. Please try again or call PowerSmart on 0475 184 984."); }
 };
 module.exports.page = page;

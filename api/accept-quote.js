@@ -9,7 +9,7 @@ const Q = require("./_quote");
 const SB = require("./_supabase");
 const QP = require('./_quote-payments');
 
-async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address }) {
+async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address, billing }) {
   if (!SB.configured()) throw new Error("The customer record service is not configured");
   if (!lead) throw new Error("We could not find this quote. Please call 0475 184 984.");
   await SB.sb(`leads?id=eq.${encodeURIComponent(lead.id)}`, {
@@ -25,6 +25,15 @@ async function logAcceptance({ ref, customerName, lead, payableToday, paymentMet
     },
     prefer: "return=minimal",
   });
+  // Billing address (only when it differs from the installation address). Saved separately so a database that hasn't
+  // had supabase/billing-address.sql run yet can never block an acceptance.
+  let billingNote = "";
+  if (billing) {
+    try {
+      await SB.sb(`leads?id=eq.${encodeURIComponent(lead.id)}`, { method: "PATCH", body: { billing_line1: billing.line1, billing_suburb: billing.suburb, billing_state: billing.state, billing_postcode: billing.postcode }, prefer: "return=minimal" });
+      billingNote = ` Billing address: ${billing.full}.`;
+    } catch (e) { billingNote = ` Billing address ${billing.full} could NOT be saved (${e.message}); add it on the customer card.`; }
+  }
   try {
       await SB.sb("lead_comments", {
         method: "POST",
@@ -58,6 +67,16 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Please enter the complete installation address" });
   }
   address.full = `${address.line1}, ${address.suburb} ${address.state} ${address.postcode}`;
+  // Optional billing address: the customer ticks "same as installation" or enters a different one for the invoice.
+  let billing = null;
+  if (b.billingSame === false) {
+    billing = {
+      line1: String(b.billingLine1 || "").slice(0, 180).trim(), suburb: String(b.billingSuburb || "").slice(0, 100).trim(),
+      state: String(b.billingState || "").slice(0, 20).trim().toUpperCase(), postcode: String(b.billingPostcode || "").slice(0, 12).trim(),
+    };
+    if (!billing.line1 || !billing.suburb || !billing.state || !billing.postcode) return res.status(400).json({ error: "Please enter the complete billing address" });
+    billing.full = `${billing.line1}, ${billing.suburb} ${billing.state} ${billing.postcode}`;
+  }
   let serviceMode, q, stripeUrl = null, paymentReceived = false;
   try {
     if (!ref || !customerEmail) throw new Error('Please open the link in your quote or contact PowerSmart.');
@@ -74,7 +93,7 @@ module.exports = async (req, res) => {
       stripeUrl = checkout.url; paymentReceived = checkout.paid;
     }
     if (paymentReceived) return res.status(200).json({ ok: true, paymentMethod, paymentReceived, stripeUrl });
-    await logAcceptance({ ref, customerName, lead, payableToday: q.payableToday, paymentMethod, address });
+    await logAcceptance({ ref, customerName, lead, payableToday: q.payableToday, paymentMethod, address, billing });
   } catch (error) {
     return res.status(500).json({ error: error.message || "Could not save the accepted quote" });
   }
@@ -96,6 +115,7 @@ module.exports = async (req, res) => {
             <tr><td style="padding:4px 10px;color:#6B8288;">Customer</td><td style="padding:4px 10px;"><strong>${Q.escapeHtml(customerName || "Not provided")}</strong></td></tr>
             <tr><td style="padding:4px 10px;color:#6B8288;">Email</td><td style="padding:4px 10px;">${Q.escapeHtml(customerEmail || "Not provided")}</td></tr>
             <tr><td style="padding:4px 10px;color:#6B8288;">Installation address</td><td style="padding:4px 10px;"><strong>${Q.escapeHtml(address.full)}</strong></td></tr>
+            ${billing ? `<tr><td style="padding:4px 10px;color:#6B8288;">Billing address</td><td style="padding:4px 10px;"><strong>${Q.escapeHtml(billing.full)}</strong></td></tr>` : ""}
             <tr><td style="padding:4px 10px;color:#6B8288;">Quote ref</td><td style="padding:4px 10px;">${Q.escapeHtml(ref || "Not provided")}</td></tr>
             ${agentName ? `<tr><td style="padding:4px 10px;color:#6B8288;">Prepared by</td><td style="padding:4px 10px;">${Q.escapeHtml(agentName)}</td></tr>` : ""}
           </table>

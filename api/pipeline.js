@@ -18,6 +18,17 @@ const PORTAL_KEY = "2026";
 const STAGES = ["new_lead", "quote_accepted", "follow_up", "quote_sent", "scheduled", "won", "not_reachable", "not_interested", "out_of_area"];
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
+// Billing address (for invoices; empty = same as the installation address). Needs supabase/billing-address.sql, so the
+// columns are only written when the form sends them (create: only when something was typed).
+function billingFields(b, forUpdate) {
+  const keys = ["billing_line1", "billing_suburb", "billing_state", "billing_postcode"], max = [180, 100, 20, 12], out = {};
+  keys.forEach((k, i) => {
+    if (b[k] === undefined) return;
+    const v = clean(b[k], max[i]);
+    if (forUpdate || v) out[k] = (k === "billing_state" ? v.toUpperCase() : v) || null;
+  });
+  return out;
+}
 
 module.exports = async (req, res) => {
   if (/[?&]resource=address-config(&|$)/.test(req.url || "")) return require("./_address-config")(req, res);
@@ -120,6 +131,7 @@ module.exports = async (req, res) => {
           address_suburb: clean(b.address_suburb, 100) || null,
           address_state: clean(b.address_state, 20).toUpperCase() || null,
           address_postcode: clean(b.address_postcode, 12) || null,
+          ...billingFields(b, false),
           source: clean(b.source, 60) || "Manual",
           agent: clean(b.agent, 120) || null,
           stage,
@@ -169,6 +181,7 @@ module.exports = async (req, res) => {
       if (b.address_suburb !== undefined) fields.address_suburb = clean(b.address_suburb, 100) || null;
       if (b.address_state !== undefined) fields.address_state = clean(b.address_state, 20).toUpperCase() || null;
       if (b.address_postcode !== undefined) fields.address_postcode = clean(b.address_postcode, 12) || null;
+      Object.assign(fields, billingFields(b, true));
       if (b.source !== undefined) fields.source = clean(b.source, 60) || null;
       if (b.agent !== undefined) fields.agent = clean(b.agent, 120) || null;
       if (!Object.keys(fields).length) return res.status(400).json({ error: "Nothing to update" });

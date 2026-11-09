@@ -36,3 +36,21 @@ test('the confirmation email is only attempted when asked for and the lead has a
   assert.equal(r.code, 200);
   assert.ok(r.body.lead.id);
 });
+
+test('billing address is only written when the form sends it, and can be cleared on update', async () => {
+  const writes = [];
+  const module = { exports: {} };
+  const SB = { configured: () => true, sb: async (q, o = {}) => { if (o.method) writes.push({ q, body: o.body }); return q === 'leads' && o.method === 'POST' ? [{ id: 'l1', ...o.body }] : (o.method === 'PATCH' ? [{ id: 'l1', ...o.body }] : []); } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), { module, process: { env: {} }, console: { error() {} }, URL, Buffer,
+    require: (k) => (k === './_supabase' ? SB : k === './_welcome-sms' ? { welcomeLead: async () => ({ status: 'skipped' }) } : require(k)) }, { filename: 'pipeline.js' });
+  const h = module.exports;
+  const post = (body) => { const r = res(); return h({ method: 'POST', headers: KEY, url: '/api/pipeline', body }, r).then(() => r); };
+  await post({ action: 'create', name: 'Kath', send_sms: false });
+  assert.equal('billing_line1' in writes.at(-1).body, false, 'no billing columns touched when nothing was typed');
+  await post({ action: 'create', name: 'Kath', send_sms: false, billing_line1: 'PO Box 12', billing_suburb: 'Logan', billing_state: 'qld', billing_postcode: '4114' });
+  assert.deepEqual([writes.at(-1).body.billing_line1, writes.at(-1).body.billing_state, writes.at(-1).body.billing_postcode], ['PO Box 12', 'QLD', '4114']);
+  await post({ action: 'update', id: 'l1', billing_line1: '', billing_suburb: '', billing_state: '', billing_postcode: '' });
+  assert.equal(writes.at(-1).body.billing_line1, null, 'ticking "same as installation" clears the billing address');
+  await post({ action: 'update', id: 'l1', name: 'Kath G' });
+  assert.equal('billing_line1' in writes.at(-1).body, false, 'an ordinary edit leaves billing alone');
+});
