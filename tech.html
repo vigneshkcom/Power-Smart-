@@ -203,6 +203,18 @@
   .card[id^=sec-]{scroll-margin-top:128px}
   .jstep:focus-visible,.jsync:focus-visible{outline:2px solid #fff;outline-offset:2px}
   .appver{text-align:center;font-size:.68rem;color:var(--muted);margin:18px 0 0}
+  .leavemodal{position:fixed;inset:0;z-index:70;background:rgba(11,27,31,.6);display:flex;padding:20px}
+  .leavemodal[hidden]{display:none}
+  .leave-card{margin:auto;width:min(100%,420px);background:#fff;border-radius:18px;padding:22px 22px 12px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+  .leave-card h2{font-size:1.2rem;font-weight:800;margin-bottom:8px}
+  .leave-card p{font-size:.95rem;line-height:1.45;color:var(--body)}
+  .leave-card ul{margin:8px 0 4px 4px;list-style:none;font-size:.98rem;font-weight:600;color:var(--ink)}
+  .leave-card li{padding:3px 0}.leave-card li::before{content:"–  ";color:var(--muted)}
+  .leave-actions{display:flex;align-items:center;gap:4px;margin-top:14px}
+  .leave-actions .grow{flex:1}
+  .leave-actions button{min-height:48px;padding:0 14px;border-radius:10px;font-size:.88rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .lv-discard{color:var(--red)}.lv-fix{color:var(--teal-deep)}.lv-submit{color:var(--teal-dark);background:var(--teal-soft)}
+  .leave-actions button:disabled{opacity:.5}
 </style>
 </head>
 <body>
@@ -269,6 +281,19 @@
     <button class="btn btn-primary" id="done-back">Back to my jobs</button>
   </section>
 </div>
+<div class="leavemodal" id="leave-modal" role="alertdialog" aria-modal="true" aria-labelledby="leave-title" hidden>
+  <div class="leave-card">
+    <h2 id="leave-title">Job not finished</h2>
+    <p id="leave-msg"></p>
+    <ul id="leave-list"></ul>
+    <div class="leave-actions">
+      <button type="button" id="leave-discard" class="lv-discard">Discard</button>
+      <span class="grow"></span>
+      <button type="button" id="leave-fix" class="lv-fix">Fix</button>
+      <button type="button" id="leave-submit" class="lv-submit">Submit</button>
+    </div>
+  </div>
+</div>
 <div class="sigmodal" id="sig-modal" role="dialog" aria-modal="true" aria-label="Sign here" hidden>
   <div class="sig-card">
     <div><b class="sig-title">Sign here</b><div class="muted" id="sig-who">Sign with your finger</div></div>
@@ -302,7 +327,7 @@
   function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job") rememberView({ job: null }); }
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
-  var APP_VERSION = "2026-11-09.5";   // shown under the job list so you can tell which copy of the app a phone is running
+  var APP_VERSION = "2026-11-09.6";   // shown under the job list so you can tell which copy of the app a phone is running
   $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
   function scroller(){ return document.querySelector(".app"); }
@@ -521,7 +546,45 @@
       });
     }).catch(function(e){ $("j-body").innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
-  $("j-back").addEventListener("click", function(){ if (dirty) toast("Your changes are stored on this phone. Synchronise when you have signal."); loadList(); });
+  // Back arrow: if there is unsynchronised work, ask what to do with it instead of just leaving.
+  function unfinishedAreas(){
+    var out = [], j = cur.job;
+    var hasItems = (cur.items || []).length > 0 || unitList().length > 0, approved = !!j.approved_at;
+    if (!completeState.alarms) out.push({ name: "Smoke alarms", sec: "alarms" });
+    if (!hasItems) out.push({ name: "Invoice", sec: "invoice" });
+    if (!approved) out.push({ name: "Customer approval", sec: "approval" });
+    else if (!completeState.payReady) out.push({ name: "Payment details", sec: "approval" });
+    if (!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))) out.push({ name: "Work sign off", sec: "signoff" });
+    return out;
+  }
+  function backFromJob(){
+    if (syncing){ toast("Synchronising… one moment."); return; }
+    if (!cur || cur.job.status === "completed" || !(dirty || draft)){ loadList(); return; }
+    var areas = unfinishedAreas();
+    $("leave-title").textContent = "J" + cur.job.job_no + " has unsaved work";
+    $("leave-msg").textContent = areas.length ? "Your changes are only on this phone, and these areas are not finished:" : "Your changes are only on this phone and are not synchronised yet.";
+    $("leave-list").innerHTML = areas.map(function(a){ return "<li>" + esc(a.name) + "</li>"; }).join("");
+    $("leave-fix").hidden = !areas.length;
+    $("leave-modal").hidden = false; $("leave-modal").dataset.sec = areas.length ? areas[0].sec : "";
+  }
+  function closeLeave(){ $("leave-modal").hidden = true; }
+  $("j-back").addEventListener("click", backFromJob);
+  $("leave-fix").addEventListener("click", function(){
+    var sec = $("leave-modal").dataset.sec; closeLeave();
+    var el = sec && $("sec-" + sec); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("leave-submit").addEventListener("click", function(){
+    closeLeave();
+    syncJob().then(function(){ toast("Saved and synchronised"); loadList(); }).catch(function(err){ toast("Not submitted: " + err.message + ". Your work is still stored on this phone."); });
+  });
+  $("leave-discard").addEventListener("click", function(){
+    if (!confirm("Discard all unsynchronised changes to J" + cur.job.job_no + "?\n\nThe alarms, notes, photos and sign-off you entered on this phone for this job will be deleted. This cannot be undone.")) return;
+    var id = cur.job.id;
+    localRecs.slice().forEach(function(r){ dropPhoto(r.key); });
+    clearDraft(id); dirty = false; draft = null; localRecs = []; sigData = null; soOk = false;
+    closeLeave(); toast("Changes discarded"); loadList();
+  });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape" && !$("leave-modal").hidden) closeLeave(); });
 
   function itemQty(code){ var it = cur.items.find(function(i){ return i.code === code; }); return it ? it.qty : 0; }
   function isAlarm(code){ return cur.alarm_codes.indexOf(code) >= 0; }
