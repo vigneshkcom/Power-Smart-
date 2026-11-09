@@ -165,6 +165,7 @@ async function reconcileJobPayment(session) {
     pay_status: "paid", pay_method: "card", paid_cents: session.amount_total, paid_at: new Date().toISOString(), pay_session_id: session.id,
   } });
   if (updated && updated.length) {
+    await J.addPayment(jobId, { amount_cents: session.amount_total, method: "card", by: "Customer (card)" });
     await J.leadNote(job.lead_id, "Stripe", `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. Stripe checkout: ${session.id}.`, "payment");
   }
   // A card payment received after sign-off (pay-later invoice) sends the paid tax invoice and the certificate; both check the job is completed.
@@ -344,7 +345,7 @@ async function handler(req, res) {
       const paidInFull = b.paid_in_full === true;
       const f = { status: "completed", completed_at: new Date().toISOString(), amount_due_cents: t.due,
         signoff_name: signoffName, signoff_signature: signature, signoff_at: new Date().toISOString() };
-      let payText;
+      let payText, cashPart = 0;
       if (t.due <= 0) { f.pay_status = "none"; payText = "Nothing to pay on site."; }
       else if (current.pay_status === "paid") { f.pay_status = "paid"; f.pay_method = current.pay_method || "card"; payText = `Paid in full by ${METHOD_LABEL[f.pay_method] || "card"}: ${money(current.paid_cents || t.due)}.`; }
       else if (paidInFull && b.method === "cash") {
@@ -354,7 +355,7 @@ async function handler(req, res) {
       }
       else if (b.method === "cash" && !paidInFull && Number.isSafeInteger(Number(b.cash_cents)) && Number(b.cash_cents) > 0) {
         // Part payment in cash: the cash collected is taken off the invoice and the balance goes on a pending invoice.
-        const cash = Number(b.cash_cents);
+        const cash = Number(b.cash_cents); cashPart = cash;
         if (cash >= t.due) throw fail(400, "The cash collected must be less than the amount due. If the customer paid in full, choose Yes.");
         if (!current.pay_receipt) throw fail(409, "Take a photo of the cash receipt and synchronise first.");
         const now = new Date().toISOString();
@@ -372,6 +373,9 @@ async function handler(req, res) {
       else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }
 
       const done = await patchJob(current.id, f);
+      // Payment ledger: cash taken on site (full or part).
+      if (f.pay_method === "cash" && f.pay_status === "paid" && f.paid_cents > 0) await J.addPayment(current.id, { amount_cents: f.paid_cents, method: "cash", by: tech.name });
+      else if (cashPart > 0) await J.addPayment(current.id, { amount_cents: cashPart, method: "cash", by: tech.name });
       const paid = f.pay_status !== "later";
       const lead = current.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
       const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, bookingFee: await bookingFeePaid(current.lead_id), paid, method: f.pay_method, agent: tech.name });

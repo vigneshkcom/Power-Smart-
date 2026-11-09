@@ -178,6 +178,7 @@
   .confirm-to{font-weight:500;color:var(--muted);font-size:.74rem}
   .hint{font-size:.68rem;color:var(--teal-deep);font-weight:600;min-height:1em}
   .hint.warn{color:#9A6A0B}
+  .payrow{display:flex;justify-content:space-between;gap:12px;padding:.18rem 0}.payrow.tot{border-top:1px solid var(--line);margin-top:.25rem;padding-top:.35rem}.payrow .owe{color:#c0392b}.payrow .ok{color:#2F9E6E}
   .report{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.8rem;color:var(--body);line-height:1.55}
   .report b{color:var(--ink)}
   .report .pay{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);margin-left:.3rem}
@@ -332,6 +333,7 @@
       <div class="modal-body">
         <div class="jm-links" id="jm-links"></div>
         <div class="report" id="jm-report" style="display:none"></div>
+        <div class="report payb" id="jm-payments" style="display:none"></div>
         <div class="fgrid">
           <div class="section-label">Customer</div>
           <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
@@ -1065,7 +1067,7 @@
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
-    $("jm-report").style.display = "none";
+    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none";
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
       var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
@@ -1100,6 +1102,35 @@
     return parts.length ? parts.join(" + ") + " smoke alarm" + (n.battery + n.hardwired === 1 ? "" : "s") : "";
   }
   // What the electrician recorded in the phone app (/tech).
+  // Payments received on this job: the ledger (jobs.payments) plus any earlier money only stored as totals on the job.
+  function renderPayments(j){
+    var box = $("jm-payments"); if (!box) return;
+    var money = function(c){ return "$" + ((c || 0) / 100).toFixed(2); };
+    var METHOD = { cash: "Cash", card: "Card", bank_transfer: "Bank transfer" };
+    var ledger = Array.isArray(j.payments) ? j.payments.filter(function(p){ return p && p.amount_cents > 0; }) : [];
+    var received = (j.prior_paid_cents || 0) + (j.pay_status === "paid" ? (j.paid_cents || 0) : 0);
+    var listed = ledger.reduce(function(n, p){ return n + p.amount_cents; }, 0);
+    var rows = ledger.slice();
+    if (!ledger.length){
+      // jobs paid before the ledger existed: rebuild the rows from the totals stored on the job
+      if (j.prior_paid_cents > 0) rows.push({ at: j.prior_paid_at, amount_cents: j.prior_paid_cents, method: j.prior_pay_method, by: "" });
+      if (j.pay_status === "paid" && j.paid_cents > 0) rows.push({ at: j.paid_at, amount_cents: j.paid_cents, method: j.pay_method || "card", by: "" });
+    } else if (listed < received) rows.unshift({ at: null, amount_cents: received - listed, method: "", by: "", label: "Earlier payments" });
+    var total = j.invoice_total_cents || 0;
+    if (!rows.length && !(total > 0 && j.status === "completed")){ box.style.display = "none"; return; }
+    rows.sort(function(a, b){ return (a.at ? Date.parse(a.at) : 0) - (b.at ? Date.parse(b.at) : 0); });
+    var got = rows.reduce(function(n, p){ return n + p.amount_cents; }, 0);
+    var owing = j.pay_status === "later" ? (j.amount_due_cents || 0) : (j.pay_status === "paid" || j.pay_status === "none") ? 0 : Math.max(0, total - got);
+    var when = function(iso){ return iso ? new Date(iso).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" }) : "Date not recorded"; };
+    box.innerHTML = '<b>Payments</b>' +
+      (total > 0 ? '<div class="payrow"><span>Invoice total</span><b>' + money(total) + '</b></div>' : '') +
+      (rows.length ? rows.map(function(p){
+        return '<div class="payrow"><span>' + esc(p.label || (when(p.at) + " · " + (METHOD[p.method] || "Payment") + (p.by ? " · " + p.by : ""))) + '</span><span>' + money(p.amount_cents) + '</span></div>';
+      }).join("") : '<div class="payrow muted"><span>No payments recorded yet</span><span></span></div>') +
+      '<div class="payrow tot"><span>Received</span><b>' + money(got) + '</b></div>' +
+      (total > 0 ? '<div class="payrow tot"><span>Owing</span><b class="' + (owing > 0 ? "owe" : "ok") + '">' + money(owing) + '</b></div>' : '');
+    box.style.display = "";
+  }
   function renderReport(j){
     var box = $("jm-report"), items = j.invoice_items || [];
     if (!items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
@@ -1191,7 +1222,7 @@
     window.PSPhotos.mount($("jm-photos"),
       function(){ return call("/api/pipeline", "POST", { action:"job_photos", job_id: j.id }); },
       function(path){ return call("/api/pipeline", "POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
-    renderReport(j);
+    renderReport(j); renderPayments(j);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
     $("job-overlay").classList.add("show");

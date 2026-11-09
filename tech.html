@@ -215,6 +215,9 @@
   .leave-actions button{min-height:48px;padding:0 14px;border-radius:10px;font-size:.88rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .lv-discard{color:var(--red)}.lv-fix{color:var(--teal-deep)}.lv-submit{color:var(--teal-dark);background:var(--teal-soft)}
   .leave-actions button:disabled{opacity:.5}
+  .qnote{display:flex;flex-direction:column;gap:6px;background:#FFF4D6;color:#5C4000;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:.84rem}
+  .qnote b{font-size:.9rem}.qnote .btn{min-height:44px;margin-top:4px}
+  .qnote.bad{background:#FBE4E4;color:#7A1F1F}
 </style>
 </head>
 <body>
@@ -255,6 +258,7 @@
       <div class="cal-grid cal-dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
       <div class="cal-grid" id="cal-grid"></div>
     </div>
+    <div id="queue-note"></div>
     <div id="jobs"><div class="loading">Loading…</div></div>
     <p class="appver" id="appver"></p>
   </section>
@@ -324,10 +328,25 @@
   function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function timeLabel(d){ var h = d.getHours(); return (h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h < 12 ? "am" : "pm"); }
   function toast(msg){ var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200); }
-  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job") rememberView({ job: null }); }
+  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job"){ rememberView({ job: null }); popJobEntry(); } }
+  // The phone's own Back button / swipe-back: an extra history entry is added while a job is open, so Back lands on the
+  // same "Discard / Fix / Submit" question as the arrow in the header instead of silently leaving.
+  var jobEntry = false, skipPop = 0;
+  function pushJobEntry(){ if (!jobEntry){ try { history.pushState({ ps: "job" }, ""); jobEntry = true; } catch(e){} } }
+  function popJobEntry(){ if (jobEntry){ jobEntry = false; skipPop++; try { history.back(); } catch(e){ skipPop--; } } }
+  window.addEventListener("popstate", function(){
+    if (skipPop > 0){ skipPop--; return; }
+    if (!jobEntry) return;
+    jobEntry = false;                                   // the browser already removed our entry
+    if (!$("v-job").classList.contains("show")) return;
+    pushJobEntry();                                     // stay on the job unless the user chooses to leave
+    if (!$("sig-modal").hidden){ closeSign(); return; }
+    if (!$("leave-modal").hidden){ closeLeave(); return; }
+    backFromJob();
+  });
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
-  var APP_VERSION = "2026-11-09.6";   // shown under the job list so you can tell which copy of the app a phone is running
+  var APP_VERSION = "2026-11-09.7";   // shown under the job list so you can tell which copy of the app a phone is running
   $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
   function scroller(){ return document.querySelector(".app"); }
@@ -365,11 +384,97 @@
       .then(function(r){
         return r.json().catch(function(){ return {}; }).then(function(d){
           if (r.status === 401 && action !== "me"){ signOut(); throw new Error(d.error || "Please sign in again"); }
-          if (!r.ok) throw new Error(d.error || ("Error " + r.status));
+          if (!r.ok){ var err = new Error(d.error || ("Error " + r.status)); err.status = r.status; throw err; }
           return d;
         });
       });
   }
+
+  /* ---------- sending work when there is no signal ---------- */
+  // Completing a job snapshots everything onto the phone first (a "queued completion"), then tries to send it. With no
+  // signal it stays queued and is sent automatically later: photos, then the saved job, then the sign-off.
+  var Q_PREFIX = "psq_", flushing = false;
+  function isTransient(e){ return !e || e.name === "TypeError" || /failed to fetch|networkerror|load failed|network request failed/i.test(e.message || "") || (e.status >= 500); }
+  function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function withRetry(fn, tries){
+    var n = 0;
+    return (function attempt(){
+      return fn().catch(function(e){ if (!isTransient(e) || navigator.onLine === false || ++n >= tries) throw e; return delay(700 * Math.pow(2, n - 1)).then(attempt); });
+    })();
+  }
+  function qSet(rec){ try { localStorage.setItem(Q_PREFIX + rec.jobId, JSON.stringify(rec)); } catch(e){ toast("This phone is out of storage space."); } }
+  function qGet(id){ try { return JSON.parse(localStorage.getItem(Q_PREFIX + id) || "null"); } catch(e){ return null; } }
+  function qDel(id){ try { localStorage.removeItem(Q_PREFIX + id); } catch(e){} }
+  function qAll(){
+    var out = [];
+    try { for (var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if (k && k.indexOf(Q_PREFIX) === 0){ var r = qGet(k.slice(Q_PREFIX.length)); if (r && (!me || !r.tech || r.tech === me.code)) out.push(r); } } } catch(e){}
+    return out;
+  }
+  function runQueued(rec){
+    var id = rec.jobId;
+    return idbForJob(id).then(function(photos){
+      return photos.reduce(function(chain, ph){
+        return chain.then(function(){
+          return withRetry(function(){ return call("photo_upload", { id: id, category: ph.category, data: ph.data }); }, 3).then(function(r){
+            if (!r.path) throw new Error("Photo storage isn't set up. Tell the office");
+            if (ph.category === "receipt") rec.receiptPath = r.path;
+            var u = rec.units.find(function(x){ return (ph.unitId && x.id === ph.unitId) || (x.photoKey && x.photoKey === ph.key); });
+            if (u){ u.photo = r.path; delete u.photoKey; }
+            return idbDel(ph.key).catch(function(){}).then(function(){ qSet(rec); });
+          });
+        });
+      }, Promise.resolve());
+    }).then(function(){
+      if (rec.saved) return null;
+      return withRetry(function(){ return call("save", { id: id, items: rec.items, alarm_units: rec.units, notes: rec.notes, approve: rec.approve, pay_receipt: rec.receiptPath || undefined }); }, 3)
+        .then(function(){ rec.saved = true; qSet(rec); });
+    }).then(function(){
+      return withRetry(function(){ return call("complete", rec.complete); }, 2);
+    }).catch(function(e){
+      // The reply to an earlier attempt can be lost after the server finished: "already completed" means it worked.
+      if (/already completed/i.test(e.message || "")) return { alreadyCompleted: true };
+      throw e;
+    });
+  }
+  // If a queued job fails for a real reason, keep what was uploaded so far so editing the job again does not lose photos.
+  function keepProgressInDraft(rec){
+    try {
+      var d = JSON.parse(localStorage.getItem(DRAFT_PREFIX + rec.jobId) || "null");
+      if (d){ d.units = rec.units; localStorage.setItem(DRAFT_PREFIX + rec.jobId, JSON.stringify(d)); }
+    } catch(e){}
+  }
+  function flushQueue(){
+    if (flushing || !me) return Promise.resolve();
+    var recs = qAll().filter(function(r){ return !r.error; });
+    if (!recs.length){ renderQueueNote(); return Promise.resolve(); }
+    flushing = true; renderQueueNote();
+    return recs.reduce(function(chain, rec){
+      return chain.then(function(){
+        return runQueued(rec).then(function(){
+          qDel(rec.jobId); clearDraft(rec.jobId); toast("J" + rec.jobNo + " sent to the office");
+        }, function(err){
+          if (isTransient(err)) return;
+          rec.error = err.message; qSet(rec); keepProgressInDraft(rec);
+        });
+      });
+    }, Promise.resolve()).then(function(){ flushing = false; renderQueueNote(); if ($("v-list").classList.contains("show")) loadList(); }, function(){ flushing = false; renderQueueNote(); });
+  }
+  function renderQueueNote(){
+    var box = $("queue-note"); if (!box) return;
+    var recs = qAll();
+    box.innerHTML = recs.map(function(r){
+      return r.error
+        ? '<div class="qnote bad"><b>J' + esc(r.jobNo) + ' · ' + esc(r.name) + ' could not be sent</b><span>' + esc(r.error) + '</span><button class="btn btn-ghost" data-qopen="' + esc(r.jobId) + '">Open job</button></div>'
+        : '<div class="qnote"><b>J' + esc(r.jobNo) + ' · ' + esc(r.name) + ' is saved on this phone</b><span>' + (flushing ? "Sending…" : "It sends by itself when you have signal.") + '</span>' + (flushing ? "" : '<button class="btn btn-primary" data-qsend="1">Send now</button>') + '</div>';
+    }).join("");
+  }
+  $("queue-note").addEventListener("click", function(e){
+    var o = e.target.closest("[data-qopen]"); if (o){ var id = o.dataset.qopen; qDel(id); renderQueueNote(); openJob(id); return; }
+    if (e.target.closest("[data-qsend]")) flushQueue().then(function(){ if (qAll().some(function(r){ return !r.error; })) toast("Still no signal. It will send when you are back online."); });
+  });
+  window.addEventListener("online", function(){ flushQueue(); });
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) flushQueue(); });
+  setInterval(function(){ if (!document.hidden) flushQueue(); }, 30000);
 
   /* ---------- sign in ---------- */
   function showLogin(){
@@ -404,7 +509,7 @@
     return name + "<small>" + d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + "</small>";
   }
   function loadList(){
-    show("v-list"); rememberView({ day: +day });
+    show("v-list"); rememberView({ day: +day }); renderQueueNote();
     $("hello").textContent = "Hi " + ((me && me.name) || "").split(" ")[0];
     $("d-lbl").innerHTML = dayLabel(day);
     $("d-today").disabled = +day === +startOfDay(new Date());
@@ -525,7 +630,7 @@
 
   /* ---------- job ---------- */
   function openJob(id, after){
-    show("v-job"); rememberView({ job: id });
+    show("v-job"); rememberView({ job: id }); pushJobEntry();
     $("j-body").innerHTML = '<div class="loading">Loading…</div>';
     $("j-title").textContent = "Job"; $("j-chip").textContent = "";
     draft = null; pay = { full: null, method: "", cash: "" }; soName = ""; soOk = false; sigData = null; dirty = false; localRecs = [];
@@ -535,6 +640,14 @@
       if (!cached) throw err;
       offline = true; return cached;
     }).then(function(d){
+      var q = qGet(id);
+      if (q && !q.error){
+        cur = d;
+        $("j-body").innerHTML = '<div class="card"><h2>Waiting to send</h2><p class="muted">J' + esc(q.jobNo) + ' is saved on this phone and is being sent to the office. You can leave this screen; it sends by itself when you have signal.</p>' +
+          '<button class="btn btn-primary" id="q-now" style="margin-top:12px">Send now</button></div>';
+        $("q-now").addEventListener("click", function(){ flushQueue().then(function(){ if (!qGet(id)) loadList(); else toast("Still no signal. It will send when you are back online."); }); });
+        return;
+      }
       cur = d; delete photoCache[id];
       return loadLocalRecs(id).then(function(){
         var restored = restoreDraft();
@@ -655,7 +768,7 @@
     var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronise</button>' : "";
     var lock = $("so-lock"), form = $("so-form");
     if (lock && form){
-      lock.hidden = !(dirty || syncing); form.hidden = dirty || syncing;
+      lock.hidden = true; form.hidden = false;   // sign off works with or without signal: completing queues the job if needed
       var ob = $("so-open"); if (ob){ ob.disabled = syncing; ob.textContent = syncing ? "Synchronising…" : "Open work sign off"; }
     }
     updateComplete();
@@ -668,7 +781,7 @@
     return idbForJob(id).then(function(recs){
       return recs.reduce(function(chain, rec){
         return chain.then(function(){
-          return call("photo_upload", { id: id, category: rec.category, data: rec.data }).then(function(r){
+          return withRetry(function(){ return call("photo_upload", { id: id, category: rec.category, data: rec.data }); }, 3).then(function(r){
             if (!r.path) throw new Error("Photo storage isn't set up. Tell the office");
             // An alarm's photo is queued before the alarm exists, so match it by its key as well as its unit id.
             if (rec.category === "receipt") receiptPath = r.path;
@@ -769,7 +882,7 @@
   function updateComplete(){
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = dirty || syncing ? "Tap Synchronise first. The job can't be completed until it is synchronised." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = syncing ? "Synchronising… one moment." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
@@ -1006,9 +1119,9 @@
     var haveRc = !!(pay.receiptKey || j.pay_receipt), cashOk = pay.method === "cash" && ((pay.full === true && haveRc) || (pay.full === false && cashCents() >= 0 && cashCents() < due && (cashCents() === 0 || haveRc)));
     var payReady = due <= 0 || paid || cashOk || pay.method === "bank_transfer";
     html += '<div class="card" id="sec-signoff"><h2><span class="n">4</span>Work sign off</h2>' +
-      '<div id="so-lock"' + (dirty || syncing ? "" : " hidden") + '><p class="muted">Work sign off opens once this job is synchronised.</p>' +
+      '<div id="so-lock" hidden><p class="muted">Work sign off opens once this job is synchronised.</p>' +
         '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronising…" : "Open work sign off") + '</button></div>' +
-      '<div id="so-form"' + (dirty || syncing ? " hidden" : "") + '>' +
+      '<div id="so-form">' +
       '<div class="field"><label for="so-name">Electrician name</label><input id="so-name" value="' + esc(soName || (me && me.name) || "") + '" autocomplete="off"></div>' +
       '<div class="field" style="margin-top:10px"><label>Signature</label>' +
       (sigData
@@ -1098,17 +1211,37 @@
     if (t.id === "complete"){
       if (!confirm(pay.method === "bank_transfer" ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + " with the bank transfer details?" : pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
       t.disabled = true; t.textContent = "Completing…";
-      Promise.resolve().then(function(){ if (dirty) throw new Error("Synchronise first"); return call("complete", { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method, cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }); }).then(function(d){
-        var inv = d.invoice || {};
-        $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
-          ({ paid:"paid in full.", later: money(cur.totals.due) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
-          " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.") +
-          (d.certificate && d.certificate.status === "sent" ? " Compliance certificate emailed." :
-            d.certificate && d.certificate.status === "failed" ? " Compliance certificate NOT sent (" + d.certificate.reason + "). Tell the office." :
-            d.job.pay_status === "later" ? " The compliance certificate is sent once the invoice is paid." : "");
-        clearDraft(cur.job.id); dirty = false;
+      var rec = {
+        jobId: cur.job.id, jobNo: cur.job.job_no, name: cur.job.customer_name, tech: me && me.code, at: Date.now(),
+        items: wireItems(), units: JSON.parse(JSON.stringify(unitList())), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, saved: false, error: null,
+        complete: { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method,
+          cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }
+      };
+      var dueNow = cur.totals.due;
+      qSet(rec);                                   // saved on the phone before anything is sent
+      Promise.resolve().then(function(){ return runQueued(rec); }).then(function(d){
+        qDel(rec.jobId);
+        if (d && d.alreadyCompleted){ $("done-msg").textContent = "J" + rec.jobNo + " · " + rec.name + " · already completed and sent."; }
+        else {
+          var inv = d.invoice || {};
+          $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
+            ({ paid:"paid in full.", later: money(dueNow) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
+            " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.") +
+            (d.certificate && d.certificate.status === "sent" ? " Compliance certificate emailed." :
+              d.certificate && d.certificate.status === "failed" ? " Compliance certificate NOT sent (" + d.certificate.reason + "). Tell the office." :
+              d.job.pay_status === "later" ? " The compliance certificate is sent once the invoice is paid." : "");
+        }
+        clearDraft(rec.jobId); dirty = false;
         show("v-done");
-      }).catch(function(err){ t.disabled = false; t.innerHTML = "Complete job &amp; send invoice"; toast(err.message); });
+      }).catch(function(err){
+        if (isTransient(err)){
+          // No signal (or the server is down): the job stays queued and is sent automatically.
+          $("done-msg").textContent = "J" + rec.jobNo + " · " + rec.name + " is saved on this phone. It will be sent to the office by itself when you have signal, and the customer is emailed then.";
+          dirty = false; show("v-done"); renderQueueNote(); return;
+        }
+        qDel(rec.jobId); keepProgressInDraft(rec);
+        t.disabled = false; t.innerHTML = "Complete job &amp; send invoice"; toast(err.message);
+      });
     }
   });
   $("j-body").addEventListener("input", function(e){
@@ -1197,7 +1330,7 @@
       if (sv && sv.job) openJob(sv.job); else loadList();
     }
   }
-  if (me && me.code) route(); else showLogin();
+  if (me && me.code){ route(); flushQueue(); } else showLogin();
 })();
 </script>
 <script>

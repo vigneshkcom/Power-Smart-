@@ -321,3 +321,14 @@ test('reverting a job to assigned starts it over: work and payments are cleared'
   assert.equal(j.approved_at, null);
   assert.equal(j.electrician_id, 't1', 'it stays assigned');
 });
+
+test('payments are added to the job ledger when recorded in the office, and the ledger never blocks a payment', async () => {
+  const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', status: 'completed', pay_status: 'later', amount_due_cents: 48000, prior_paid_cents: 0 });
+  let r = res();
+  await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_record_payment', id: 'j1', amount: '290.00', method: 'bank_transfer', actor: 'Sunny' } }, r);
+  assert.equal(r.code, 200);
+  const ledgerWrites = f.calls.filter((c) => c.method === 'PATCH' && c.body && Array.isArray(c.body.payments));
+  assert.equal(ledgerWrites.length, 1);
+  assert.deepEqual([ledgerWrites[0].body.payments[0].amount_cents, ledgerWrites[0].body.payments[0].method, ledgerWrites[0].body.payments[0].by], [29000, 'bank_transfer', 'Sunny']);
+  assert.ok(ledgerWrites[0].body.payments[0].at && ledgerWrites[0].body.payments[0].id);
+});

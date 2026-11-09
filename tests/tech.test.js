@@ -277,6 +277,9 @@ test('completing needs a signature, and cash with a receipt photo counts as paid
   assert.equal(done.data.invoice.status, 'sent');
   assert.equal(invoiceCalls.at(-1).paid, true, 'cash payment sends the paid tax invoice');
   assert.equal(invoiceCalls.at(-1).method, 'cash');
+  const ledger = t.job('j1').payments || [];
+  assert.equal(ledger.length, 1, 'the cash taken on site is added to the payment ledger');
+  assert.deepEqual([ledger[0].method, ledger[0].amount_cents, ledger[0].by], ['cash', t.job('j1').paid_cents, 'Jake Turner']);
 });
 
 test('part payment in cash is taken off the invoice and the balance goes on a pending invoice', async () => {
@@ -296,6 +299,7 @@ test('part payment in cash is taken off the invoice and the balance goes on a pe
   assert.equal(j.prior_pay_method, 'cash');
   assert.equal(invoiceCalls.at(-1).paid, false, 'a pending invoice is sent');
   assert.equal(invoiceCalls.at(-1).totals.due, total - 2000);
+  assert.equal(JSON.stringify((t.job('j1').payments || []).map((p) => [p.method, p.amount_cents])), JSON.stringify([['cash', 2000]]), 'part cash is in the ledger too');
 });
 
 test('bank transfer sends a pending invoice and holds the compliance certificate until payment', async () => {

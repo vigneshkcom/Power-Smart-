@@ -43,6 +43,7 @@ sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
 supabase/sms.sql      Run once — SMS message storage table and indexes
 supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
 supabase/emails.sql   Run once — sent_emails log table
+supabase/job-payments.sql  Run once - jobs.payments list (every payment received on a job, shown in the job window's Payments box)
 supabase/billing-address.sql  Run once - billing address columns on leads (invoice Bill to; empty = same as installation address)
 supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
 supabase/tech-app.sql Run once (after jobs.sql) — unique electrician codes, alarms installed/type, invoice + payment columns

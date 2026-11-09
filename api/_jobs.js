@@ -108,6 +108,21 @@ function clearedPaymentFields() {
   return { pay_status: "unpaid", pay_session_id: null, paid_cents: null, paid_at: null, pay_method: null, pay_receipt: null,
     prior_paid_cents: null, prior_pay_method: null, prior_paid_by: null, prior_paid_at: null, prior_receipt: null };
 }
+// Payment ledger: one entry per payment received on a job (jobs.payments, see supabase/job-payments.sql).
+// Best effort on purpose: it never blocks taking a payment, and does nothing until the column exists.
+async function addPayment(jobId, entry) {
+  if (!jobId || !(entry && entry.amount_cents > 0)) return;
+  try {
+    const cur = (await sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=payments&limit=1`))?.[0];
+    const list = Array.isArray(cur && cur.payments) ? cur.payments.slice() : [];
+    list.push({ id: require("crypto").randomUUID(), at: new Date().toISOString(), amount_cents: Math.round(entry.amount_cents), method: entry.method || "", by: String(entry.by || "").slice(0, 80) });
+    await sb(`jobs?id=eq.${encodeURIComponent(jobId)}`, { method: "PATCH", body: { payments: list }, prefer: "return=minimal" });
+  } catch (e) { console.error("jobs → payment ledger failed:", e.message); }
+}
+async function clearPayments(jobId) {
+  try { await sb(`jobs?id=eq.${encodeURIComponent(jobId)}`, { method: "PATCH", body: { payments: [] }, prefer: "return=minimal" }); }
+  catch (e) { /* column not added yet */ }
+}
 function hasWork(j) {
   return ["en_route", "on_site", "completed"].includes(j.status) || (j.invoice_items || []).length > 0 || (j.alarm_units || []).length > 0 ||
     Boolean(j.tech_notes) || j.pay_status === "paid" || j.pay_status === "later" || j.pay_status === "pending";
@@ -406,6 +421,7 @@ module.exports = async (req, res) => {
         try { const Dropbox = require("./_dropbox"); if (Dropbox.configured()) archived = await Dropbox.archivePhotos(prev); }
         catch (e) { console.error("jobs → archive photos failed:", e.message); }
         const cleared = (prev.paid_cents || 0) + (prev.prior_paid_cents || 0);
+        await clearPayments(job.id);
         await afterReset(job, prev, actor, { prior_paid_cents: 0 }, "reverted to Assigned", { archived, cleared, method: prev.pay_method || prev.prior_pay_method });
       }
       return res.status(200).json({ ok: true, job, photos_archived: archived });
@@ -422,6 +438,7 @@ module.exports = async (req, res) => {
       const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&pay_status=eq.later`, { method: "PATCH", body: { pay_status: "paid", pay_method: method, paid_cents: prev.amount_due_cents || 0, paid_at: new Date().toISOString() } });
       const job = rows && rows[0];
       if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+      await addPayment(job.id, { amount_cents: prev.amount_due_cents || 0, method, by: actor });
       await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} balance of $${((prev.amount_due_cents || 0) / 100).toFixed(2)} received (${method.replace("_", " ")}) and marked paid.`, "payment");
       const { invoice, certificate } = await require("./_after-payment").releaseAfterPayment(job.id, { agent: actor });
       return res.status(200).json({ ok: true, job, invoice, certificate });
@@ -446,6 +463,7 @@ module.exports = async (req, res) => {
         const rows = await sb(`jobs?id=eq.${encodeURIComponent(id)}&pay_status=eq.later&amount_due_cents=eq.${owing}`, { method: "PATCH", body: { pay_status: "paid", pay_method: method, paid_cents: cents, paid_at: now } });
         const job = rows && rows[0];
         if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+        await addPayment(job.id, { amount_cents: cents, method, by: actor });
         await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} final payment of ${money(cents)} received (${method.replace("_", " ")}). Paid in full.`, "payment");
         const { invoice, certificate } = await require("./_after-payment").releaseAfterPayment(job.id, { agent: actor });
         return res.status(200).json({ ok: true, job, invoice, certificate, paid_in_full: true });
@@ -455,6 +473,7 @@ module.exports = async (req, res) => {
         prior_pay_method: method, prior_paid_at: now, prior_paid_by: prev.prior_paid_by || prev.electrician_id || null } });
       const job = rows && rows[0];
       if (!job) return res.status(409).json({ error: "This job was already updated. Refresh and check." });
+      await addPayment(job.id, { amount_cents: cents, method, by: actor });
       await leadNote(job.lead_id, actor, `💵 Job J${job.job_no} part payment of ${money(cents)} received (${method.replace("_", " ")}). ${money(owing - cents)} still owing.`, "payment");
       return res.status(200).json({ ok: true, job, owing_cents: owing - cents, paid_in_full: false });
     }
@@ -559,4 +578,4 @@ module.exports = async (req, res) => {
 };
 
 // Shared with api/_tech.js (electrician app).
-Object.assign(module.exports, { carryPaymentFields, STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });
+Object.assign(module.exports, { addPayment, carryPaymentFields, STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });
