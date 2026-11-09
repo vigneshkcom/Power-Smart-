@@ -150,6 +150,40 @@
   .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:14px;font-size:.88rem;font-weight:600;transition:transform .25s ease;z-index:50;max-width:90vw;text-align:center}
   .toast.show{transform:translateX(-50%) translateY(0)}
   .loading{text-align:center;color:var(--muted);padding:40px 0}
+
+
+  /* job screen: dark header with sync button + 4-step progress, card layout, sticky complete bar */
+  .jbar{position:sticky;top:0;z-index:6;background:var(--teal-deep);margin:0 -16px 14px;padding:10px 16px 14px;display:flex;flex-direction:column;gap:12px;color:#fff}
+  .jbar-top{display:flex;align-items:center;gap:8px;min-height:44px}
+  .jbar .back{width:44px;height:44px;margin-left:-12px;display:flex;align-items:center;justify-content:center;color:#fff}
+  .jbar h1{flex:1;min-width:0;font-size:1.05rem;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jbar .jbar-top .chip.chip{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.32);padding:5px 10px}
+  .jsync{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:999px;font-size:.74rem;font-weight:800;border:1px solid transparent;white-space:nowrap}
+  .jsync .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  .jsync.ok{background:rgba(74,222,128,.16);color:#B8F0D2;border-color:rgba(184,240,210,.35)}
+  .jsync.dirty{background:var(--amber);color:var(--ink)}
+  .jsync.busy{background:rgba(255,255,255,.14);color:#fff;opacity:.85}
+  .jsteps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .jstep{display:flex;flex-direction:column;gap:6px;font-size:.68rem;font-weight:700;color:rgba(255,255,255,.62)}
+  .jstep i{display:block;height:5px;border-radius:3px;background:rgba(255,255,255,.25)}
+  .jstep.done{color:#B8F0D2}.jstep.done i{background:#4ADE80}
+  .jstep.now{color:#fff}.jstep.now i{background:var(--teal-bright)}
+  .card{box-shadow:0 1px 2px rgba(11,27,31,.08)}
+  .card h2{font-size:1.05rem}
+  .card h2 .n{background:var(--teal-deep);color:#fff;width:26px;height:26px}
+  .card h2 .n.ok{background:var(--green)}
+  .card.cust{display:flex;flex-direction:column;gap:0}
+  .cust .name{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;line-height:1.2;margin:0 0 4px}
+  .cust .addr{font-size:.9rem;color:var(--body);line-height:1.4}
+  .cust .when{font-size:.82rem;font-weight:600;margin:8px 0 14px}
+  .cust .row{display:grid;grid-template-columns:1.4fr 1fr;gap:10px}
+  .cust .row .btn{min-height:52px;font-size:1rem;gap:8px}
+  .cust .row .btn-ghost{border:2px solid var(--teal-deep);color:var(--ink)}
+  .cust .notes{background:#FFF4D6;color:#5C4000;border-radius:10px;padding:10px 12px;font-size:.82rem;line-height:1.45;margin-top:14px;white-space:pre-wrap}
+  .cust .notes b{display:block;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+  .stickybar{position:sticky;bottom:0;z-index:4;margin:0 -16px calc(-96px - env(safe-area-inset-bottom));padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .stickybar .btn{min-height:56px;font-size:1.02rem;font-weight:800}
+  .stickybar .nexthint{text-align:center;font-size:.8rem;font-weight:600;color:#5C4000;min-height:1.2em}
 </style>
 </head>
 <body>
@@ -195,11 +229,15 @@
 
   <!-- job -->
   <section class="view" id="v-job">
-    <div class="bar">
-      <button class="back" id="j-back" aria-label="Back to jobs">‹</button>
-      <h1 id="j-title">Job</h1>
-      <span class="chip" id="j-chip"></span>
-    </div>
+    <header class="jbar">
+      <div class="jbar-top">
+        <button class="back" id="j-back" aria-label="Back to jobs"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h1 id="j-title">Job</h1>
+        <button class="jsync ok" id="j-sync" type="button" title="Synchronize this job with the office"><span class="dot"></span><span id="j-sync-txt">Synced</span></button>
+        <span class="chip" id="j-chip"></span>
+      </div>
+      <div class="jsteps" id="j-steps"></div>
+    </header>
     <div id="j-body"><div class="loading">Loading…</div></div>
   </section>
 
@@ -493,9 +531,10 @@
   function syncBarHtml(){
     if (syncing) return '<div class="sync warn"><span>⏳ Synchronizing…</span></div>';
     if (dirty) return '<div class="sync warn"><span>Not synchronized. Your work is stored on this phone.</span><button class="btn btn-primary" data-sync>Synchronize</button></div>';
-    return '<div class="sync ok"><span>Synchronized</span></div>';
+    return "";
   }
   function renderSyncBar(){
+    renderHeaderSync();
     var el = $("sync-bar"); if (el) el.innerHTML = syncBarHtml();
     var b2 = $("sync-bar2"); if (b2) b2.innerHTML = dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : "";
     var lock = $("so-lock"), form = $("so-form");
@@ -591,8 +630,29 @@
     var missing = dirty || syncing ? "Tap Synchronize first. The job can't be completed until it is synchronized." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
-    if ($("so-hint")) $("so-hint").textContent = missing;
+    if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
+    renderSteps();
   }
+  // The four-step progress bar in the header: Alarms, Invoice, Approval, Sign off.
+  function renderSteps(){
+    var box = $("j-steps"); if (!box || !cur) return;
+    var finished = cur.job.status === "completed";
+    var flags = finished ? [true, true, true, true] : [
+      !!(completeState && completeState.alarms), (cur.items || []).length > 0 || unitList().length > 0, !!cur.job.approved_at, !!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))
+    ];
+    var now = flags.indexOf(false);
+    box.innerHTML = ["Alarms", "Invoice", "Approval", "Sign off"].map(function(n, i){
+      return '<div class="jstep' + (flags[i] ? " done" : i === now ? " now" : "") + '"><i></i>' + n + '</div>';
+    }).join("");
+  }
+  // The Sync button next to the status in the header.
+  function renderHeaderSync(){
+    var b = $("j-sync"); if (!b) return;
+    b.className = "jsync " + (syncing ? "busy" : dirty ? "dirty" : "ok");
+    b.disabled = syncing;
+    $("j-sync-txt").textContent = syncing ? "Syncing…" : dirty ? "Sync now" : "Synced";
+  }
+  $("j-sync").addEventListener("click", function(){ if (cur && !syncing) syncJob().catch(function(){}); });
 
   /* ---------- photos (stored in Dropbox, see api/_dropbox.js) ---------- */
   var photoCat = "before", photoCache = {};  // photoCache survives cur being replaced after saves
@@ -668,21 +728,24 @@
 
   function renderJob(){
     var j = cur.job, done = j.status === "completed";
-    $("j-title").textContent = "J" + j.job_no + " · " + j.customer_name;
+    $("j-title").textContent = "J" + j.job_no;
     var sk = statusKey(j); $("j-chip").className = "chip st-" + sk; $("j-chip").textContent = STATUS[sk] || sk;
+    renderHeaderSync();
     var addr = [j.address, j.suburb, j.postcode].filter(Boolean).join(", ");
     var s = new Date(j.scheduled_start);
     var html = '';
 
     // customer
+    var icoNav = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg>';
+    var icoCall = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg>';
     html += '<div class="card cust"><div class="name">' + esc(j.customer_name) + '</div>' +
       '<div class="addr">' + esc(addr || "No address on the job") + '</div>' +
-      '<div class="muted" style="margin:-6px 0 12px">' + (j.scheduled_start ? s.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + " · " + timeLabel(s) : "") +
+      '<div class="when">' + (j.scheduled_start ? s.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + " · " + timeLabel(s) : "") +
         " · " + esc(TYPES[j.work_type] || "") + (cur.quote ? " · Quote " + esc(cur.quote.ref) : "") + '</div>' +
-      '<div class="row">' +
-        (addr ? '<a class="btn btn-primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr + ", QLD, Australia") + '">Navigate</a>' : '') +
-        (j.phone ? '<a class="btn btn-ghost" href="tel:' + esc(j.phone.replace(/[^\d+]/g, "")) + '">Call</a>' : '') +
-      '</div>' + (j.notes ? '<div class="notes"><b>Office notes</b>\n' + esc(j.notes) + '</div>' : '') + '</div>';
+      ((addr || j.phone) ? '<div class="row">' +
+        (addr ? '<a class="btn btn-primary" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(addr + ", QLD, Australia") + '">' + icoNav + 'Navigate</a>' : '') +
+        (j.phone ? '<a class="btn btn-ghost" href="tel:' + esc(j.phone.replace(/[^\d+]/g, "")) + '">' + icoCall + 'Call</a>' : '') +
+      '</div>' : '') + (j.notes ? '<div class="notes"><b>Office notes</b>' + esc(j.notes) + '</div>' : '') + '</div>';
 
     if (done){
       html += '<div class="card"><div class="ok-banner">Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
@@ -690,7 +753,7 @@
         (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
         (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
         '<button class="btn btn-ghost" id="reopen">Edit job</button>';
-      $("j-body").innerHTML = html; return;
+      $("j-body").innerHTML = html; renderSteps(); return;
     }
 
     html += '<div id="sync-bar">' + syncBarHtml() + '</div>';
@@ -801,9 +864,10 @@
       '<div class="field" style="margin-top:10px"><label>Signature</label><canvas id="so-sig" width="600" height="180"></canvas>' +
       '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button></div>' +
       '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm that the installed smoke alarms are compliant and the work is complete.</label>' +
-      '<button class="btn btn-green" id="complete" style="margin-top:12px" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice") + '</button>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronize</button>' : '') + '</div>' +
-      '<p class="muted" id="so-hint" style="margin-top:8px"></p></div></div>';
+      '</div></div>' +
+      '<div class="stickybar"><button class="btn btn-green" id="complete" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice") + '</button>' +
+      '<p class="nexthint" id="so-hint"></p></div>';
     completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
 
     $("j-body").innerHTML = html;
