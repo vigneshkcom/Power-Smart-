@@ -26,7 +26,7 @@ function smsFixture({reject=false,timeout=false,optout=false,noteFailure=false}=
 }
 test('SMS uses PowerSmart gateway, normalizes mobile, appears in inbox and logs full text',async()=>{
   const f=smsFixture(),r=await f.Sms.sendLeadSms(f.args);assert.equal(r.status,'submitted');assert.equal(r.phone,'+61451898761');
-  assert.equal(f.calls.length,1);assert.equal(f.calls[0].phoneNumbers[0],'+61451898761');assert.equal(f.calls[0].simNumber,1);assert.equal(f.rows[0].status,'sent');assert.equal(f.calls[0].id,f.rows[0].id);
+  assert.equal(f.calls.length,1);assert.equal(f.calls[0].phoneNumbers[0],'+61451898761');assert.equal(f.calls[0].simNumber,undefined);assert.equal(f.rows[0].status,'sent');assert.equal(f.calls[0].id,f.rows[0].id);
   assert.equal(f.notes[0].kind,'sms');assert(f.notes[0].body.endsWith(f.args.message));
 });
 test('duplicate and simultaneous SMS requests submit once',async()=>{
