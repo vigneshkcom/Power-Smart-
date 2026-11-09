@@ -89,6 +89,9 @@
   .day{align-self:center;font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
     background:#fff;border:1px solid var(--line);border-radius:999px;padding:.15rem .7rem;margin:.6rem 0 .3rem}
   .bubble{max-width:min(72%,560px);padding:.55rem .85rem;border-radius:14px;font-size:.85rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .bubble{cursor:pointer}.bubble.sel{outline:2px solid #43A8B6;outline-offset:2px}
+  .bubble .del{display:none;margin-top:.45rem;border:0;border-radius:999px;background:#c0392b;color:#fff;font:inherit;font-size:.72rem;font-weight:700;padding:.25rem .7rem;cursor:pointer}
+  .bubble.sel .del{display:inline-block}
   .bubble.in{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
   .bubble.out{align-self:flex-end;background:var(--teal-dark);color:#fff;border-bottom-right-radius:4px}
   .stamp{display:block;font-size:.62rem;opacity:.7;margin-top:.2rem}
@@ -301,7 +304,8 @@ function renderMessages(messages, keepScroll) {
     const label = dayLabel(m.created_at);
     if (label !== lastDay) { html += `<div class="day">${esc(label)}</div>`; lastDay = label; }
     const bad = m.status && !['sent', 'received', 'delivered'].includes(m.status);
-    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}">${esc(m.message)}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(m.status)}</span>` : ''}</span></div>`;
+    const locked = m.status === 'optout' || m.status === 'optin';
+    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(m.status)}</span>` : ''}</span></div>`;
   });
   box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;
@@ -329,6 +333,24 @@ async function openThread(phone, silent) {
     if (switching) { setStatus('Ready'); $('message').focus(); }
   } catch (e) { if (switching) setStatus(showError(e), true); }
 }
+
+/* ---------- delete a message: click it, then Delete message ---------- */
+$('messages').addEventListener('click', async e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    if (!confirm('Delete this message from the inbox?\n\nThe customer keeps their copy, and a note about it on their customer card is not removed.')) return;
+    try {
+      await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_message', id: del.dataset.del }) });
+      toast('Message deleted'); lastSig = ''; await load(); if (active) await openThread(active, true);
+    } catch (err) { toast(showError(err)); }
+    return;
+  }
+  const b = e.target.closest('.bubble');
+  if (!b || (window.getSelection && String(window.getSelection()).length)) return;   // selecting text to copy is not a click
+  const was = b.classList.contains('sel');
+  document.querySelectorAll('.bubble.sel').forEach(x => x.classList.remove('sel'));
+  if (!was) b.classList.add('sel');
+});
 
 /* ---------- connect a conversation to customers and quotes ---------- */
 const PIPELINE = 'https://portal.powersmartco.com.au/tools/pipeline';

@@ -286,6 +286,17 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, lead: lead && { id: lead.id, name: lead.name } });
     }
 
+    // Delete one message from the inbox. Opt-out / opt-in messages are the customer's consent record, so they are kept.
+    if (body.action === 'delete_message') {
+      const id = safeId(body.id);
+      if (!id) return res.status(400).json({ error: 'Choose a message to delete.' });
+      const row = (await sb(`sms_messages?id=eq.${encodeURIComponent(id)}&select=id,status&limit=1`))?.[0];
+      if (!row) return res.status(404).json({ error: 'That message was not found. It may already be deleted.' });
+      if (row.status === 'optout' || row.status === 'optin') return res.status(409).json({ error: "This message records the customer's STOP / START choice, so it can't be deleted." });
+      await sb(`sms_messages?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
+      return res.status(200).json({ ok: true });
+    }
+
     if (body.action === 'connect') {
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
       try { return res.status(200).json({ ok: true, webhook: await ensureWebhook() }); }
