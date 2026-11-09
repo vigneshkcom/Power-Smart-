@@ -661,7 +661,7 @@
     try{ localStorage.setItem(KEY_LS, v); }catch(e){}
     $("gate-btn").disabled = true;
     load().then(function(){
-      $("gate").classList.remove("show");
+      $("gate").classList.remove("show"); openFromLink();
     }).catch(function(){ /* gate re-shown by api() on 401 */ })
       .finally(function(){ $("gate-btn").disabled = false; });
   }
@@ -1693,9 +1693,17 @@
     $("loading").style.display = "none";
     showGate(false);
   } else {
-    load().catch(function(err){
+    load().then(openFromLink).catch(function(err){
       $("loading").textContent = "Couldn't load: " + err.message;
     });
+  }
+  // ?lead=<id> opens that customer's card (used by the SMS inbox); &quote=1 also opens the Send quote form.
+  function openFromLink(){
+    var qs = new URLSearchParams(location.search), id = qs.get("lead");
+    if (!id) return;
+    history.replaceState(null, "", location.pathname);
+    if (!leads.find(function(x){ return x.id === id; })){ toast("That customer wasn't found on the board."); return; }
+    if (qs.get("quote") === "1") openQuote(id); else openLead(id);
   }
 })();
 </script>

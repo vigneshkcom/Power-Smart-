@@ -27,6 +27,25 @@ async function leadNamesByPhone() {
   return names;
 }
 
+// Customers (pipeline leads) whose saved mobile is this number, newest first, each with their latest sent quote link.
+async function leadsForPhone(phone) {
+  const key = phoneKey(phone);
+  if (!key) return [];
+  const rows = await sb('leads?select=id,name,phone,email,stage,quote_ref,quote_total&phone=not.is.null&order=updated_at.desc&limit=5000');
+  const hits = (rows || []).filter((l) => phoneKey(l.phone) === key).slice(0, 5);
+  for (const l of hits) {
+    l.quote_url = '';
+    if (!l.quote_ref) continue;
+    try {
+      const q = await sb(`sent_emails?lead_id=eq.${encodeURIComponent(l.id)}&kind=eq.quote&status=eq.sent&order=created_at.desc&limit=1&select=id`);
+      if (q && q[0]) l.quote_url = `${require('./_quote').QUOTE_SITE}/quote?token=${q[0].id}`;
+    } catch (_) { /* the link is a convenience */ }
+  }
+  return hits;
+}
+const leadNote = (leadId, body) => sb('lead_comments', { method: 'POST', body: { lead_id: leadId, author: 'SMS inbox', kind: 'note', body }, prefer: 'return=minimal' }).catch(() => {});
+const safeId = (v) => (/^[\w-]{1,40}$/.test(String(v || '')) ? String(v) : '');
+
 const headers = () => ({
   Authorization: `Basic ${Buffer.from(`${process.env.SMSGATE_USERNAME}:${process.env.SMSGATE_PASSWORD}`).toString('base64')}`,
   'Content-Type': 'application/json',
@@ -201,7 +220,15 @@ module.exports = async (req, res) => {
         if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
         const rows = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&order=created_at.asc&select=id,phone_number,message,direction,status,created_at`);
         const names = await leadNamesByPhone();
-        return res.status(200).json({ messages: rows || [], name: names.get(phoneKey(phone)) || '' });
+        let leads = [];
+        try { leads = await leadsForPhone(phone); } catch (e) { console.error('[SMS] lead lookup failed:', e.message); }
+        return res.status(200).json({ messages: rows || [], name: names.get(phoneKey(phone)) || '', leads });
+      }
+      if (action === 'lead_search') {
+        const q = String(req.query.q || '').replace(/[,()*%\\]/g, ' ').trim().slice(0, 60);
+        if (q.length < 2) return res.status(200).json({ leads: [] });
+        const found = await sb(`leads?or=(name.ilike.*${encodeURIComponent(q)}*,email.ilike.*${encodeURIComponent(q)}*,phone.ilike.*${encodeURIComponent(q)}*)&select=id,name,phone,email,stage,quote_ref&order=updated_at.desc&limit=10`);
+        return res.status(200).json({ leads: found || [] });
       }
       const rows = await sb('sms_messages?order=created_at.desc&limit=1000&select=id,phone_number,message,direction,status,created_at');
       const conversations = [];
@@ -233,6 +260,30 @@ module.exports = async (req, res) => {
       const gatewayId = String(result.id || result.messageId || (result.messages && result.messages[0] && result.messages[0].id) || '');
       const saved = await insertMessage({ phone_number: phone, message, direction: 'outbound', status: 'sent', sms_gate_id: gatewayId || null });
       return res.status(200).json({ ok: true, message: saved });
+    }
+
+    // Connect this number to a customer: save it as the customer's mobile, so their texts, quotes and card line up.
+    if (body.action === 'link_lead') {
+      const leadId = safeId(body.lead_id), phone = cleanPhone(body.phone);
+      if (!leadId || !/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: 'Choose a customer and a valid mobile number.' });
+      const lead = (await sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,phone&limit=1`))?.[0];
+      if (!lead) return res.status(404).json({ error: 'That customer was not found.' });
+      if (lead.phone && phoneKey(lead.phone) !== phoneKey(phone) && body.replace !== true) {
+        return res.status(409).json({ error: `${lead.name} already has a different number saved (${lead.phone}).`, code: 'phone_differs', existing: lead.phone });
+      }
+      await sb(`leads?id=eq.${encodeURIComponent(leadId)}`, { method: 'PATCH', body: { phone }, prefer: 'return=minimal' });
+      await leadNote(leadId, `Mobile ${phone} connected from the SMS inbox${lead.phone && phoneKey(lead.phone) !== phoneKey(phone) ? ` (replaced ${lead.phone})` : ''}.`);
+      return res.status(200).json({ ok: true, lead: { id: lead.id, name: lead.name } });
+    }
+    if (body.action === 'create_lead') {
+      const phone = cleanPhone(body.phone), name = String(body.name || '').trim().slice(0, 120), email = String(body.email || '').trim().toLowerCase().slice(0, 254);
+      if (!name) return res.status(400).json({ error: 'Enter the customer name.' });
+      if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ error: 'That mobile number is not valid.' });
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'That email address is not valid.' });
+      const rows = await sb('leads', { method: 'POST', body: { name, phone, email: email || null, source: 'SMS', stage: 'new_lead' } });
+      const lead = Array.isArray(rows) ? rows[0] : rows;
+      if (lead && lead.id) await leadNote(lead.id, 'Customer created from the SMS inbox.');
+      return res.status(200).json({ ok: true, lead: lead && { id: lead.id, name: lead.name } });
     }
 
     if (body.action === 'connect') {

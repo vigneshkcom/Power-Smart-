@@ -74,6 +74,15 @@
   .thread-head{padding:.8rem 1.1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.75rem;flex:none}
   .thread-head .back{display:none;width:32px;height:32px;border-radius:50%;align-items:center;justify-content:center;color:var(--muted)}
   .thread-head .back:hover{background:var(--paper);color:var(--ink)}
+  .link-bar{padding:.55rem 1.1rem;border-bottom:1px solid var(--line);background:#f4f9fa;display:flex;flex-direction:column;gap:.45rem;flex:none}
+  .link-bar .lk{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .5rem;font-size:.8rem}
+  .link-bar .lk b{font-weight:800}.link-bar .lk .stg{color:var(--muted);font-size:.72rem}
+  .link-bar .lb{border:1px solid var(--line);background:#fff;color:var(--ink);font:inherit;font-size:.74rem;font-weight:700;padding:.28rem .6rem;border-radius:999px;cursor:pointer;text-decoration:none}
+  .link-bar .lb:hover{background:var(--paper)}.link-bar .lb.pri{background:var(--teal,#43A8B6);border-color:var(--teal,#43A8B6);color:#fff}
+  .link-bar .none{font-size:.78rem;color:var(--muted)}
+  .lk-results{display:flex;flex-direction:column;gap:.35rem;max-height:260px;overflow:auto;margin-top:.6rem}
+  .lk-results button{text-align:left;border:1px solid var(--line);background:#fff;border-radius:10px;padding:.5rem .7rem;font:inherit;font-size:.82rem;cursor:pointer}
+  .lk-results button:hover{background:var(--paper)}.lk-results small{display:block;color:var(--muted);font-size:.72rem}
   .th-title{font-size:.95rem;font-weight:800;line-height:1.2}
   .th-sub{font-size:.72rem;color:var(--muted)}
   .messages{flex:1;overflow-y:auto;padding:1.1rem 1.2rem;background:var(--paper);display:flex;flex-direction:column;gap:.35rem;scrollbar-width:thin}
@@ -174,6 +183,7 @@
           <div class="avatar" id="th-avatar"></div>
           <div><div class="th-title" id="th-title"></div><div class="th-sub" id="th-sub"></div></div>
         </div>
+        <div class="link-bar" id="link-bar" hidden></div>
         <div class="messages" id="messages"></div>
         <form class="compose" id="compose">
           <textarea id="message" required maxlength="1600" rows="1" placeholder="Write an SMS…"></textarea>
@@ -198,6 +208,16 @@
     </div>
   </div>
 
+  <div class="overlay" id="link-overlay">
+    <div class="modal">
+      <div class="modal-head"><h3>Connect to a customer</h3><button class="x" id="link-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="field"><label for="link-q">Search by name, email or phone</label><input id="link-q" type="search" autocomplete="off" placeholder="e.g. Kath, kath@example.com"></div>
+        <div class="lk-results" id="link-results"><small style="color:var(--muted)">Type at least 2 letters.</small></div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-ghost" id="link-cancel">Cancel</button></div>
+    </div>
+  </div>
   <div class="toast" id="toast"></div>
 
 <script>
@@ -292,7 +312,7 @@ async function openThread(phone, silent) {
   if (switching) {
     active = phone;
     $('wrap').classList.add('open');
-    $('empty').hidden = true; $('chat').hidden = false;
+    $('empty').hidden = true; $('chat').hidden = false; linkSig = ''; $('link-bar').hidden = true;
     const known = conversations.find(c => phoneKey(c.phone_number) === phoneKey(phone));
     setHead(known && known.name, phone);
     renderList();
@@ -302,11 +322,71 @@ async function openThread(phone, silent) {
     const data = await api('/api/sms?action=conversation&phone=' + encodeURIComponent(phone));
     if (phoneKey(active) !== phoneKey(phone)) return;           // user moved on while this was loading
     if (data.name) setHead(data.name, phone);
+    renderLinkBar(phone, data.leads || []);
     const msgs = data.messages || [];
     const sig = msgs.length + ':' + (msgs.length ? msgs[msgs.length - 1].id : '');
     if (switching || sig !== lastSig) { renderMessages(msgs, !switching); lastSig = sig; }
     if (switching) { setStatus('Ready'); $('message').focus(); }
   } catch (e) { if (switching) setStatus(showError(e), true); }
+}
+
+/* ---------- connect a conversation to customers and quotes ---------- */
+const PIPELINE = 'https://portal.powersmartco.com.au/tools/pipeline';
+let linkSig = '';
+function renderLinkBar(phone, leads) {
+  const bar = $('link-bar'), sig = phone + JSON.stringify(leads);
+  if (sig === linkSig) return;
+  linkSig = sig;
+  const stage = s => String(s || '').replace(/_/g, ' ');
+  let html = leads.map(l => `<div class="lk"><b>${esc(l.name)}</b><span class="stg">${esc(stage(l.stage))}${l.quote_ref ? ' · quote ' + esc(l.quote_ref) : ''}</span>` +
+    `<a class="lb pri" target="_blank" rel="noopener" href="${PIPELINE}?lead=${encodeURIComponent(l.id)}">Open customer</a>` +
+    (l.quote_url ? `<a class="lb" target="_blank" rel="noopener" href="${esc(l.quote_url)}">View quote ${esc(l.quote_ref || '')}</a>` : '') +
+    `<a class="lb" target="_blank" rel="noopener" href="${PIPELINE}?lead=${encodeURIComponent(l.id)}&quote=1">${l.quote_ref ? 'Send new quote' : 'Send quote'}</a></div>`).join('');
+  html += leads.length
+    ? `<div class="lk"><button class="lb" data-link="1" type="button">＋ Connect another customer</button></div>`
+    : `<div class="none">Not connected to a customer yet.</div><div class="lk"><button class="lb pri" data-link="1" type="button">Connect to existing customer</button><button class="lb" data-create="1" type="button">Create new customer</button></div>`;
+  bar.innerHTML = html; bar.hidden = false;
+}
+$('link-bar').addEventListener('click', e => {
+  if (e.target.closest('[data-link]')) openLink();
+  else if (e.target.closest('[data-create]')) createCustomer();
+});
+function openLink() { $('link-overlay').classList.add('show'); $('link-q').value = ''; $('link-results').innerHTML = '<small style="color:var(--muted)">Type at least 2 letters.</small>'; setTimeout(() => $('link-q').focus(), 40); }
+function closeLink() { $('link-overlay').classList.remove('show'); }
+let linkTimer;
+$('link-q').addEventListener('input', () => {
+  clearTimeout(linkTimer);
+  linkTimer = setTimeout(async () => {
+    const q = $('link-q').value.trim();
+    if (q.length < 2) { $('link-results').innerHTML = '<small style="color:var(--muted)">Type at least 2 letters.</small>'; return; }
+    try {
+      const d = await api('/api/sms?action=lead_search&q=' + encodeURIComponent(q));
+      $('link-results').innerHTML = (d.leads || []).map(l => `<button type="button" data-id="${esc(l.id)}" data-name="${esc(l.name)}">${esc(l.name)}<small>${esc(l.phone || 'no mobile saved')}${l.email ? ' · ' + esc(l.email) : ''} · ${esc(String(l.stage || '').replace(/_/g, ' '))}${l.quote_ref ? ' · quote ' + esc(l.quote_ref) : ''}</small></button>`).join('') || '<small style="color:var(--muted)">No customers found.</small>';
+    } catch (e) { $('link-results').innerHTML = `<small class="err">${esc(showError(e))}</small>`; }
+  }, 250);
+});
+$('link-results').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-id]'); if (!b || !active) return;
+  const post = replace => api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'link_lead', lead_id: b.dataset.id, phone: active, replace }) });
+  try {
+    try { await post(false); }
+    catch (err) {
+      if (!/different number/.test(err.message) || !confirm(err.message + '\n\nReplace it with ' + active + '?')) throw err;
+      await post(true);
+    }
+    closeLink(); toast('Connected to ' + b.dataset.name); linkSig = ''; await load(); openThread(active, true);
+  } catch (err) { toast(showError(err)); }
+});
+$('link-close').onclick = closeLink; $('link-cancel').onclick = closeLink;
+async function createCustomer() {
+  if (!active) return;
+  const name = (prompt('Customer name for ' + active + ':') || '').trim();
+  if (!name) return;
+  const email = (prompt('Email address (optional, leave blank for none):') || '').trim();
+  try {
+    await api('/api/sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create_lead', phone: active, name, email }) });
+    toast('Customer created: ' + name); linkSig = ''; await load(); openThread(active, true);
+  } catch (err) { toast(showError(err)); }
 }
 
 function closeThread() { $('wrap').classList.remove('open'); }
