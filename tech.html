@@ -20,6 +20,7 @@
     --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
     --amber:#F5B841;--red:#C95555;--green:#2F9E6E;}
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{overscroll-behavior-y:contain}
   body{font-family:'Poppins',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--ink);background:#EDF3F4;min-height:100vh;-webkit-tap-highlight-color:transparent}
   button,input,select,textarea{font:inherit;color:inherit}
   button{cursor:pointer;border:none;background:none}
@@ -294,7 +295,30 @@
   function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function timeLabel(d){ var h = d.getHours(); return (h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h < 12 ? "am" : "pm"); }
   function toast(msg){ var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200); }
-  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); window.scrollTo(0, 0); }
+  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); window.scrollTo(0, 0); if (v !== "v-job") rememberView({ job: null }); }
+  // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
+  // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
+  var VIEW_LS = "powersmart_tech_view";
+  function rememberView(patch){
+    try {
+      var v = JSON.parse(localStorage.getItem(VIEW_LS) || "{}") || {};
+      Object.keys(patch).forEach(function(k){ v[k] = patch[k]; }); v.at = Date.now();
+      localStorage.setItem(VIEW_LS, JSON.stringify(v));
+    } catch(e){}
+  }
+  function savedView(){
+    try { var v = JSON.parse(localStorage.getItem(VIEW_LS) || "null"); return v && Date.now() - (v.at || 0) < 12 * 3600e3 ? v : null; } catch(e){ return null; }
+  }
+  // Dragging down at the top of the page must not reload the app (iPhone Safari ignores the CSS rule above for this).
+  (function(){
+    var y0 = 0;
+    document.addEventListener("touchstart", function(e){ y0 = e.touches.length === 1 ? e.touches[0].clientY : 0; }, { passive: true });
+    document.addEventListener("touchmove", function(e){
+      if (e.touches.length !== 1 || window.scrollY > 0 || e.touches[0].clientY <= y0 + 4) return;
+      if (e.target.closest && e.target.closest(".sigmodal, textarea, input, select")) return;
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+  })();
 
   var me = null;
   try { me = JSON.parse(localStorage.getItem(LS) || "null"); } catch(e){}
@@ -334,7 +358,7 @@
       .finally(function(){ $("l-go").disabled = false; });
   }
   function signOut(){
-    me = null; try { localStorage.removeItem(LS); } catch(e){}
+    me = null; try { localStorage.removeItem(LS); localStorage.removeItem(VIEW_LS); } catch(e){}
     showLogin();
   }
   $("l-go").addEventListener("click", signIn);
@@ -348,7 +372,7 @@
     return name + "<small>" + d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" }) + "</small>";
   }
   function loadList(){
-    show("v-list");
+    show("v-list"); rememberView({ day: +day });
     $("hello").textContent = "Hi " + ((me && me.name) || "").split(" ")[0];
     $("d-lbl").innerHTML = dayLabel(day);
     $("d-today").disabled = +day === +startOfDay(new Date());
@@ -469,7 +493,7 @@
 
   /* ---------- job ---------- */
   function openJob(id, after){
-    show("v-job");
+    show("v-job"); rememberView({ job: id });
     $("j-body").innerHTML = '<div class="loading">Loading…</div>';
     $("j-title").textContent = "Job"; $("j-chip").textContent = "";
     draft = null; pay = { full: null, method: "", cash: "" }; soName = ""; soOk = false; sigData = null; dirty = false; localRecs = [];
@@ -1097,7 +1121,11 @@
         if (cur.job.pay_status === "paid") toast("Payment received");
         else checkPayment();
       } : null);
-    } else loadList();
+    } else {
+      var sv = savedView();
+      if (sv && sv.day) day = startOfDay(new Date(sv.day));
+      if (sv && sv.job) openJob(sv.job); else loadList();
+    }
   }
   if (me && me.code) route(); else showLogin();
 })();
