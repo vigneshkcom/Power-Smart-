@@ -21,7 +21,7 @@ function bookingSlot(iso) {
   return { date, short, slot: isAm ? "AM" : "PM", window: isAm ? "8:00am and 12:00pm" : "12:00pm and 5:00pm" };
 }
 
-function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeIncluded = false, address, slot, quoteUrl, note }) {
+function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeIncluded = false, address, billingAddress, slot, quoteUrl, note }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const balance = quoteTotal != null ? Math.max(0, quoteTotal - (feePaid || 0)) : null;
   const row = (label, value, color) => `<tr><td colspan="2" style="padding:4px 12px;color:${color || "#41585D"};">${label}</td><td align="right" style="padding:4px 12px;color:${color || "#41585D"};">${value}</td></tr>`;
@@ -58,6 +58,9 @@ function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeInc
     ${address ? `<div style="height:14px;line-height:14px;">&nbsp;</div>
     <div style="font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Installation address</div>
     <div style="font-size:14px;color:#0B1B1F;padding-top:4px;">${esc(address)}</div>` : ""}
+    ${billingAddress ? `<div style="height:14px;line-height:14px;">&nbsp;</div>
+    <div style="font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Billing address</div>
+    <div style="font-size:14px;color:#0B1B1F;padding-top:4px;">${esc(billingAddress)}</div>` : ""}
   </td></tr></table>
 </td></tr>
 ${quoteBlock}
@@ -86,7 +89,7 @@ Your smoke alarm installation is booked in.
 
 Date: ${slot.date}
 Arrival: ${slot.slot} slot - your electrician will arrive between ${slot.window}
-${address ? `Address: ${address}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `${feeIncluded ? "Deposit received (credited against quote)" : "Electrician call-out fee paid"}: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
+${address ? `Address: ${address}\n` : ""}${billingAddress ? `Billing address: ${billingAddress}\n` : ""}${quoteTotal != null ? `\nQuote${quoteRef ? " " + quoteRef : ""} total (incl. GST): ${fmt(quoteTotal)}\n${feePaid ? `${feeIncluded ? "Deposit received (credited against quote)" : "Electrician call-out fee paid"}: -${fmt(feePaid)}\n` : ""}Balance due on the day: ${fmt(balance)}\n${quoteUrl ? `View your quote: ${quoteUrl}\n` : ""}` : ""}
 Before we arrive:
 - Someone aged 18 or over needs to be home to let us in.
 - Please clear access to the ceiling areas and the switchboard where you can.
@@ -130,6 +133,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   const leadAddress = lead && lead.address_line1 && lead.address_suburb
     ? [lead.address_line1, [lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")].join(", ") : "";
   const address = jobAddress || leadAddress;
+  const billingAddress = await require("./_job-invoice").billingAddressFor({ lead_id: leadId });   // empty when it is the same as the installation address
   const quoteTotal = lead && lead.quote_total != null ? Number(lead.quote_total) : null;
 
   let feePaid = 0, feeIncluded = false, quoteUrl = "";
@@ -155,7 +159,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   if (email) {
     if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
     else {
-      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, slot, quoteUrl, note });
+      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note });
       const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
         const { Resend } = require("resend");

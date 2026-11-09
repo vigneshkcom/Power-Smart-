@@ -48,3 +48,14 @@ test('sending respects the channel choice and works for a job with no lead', asy
     assert.equal(r.email.status, 'sent'); assert.equal(calls.mail.length, 1); assert.equal(calls.sms.length, 0);
   } finally { delete process.env.SMS_ENABLED; Module._load = load; SB.sb = real.sb; Sms.sendLeadSms = real.send; }
 });
+
+test('the booking confirmation shows the billing address only when one is saved', () => {
+  const slot = bookingSlot('2026-12-09T03:00:00.000Z');
+  const base = { name: 'Paul', quoteRef: '7075', quoteTotal: 559, feePaid: 50, address: '6 Madeira Court, Thornlands 4164', slot };
+  const withBill = renderBookingEmail({ ...base, billingAddress: 'PO Box 12, Logan QLD 4114' });
+  assert.match(withBill.html, /Billing address[\s\S]*PO Box 12, Logan QLD 4114/);
+  assert.match(withBill.text, /Billing address: PO Box 12, Logan QLD 4114/);
+  const without = renderBookingEmail(base);
+  assert.doesNotMatch(without.html, /Billing address/);
+  assert.doesNotMatch(without.text, /Billing address/);
+});
