@@ -8,7 +8,7 @@ const { randomUUID } = require("crypto");
 
 const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 // Where customers deposit a bank transfer. Shown on the pending invoice email and the online invoice page.
-const BANK = { name: "PowerSmart Pty Ltd", bsb: "083-004", account: "27-010-3472" };
+const BANK = { name: "PowerSmart Pty Ltd", bsb: "083-004", account: "270103472" };
 const METHOD = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
 
 function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl, reminder }) {

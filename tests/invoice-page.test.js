@@ -18,13 +18,13 @@ function run(query, job) {
 }
 
 test('the bank details are the PowerSmart account', () => {
-  assert.deepEqual(BANK, { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '27-010-3472' });
+  assert.deepEqual(BANK, { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' });
 });
 
 test('an owing invoice shows the balance, pay by card and the bank details with the job reference', async () => {
   const r = await run({ token: ID }, { ...base });
   assert.equal(r.code, 200);
-  for (const t of ['$430.00', 'Pay $430.00 by card', '083-004', '27-010-3472', 'PowerSmart Pty Ltd', 'Reference', 'J1008']) assert.ok(r.body.includes(t), t);
+  for (const t of ['$430.00', 'Pay $430.00 by card', '083-004', '270103472', 'PowerSmart Pty Ltd', 'Reference', 'J1008']) assert.ok(r.body.includes(t), t);
   assert.ok(r.body.includes(`/invoice?token=${ID}&amp;pay=1`));
 });
 
@@ -52,7 +52,7 @@ test('nothing is exposed for a bad token, an unfinished job, or an already paid 
 test('the pending invoice email has the pay link, bank details and reference; the paid one links to the invoice', () => {
   const args = { name: 'Vig', jobNo: 1008, items: [{ label: 'Alarms', qty: 5, amount_cents: 43000 }], total: 43000, credits: [], due: 43000, address: 'x', date: 'today', invoiceUrl: `https://s/invoice?token=${ID}` };
   const owing = renderInvoice({ ...args, paid: false });
-  for (const t of ['083-004', '27-010-3472', 'PowerSmart Pty Ltd', 'Reference: <strong>J1008', `${args.invoiceUrl}&pay=1`]) assert.ok(owing.html.includes(t), t);
+  for (const t of ['083-004', '270103472', 'PowerSmart Pty Ltd', 'Reference: <strong>J1008', `${args.invoiceUrl}&pay=1`]) assert.ok(owing.html.includes(t), t);
   assert.ok(owing.text.includes('BSB 083-004') && owing.text.includes('&pay=1'));
   const paid = renderInvoice({ ...args, paid: true, due: 0 });
   assert.ok(!paid.html.includes('083-004') && paid.html.includes('view invoice'));

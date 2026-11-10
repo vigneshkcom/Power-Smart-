@@ -77,7 +77,7 @@ function setup() {
   });
   const Stripe = fakeStripe();
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '27-010-3472' } } };
+  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
