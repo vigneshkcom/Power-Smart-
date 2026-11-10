@@ -23,6 +23,8 @@ function page(job, thanks, billingAddress, fee) {
   const rows = items.map((i) => `<tr><td>${esc(i.label)}</td><td class="c">${esc(i.qty)}</td><td class="r">${fmt(i.amount_cents || 0)}</td></tr>`).join("") +
     (fee ? `<tr><td>Electrician call-out fee</td><td class="c">1</td><td class="r">${fmt(fee)}</td></tr>` : "");
   const grand = total + fee;
+  const payAmt = paid ? grand - fee - credit : 0;   // what the customer paid on top of the advance payments
+  const payWord = { card: "card", cash: "cash", bank_transfer: "bank transfer" }[job.pay_method];
   const banner = paid
     ? `<div class="ok">Paid in full. Thank you!${job.certificate_sent_at ? " Your compliance certificate has been emailed to you." : " Your compliance certificate is emailed once payment is confirmed."}</div>`
     : thanks ? `<div class="ok">Thanks! We're confirming your card payment. Your compliance certificate is emailed as soon as it's received.</div>` : "";
@@ -45,6 +47,7 @@ function page(job, thanks, billingAddress, fee) {
 <tr class="tot"><td colspan="2">Total (incl. GST)</td><td class="r">${fmt(grand)}</td></tr><tr class="sub"><td colspan="2">Includes GST of ${fmt(Math.round(grand / 11))}</td><td></td></tr>
 ${fee ? `<tr class="sub"><td colspan="2">Less paid: electrician call-out fee (paid when booked)</td><td class="r">-${fmt(fee)}</td></tr>` : ""}
 ${credit ? `<tr class="sub"><td colspan="2">Less paid in advance</td><td class="r">-${fmt(credit)}</td></tr>` : ""}
+${payAmt > 0 ? `<tr class="sub"><td colspan="2">Paid${payWord ? " by " + payWord : ""}</td><td class="r">-${fmt(payAmt)}</td></tr>` : ""}
 <tr class="due"><td colspan="2">Balance owing</td><td class="r" style="color:${owing ? "#B3261E" : "#32925d"}">${fmt(owing)}</td></tr></table>${pay}</div>
 <div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0">${Q.PHONE_DISPLAY}</a></div></div></div></body></html>`;
 }
@@ -56,7 +59,7 @@ module.exports = async (req, res) => {
   const notFound = () => res.status(404).send("Invoice not found. Please contact PowerSmart on 0475 184 984.");
   if (!UUID.test(token)) return notFound();
   try {
-    const job = (await SB.sb(`jobs?id=eq.${token}&select=id,job_no,customer_name,address,suburb,postcode,email,lead_id,status,pay_status,amount_due_cents,invoice_items,invoice_total_cents,completed_at,certificate_sent_at&limit=1`))?.[0];
+    const job = (await SB.sb(`jobs?id=eq.${token}&select=id,job_no,customer_name,address,suburb,postcode,email,lead_id,status,pay_status,amount_due_cents,invoice_items,invoice_total_cents,completed_at,certificate_sent_at,pay_method&limit=1`))?.[0];
     if (!job || job.status !== "completed") return notFound();
     if (String(req.query.pay || "") === "1" && job.pay_status === "later" && job.amount_due_cents > 0 && Stripe.configured()) {
       const base = `${Q.SITE}/invoice?token=${job.id}`;
