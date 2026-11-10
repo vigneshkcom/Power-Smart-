@@ -108,4 +108,12 @@ async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, p
   } catch (e) { return { status: "failed", error: e.message }; }
 }
 
-module.exports = { renderInvoice, sendJobInvoice, billingAddressFor, BANK };
+// The call-out fee (35/50) the customer paid when booking, when it is a separate payment rather than a deposit
+// already credited inside the invoice. 0 when there is none.
+async function separateFeeFor(leadId) {
+  const T = require("./_tech");
+  const [fee, credits] = await Promise.all([T.bookingFeePaid(leadId), T.prepaid(leadId)]);
+  return [3500, 5000].includes(fee) && !credits.some((c) => /call-out deposit/i.test(c.label || "")) ? fee : 0;
+}
+
+module.exports = { renderInvoice, sendJobInvoice, billingAddressFor, separateFeeFor, BANK };

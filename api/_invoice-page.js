@@ -5,13 +5,14 @@ const Q = require("./_quote");
 const SB = require("./_supabase");
 const Stripe = require("./_stripe");
 const { checkoutUrl } = require("./_payments");
-const { BANK, billingAddressFor } = require("./_job-invoice");
+const { BANK, billingAddressFor, separateFeeFor } = require("./_job-invoice");
 
 const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const CSP = "default-src 'none'; img-src https://smokealarms.powersmartco.com.au https://portal.powersmartco.com.au data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 
-function page(job, thanks, billingAddress) {
+function page(job, thanks, billingAddress, fee) {
+  fee = fee > 0 ? fee : 0;   // call-out fee paid when booking: shown as its own line, already paid
   const items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
   const total = job.invoice_total_cents || items.reduce((n, i) => n + (i.amount_cents || 0), 0);
   const owing = job.pay_status === "later" ? Math.max(0, job.amount_due_cents || 0) : 0;
@@ -19,7 +20,9 @@ function page(job, thanks, billingAddress) {
   const paid = job.pay_status === "paid" || job.pay_status === "none";
   const me = `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}`;
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  const rows = items.map((i) => `<tr><td>${esc(i.label)}</td><td class="c">${esc(i.qty)}</td><td class="r">${fmt(i.amount_cents || 0)}</td></tr>`).join("");
+  const rows = items.map((i) => `<tr><td>${esc(i.label)}</td><td class="c">${esc(i.qty)}</td><td class="r">${fmt(i.amount_cents || 0)}</td></tr>`).join("") +
+    (fee ? `<tr><td>Electrician call-out fee</td><td class="c">1</td><td class="r">${fmt(fee)}</td></tr>` : "");
+  const grand = total + fee;
   const banner = paid
     ? `<div class="ok">Paid in full. Thank you!${job.certificate_sent_at ? " Your compliance certificate has been emailed to you." : " Your compliance certificate is emailed once payment is confirmed."}</div>`
     : thanks ? `<div class="ok">Thanks! We're confirming your card payment. Your compliance certificate is emailed as soon as it's received.</div>` : "";
@@ -39,7 +42,8 @@ function page(job, thanks, billingAddress) {
 <div class="hd"><img src="${Q.SITE}/assets/logo/power-smart-logo-full-colour.png" alt="Power Smart Co"><div><b>${paid ? "TAX INVOICE (PAID)" : "INVOICE"}</b><span>J${esc(job.job_no)} &middot; ${esc(Q.fmtDate(new Date(job.completed_at || Date.now())))}</span></div></div>
 <div class="bd">${banner}<p style="margin:0 0 14px;font-size:14px;">${esc(job.customer_name || "")}${billingAddress ? `<br><span style="color:#6B8288;font-size:12px;">Bill to: ${esc(billingAddress)}</span>` : ""}${address ? `<br><span style="color:#6B8288;font-size:12px;">${billingAddress ? "Property: " : ""}${esc(address)}</span>` : ""}</p>
 <table><tr><th>Description</th><th class="c">Qty</th><th class="r">Amount</th></tr>${rows}
-<tr class="tot"><td colspan="2">Total (incl. GST)</td><td class="r">${fmt(total)}</td></tr><tr class="sub"><td colspan="2">Includes GST of ${fmt(Math.round(total / 11))}</td><td></td></tr>
+<tr class="tot"><td colspan="2">Total (incl. GST)</td><td class="r">${fmt(grand)}</td></tr><tr class="sub"><td colspan="2">Includes GST of ${fmt(Math.round(grand / 11))}</td><td></td></tr>
+${fee ? `<tr class="sub"><td colspan="2">Less paid: electrician call-out fee (paid when booked)</td><td class="r">-${fmt(fee)}</td></tr>` : ""}
 ${credit ? `<tr class="sub"><td colspan="2">Less paid in advance</td><td class="r">-${fmt(credit)}</td></tr>` : ""}
 <tr class="due"><td colspan="2">Balance owing</td><td class="r" style="color:${owing ? "#B3261E" : "#32925d"}">${fmt(owing)}</td></tr></table>${pay}</div>
 <div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0">${Q.PHONE_DISPLAY}</a></div></div></div></body></html>`;
@@ -67,7 +71,7 @@ module.exports = async (req, res) => {
       res.setHeader("Location", checkoutUrl(session.url)); return res.status(302).end();
     }
     res.setHeader("Content-Type", "text/html; charset=utf-8"); res.setHeader("Content-Security-Policy", CSP);
-    return res.status(200).send(page(job, String(req.query.thanks || "") === "1", await billingAddressFor(job)));
+    return res.status(200).send(page(job, String(req.query.thanks || "") === "1", await billingAddressFor(job), await separateFeeFor(job.lead_id)));
   } catch (e) { console.error("invoice page failed:", e.message); return res.status(503).send("Your invoice is temporarily unavailable. Please try again or call PowerSmart on 0475 184 984."); }
 };
 module.exports.page = page;

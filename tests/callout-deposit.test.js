@@ -33,3 +33,11 @@ test('resent pending invoice reads as a payment reminder with card link and bank
   assert.match(r.html, /PAYMENT PENDING/);
   assert.doesNotMatch(renderInvoice(base).text, /friendly reminder/);
 });
+
+test('online invoice page shows the call-out fee as a line, a total including it, and the amount paid', () => {
+  const { page } = require('../api/_invoice-page');
+  const job = { id: 'x', job_no: 1005, customer_name: 'Peter', status: 'completed', pay_status: 'later', amount_due_cents: 43000, invoice_total_cents: 43000, invoice_items: [{ label: 'Alarm', qty: 1, amount_cents: 43000 }] };
+  const t = page(job, false, '', 3500).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(t, /Electrician call-out fee 1 \$35\.00/); assert.match(t, /Total \(incl\. GST\) \$465\.00/); assert.match(t, /Less paid: electrician call-out fee \(paid when booked\) -\$35\.00/); assert.match(t, /Balance owing \$430\.00/);
+  assert.match(page(job, false, '', 0).replace(/<[^>]+>/g, ' '), /\$430\.00/);
+});

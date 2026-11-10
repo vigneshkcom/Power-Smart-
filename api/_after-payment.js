@@ -19,7 +19,7 @@ async function sendPaidInvoice(jobId, agent) {
   const credit = Math.max(0, total - (job.amount_due_cents == null ? total : job.amount_due_cents));
   const result = await Invoice.sendJobInvoice({
     job, lead: null, items, totals: { total, due: 0 }, credits: credit ? [{ label: "Paid in advance", cents: credit }] : [],
-    bookingFee: 0, paid: true, method: job.pay_method, agent,
+    bookingFee: await Invoice.separateFeeFor(job.lead_id), paid: true, method: job.pay_method, agent,
   });
   if (result.status !== "sent") {
     await SB.sb(`jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: { paid_invoice_emailed_at: null } }).catch(() => {});

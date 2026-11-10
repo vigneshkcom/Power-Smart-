@@ -7,7 +7,7 @@ reg('../api/_supabase', { configured: () => true, async sb(q, o = {}) {
   if ((o.method || 'GET') === 'PATCH') { hit.forEach((j) => Object.assign(j, o.body)); return hit.map((j) => ({ ...j })); }
   return hit.map((j) => ({ ...j }));
 } });
-reg('../api/_job-invoice', { sendJobInvoice: async (a) => { sent.push(a); return sent.fail ? { status: 'failed', error: 'boom' } : { status: 'sent', to: 'a@b.com' }; } });
+reg('../api/_job-invoice', { separateFeeFor: async () => 0, sendJobInvoice: async (a) => { sent.push(a); return sent.fail ? { status: 'failed', error: 'boom' } : { status: 'sent', to: 'a@b.com' }; } });
 reg('../api/_certificate', { issueCertificate: async (id) => { certs.push(id); return { status: 'sent' }; } });
 reg('../api/_jobs', { leadNote: async () => {} });
 const { releaseAfterPayment } = require('../api/_after-payment');
