@@ -13,11 +13,13 @@ const METHOD = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
 
 function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl, reminder }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
-  const rows = (items || []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
-  const creditRows = (credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
-  const gst = Math.round(total / 11);
+  // A call-out fee paid when booking is shown as its own line, so the invoice total is the full job price and the fee appears as already paid.
   const separateFee = [3500, 5000].includes(bookingFee) && !(credits || []).some(c => /call-out deposit/i.test(c.label || ''));
-  const feeRow = separateFee ? `<tr><td colspan="3" style="padding:6px 12px;font-size:12px;color:#32925d;">Electrician call-out fee of ${fmt(bookingFee)} received earlier (separate from the installation total above)</td></tr>` : "";
+  const feeLine = separateFee ? { label: "Electrician call-out fee", qty: 1, amount_cents: bookingFee } : null;
+  const grand = total + (separateFee ? bookingFee : 0);
+  const gst = Math.round(grand / 11);
+  const rows = (items || []).concat(feeLine ? [feeLine] : []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
+  const creditRows = (separateFee ? [{ label: "Electrician call-out fee (paid when booked)", cents: bookingFee }] : []).concat(credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
   const title = paid ? "TAX INVOICE (PAID)" : reminder ? "INVOICE (PAYMENT PENDING)" : "INVOICE";
   const lead = reminder && !paid
     ? `This is a friendly reminder that payment of <strong>${fmt(due)}</strong> is still pending for your PowerSmart smoke alarm installation. Your invoice is below, and you can pay by card or bank transfer using the details at the bottom of this email.`
@@ -46,10 +48,9 @@ function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, 
 <tr><td style="background:#ffffff;padding:16px 32px 4px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="font-size:13px;color:#41585D;">
   <tr><td style="padding:0 12px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Description</td><td align="center" style="padding:0 8px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Qty</td><td align="right" style="padding:0 12px 8px;font-size:10.5px;letter-spacing:1px;color:#8AA0A5;font-weight:bold;text-transform:uppercase;">Amount</td></tr>
   ${rows}
-  <tr><td colspan="2" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">Total (incl. GST)</td><td align="right" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">${fmt(total)}</td></tr>
+  <tr><td colspan="2" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">Total (incl. GST)</td><td align="right" style="padding:10px 12px 4px;font-weight:bold;color:#0B1B1F;">${fmt(grand)}</td></tr>
   <tr><td colspan="2" style="padding:0 12px;font-size:12px;color:#8AA0A5;">Includes GST of ${fmt(gst)}</td><td></td></tr>
   ${creditRows}
-  ${feeRow}
   <tr><td colspan="2" style="padding:10px 12px;font-weight:bold;color:#0B1B1F;background:#F4F9FA;border-radius:8px 0 0 8px;">Balance owing</td><td align="right" style="padding:10px 12px;font-weight:bold;color:${paid ? "#32925d" : "#B3261E"};background:#F4F9FA;border-radius:0 8px 8px 0;">${paid ? "$0.00 (paid in full)" : fmt(due)}</td></tr>
 </table></td></tr>
 <tr><td style="background:#ffffff;padding:18px 32px 24px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">${footerNote}</p></td></tr>
@@ -63,10 +64,10 @@ Hi ${first},
 ${lead.replace(/<[^>]+>/g, "")}
 ${billingAddress ? `\nBill to: ${name || ""}, ${billingAddress}` : ""}${address ? `\nProperty: ${address}` : ""}
 
-${(items || []).map((i) => `- ${i.label} x ${i.qty}: ${fmt(i.amount_cents)}`).join("\n")}
+${(items || []).concat(feeLine ? [feeLine] : []).map((i) => `- ${i.label} x ${i.qty}: ${fmt(i.amount_cents)}`).join("\n")}
 
-Total (incl. GST): ${fmt(total)} (GST ${fmt(gst)})
-${(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${credits && credits.length ? "\n" : ""}${separateFee ? "Electrician call-out fee of " + fmt(bookingFee) + " received earlier (separate from the installation total above)\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
+Total (incl. GST): ${fmt(grand)} (GST ${fmt(gst)})
+${(separateFee ? [{ label: "Electrician call-out fee (paid when booked)", cents: bookingFee }] : []).concat(credits || []).map((c) => `Less paid in advance (${c.label}): -${fmt(c.cents)}`).join("\n")}${separateFee || (credits && credits.length) ? "\n" : ""}${paid ? "Balance: $0.00 (paid)" : "Balance owing: " + fmt(due)}
 
 ${footerText}
 

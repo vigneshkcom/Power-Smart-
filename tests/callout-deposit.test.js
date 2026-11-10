@@ -18,7 +18,10 @@ test('invoice names and deducts the paid $50 electrician call-out deposit', () =
 
 test('a separately priced $50 call-out is shown as already paid without reducing the installation invoice', () => {
   const invoice = renderInvoice({ name: 'Test', jobNo: '7002', items: [{ label: 'Smoke alarms', qty: 5, amount_cents: 39500 }], total: 39500, credits: [], bookingFee: 5000, due: 39500, paid: false, date: '6 November 2026' });
-  assert.match(invoice.text, /Electrician call-out fee of \$50\.00 received earlier/);
+  assert.match(invoice.text, /Electrician call-out fee x 1: \$50\.00/);
+  assert.match(invoice.text, /Total \(incl\. GST\): \$445\.00/);
+  assert.match(invoice.text, /Less paid in advance \(Electrician call-out fee \(paid when booked\)\): -\$50\.00/);
+  assert.doesNotMatch(invoice.text, /received earlier/);
   assert.match(invoice.text, /Balance owing: \$395\.00/);
 });
 
