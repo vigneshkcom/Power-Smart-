@@ -6,7 +6,7 @@ function render(job) {
   const box = { innerHTML: '', style: {} };
   const ctx = { $: () => box, esc: (s) => String(s == null ? '' : s).replace(/</g, '&lt;') };
   vm.createContext(ctx);
-  vm.runInContext(html.slice(html.indexOf('  function renderPayments(j){'), html.indexOf('  function renderReport(j){')) + '\nthis.renderPayments = renderPayments;', ctx);
+  vm.runInContext(html.slice(html.indexOf('  function renderPayments(j'), html.indexOf('  function renderReport(j){')) + '\nthis.renderPayments = renderPayments;', ctx);
   ctx.renderPayments(job);
   return box;
 }
@@ -42,4 +42,14 @@ test('earlier money not in the ledger is shown as a separate line, and unpaid jo
 
 test('hidden when there is nothing to show', () => {
   assert.equal(render({ status: 'scheduled' }).style.display, 'none');
+});
+
+test('a separate call-out fee is added to the invoice total and counted as paid', () => {
+  const job = { status: 'completed', invoice_total_cents: 43000, pay_status: 'later', amount_due_cents: 43000 };
+  const ctxBox = (qs) => { const box = { innerHTML: '', style: {} }, ctx = { $: () => box, esc: (s) => String(s) }; vm.createContext(ctx);
+    vm.runInContext(html.slice(html.indexOf('  function renderPayments(j'), html.indexOf('  function renderReport(j){')) + '\nthis.renderPayments = renderPayments;', ctx); ctx.renderPayments(job, qs); return text(box); };
+  const t = ctxBox({ total_cents: 46500, booking_paid_cents: 3500 });
+  assert.match(t, /Installation invoice \$430\.00/); assert.match(t, /Electrician call-out fee \$35\.00/);
+  assert.match(t, /Invoice total \$465\.00/); assert.match(t, /Received \$35\.00/); assert.match(t, /Owing \$430\.00/);
+  assert.match(ctxBox({ total_cents: 43000, booking_paid_cents: 3500 }), /Invoice total \$430\.00/);
 });
