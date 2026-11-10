@@ -186,6 +186,7 @@
   .report .lines th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;font-weight:700;padding:.2rem .3rem;border-bottom:1px solid var(--line)}
   .report .lines td{padding:.3rem;border-bottom:1px solid var(--line);vertical-align:top}
   .report .lines .q{width:2.2rem;text-align:center}.report .lines .n{text-align:right;white-space:nowrap}
+  .report .lines tfoot tr.sub td{font-weight:500;color:var(--body)}
   .report .lines tfoot td{font-weight:700;color:var(--ink);border-bottom:0}
   .report .pay.paid{background:#E3F5EC;color:#1E6B49}.report .pay.later{background:#FFF4E0;color:#8A5A0B}
   .lead-chip{grid-column:1/-1;font-size:.78rem;background:var(--teal-soft);color:var(--teal-deep);border-radius:9px;padding:.5rem .7rem;font-weight:600}
@@ -1108,6 +1109,11 @@
   }
   // What the electrician recorded in the phone app (/tech).
   // Payments received on this job: the ledger (jobs.payments) plus any earlier money only stored as totals on the job.
+  // Separate call-out fee already paid (not credited inside the invoice): quote total covers invoice + fee.
+  function calloutFee(j, qs){
+    var total = j.invoice_total_cents || 0;
+    return (qs && qs.booking_paid_cents > 0 && total > 0 && qs.total_cents >= total + qs.booking_paid_cents) ? qs.booking_paid_cents : 0;
+  }
   function renderPayments(j, qs){
     var box = $("jm-payments"); if (!box) return;
     var money = function(c){ return "$" + ((c || 0) / 100).toFixed(2); };
@@ -1124,7 +1130,7 @@
     var total = j.invoice_total_cents || 0;
     // A separate call-out fee (e.g. $35 paid online when booking) sits on top of the installation invoice:
     // the customer's real total is invoice + fee, and the fee counts as already paid.
-    var fee = (qs && qs.booking_paid_cents > 0 && qs.total_cents >= total + qs.booking_paid_cents && total > 0) ? qs.booking_paid_cents : 0;
+    var fee = calloutFee(j, qs);
     if (!rows.length && !fee && !(total > 0 && j.status === "completed")){ box.style.display = "none"; return; }
     rows.sort(function(a, b){ return (a.at ? Date.parse(a.at) : 0) - (b.at ? Date.parse(b.at) : 0); });
     var got = rows.reduce(function(n, p){ return n + p.amount_cents; }, 0);
@@ -1143,7 +1149,7 @@
     box.style.display = "";
   }
   // Electrician's invoice as proper line items: qty, item, unit price, amount.
-  function reportLines(items, j){
+  function reportLines(items, j, fee){
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
     var sum = 0;
     var rows = items.map(function(i){
@@ -1152,17 +1158,19 @@
       return '<tr><td class="q">' + qty + '</td><td>' + esc(i.label || i.code || "Item") + '</td><td class="n">' + (i.unit_cents != null ? money(i.unit_cents) : "") + '</td><td class="n">' + money(amt) + '</td></tr>';
     }).join("");
     var total = j.invoice_total_cents != null ? j.invoice_total_cents : sum;
+    if (fee) rows += '<tr><td class="q">1</td><td>Electrician call-out fee (paid when booked)</td><td class="n">' + money(fee) + '</td><td class="n">' + money(fee) + '</td></tr>';
     return '<table class="lines"><thead><tr><th class="q">Qty</th><th>Item</th><th class="n">Unit</th><th class="n">Amount</th></tr></thead><tbody>' + rows +
-      '</tbody><tfoot><tr><td colspan="3">Installation invoice</td><td class="n">' + money(total) + '</td></tr></tfoot></table>';
+      '</tbody><tfoot><tr><td colspan="3">Invoice total</td><td class="n">' + money(total + fee) + '</td></tr>' +
+      (fee ? '<tr class="sub"><td colspan="3">Less paid: call-out fee</td><td class="n">-' + money(fee) + '</td></tr><tr><td colspan="3">Balance due</td><td class="n">' + money(total) + '</td></tr>' : '') + '</tfoot></table>';
   }
-  function renderReport(j){
+  function renderReport(j, qs){
     var box = $("jm-report"), items = j.invoice_items || [];
     if (!items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
     var PAY = { paid:"Paid", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
     box.innerHTML = '<b>Electrician report</b>' +
       (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
-      (items.length ? reportLines(items, j) + '<div>' +
+      (items.length ? reportLines(items, j, calloutFee(j, qs)) + '<div>' +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
         (j.prior_paid_cents > 0 ? " · received so far " + money(j.prior_paid_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
@@ -1176,7 +1184,7 @@
     box.style.display="";
     if(d.payment_error){box.textContent=d.payment_error;return;}
     if(!q || !s){box.textContent="No linked quote payment summary is available.";return;}
-    if(state.editing) renderPayments(state.editing, s);   // fold the call-out fee into the job's payment totals
+    if(state.editing){ renderPayments(state.editing, s); renderReport(state.editing, s); }   // fold the call-out fee into the job's payment totals
     var cash=function(c){return "$"+(c/100).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});};
     var labels={unpaid:"Unpaid",part_paid:"Part paid",paid:"Paid in full",overpaid:"Credit balance"};
     box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:12px"><strong>Quote '+esc(q.ref)+' · '+esc(labels[s.status] || s.status)+'</strong>'+(q.id?'<a href="https://quotes.powersmartco.com.au/quote?token='+encodeURIComponent(q.id)+'" target="_blank" rel="noopener" style="color:#267582;font-size:12px">View quote</a>':'')+'</div>'+

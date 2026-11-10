@@ -6,7 +6,7 @@ function render(job) {
   const box = { innerHTML: '', style: {} };
   const ctx = { $: () => box, esc: (s) => String(s == null ? '' : s).replace(/</g, '&lt;') };
   vm.createContext(ctx);
-  vm.runInContext(html.slice(html.indexOf('  function renderPayments(j'), html.indexOf('  function renderReport(j){')) + '\nthis.renderPayments = renderPayments;', ctx);
+  vm.runInContext(html.slice(html.indexOf('  function calloutFee(j'), html.indexOf('  function renderReport(j')) + '\nthis.renderPayments = renderPayments;', ctx);
   ctx.renderPayments(job);
   return box;
 }
@@ -47,9 +47,18 @@ test('hidden when there is nothing to show', () => {
 test('a separate call-out fee is added to the invoice total and counted as paid', () => {
   const job = { status: 'completed', invoice_total_cents: 43000, pay_status: 'later', amount_due_cents: 43000 };
   const ctxBox = (qs) => { const box = { innerHTML: '', style: {} }, ctx = { $: () => box, esc: (s) => String(s) }; vm.createContext(ctx);
-    vm.runInContext(html.slice(html.indexOf('  function renderPayments(j'), html.indexOf('  function renderReport(j){')) + '\nthis.renderPayments = renderPayments;', ctx); ctx.renderPayments(job, qs); return text(box); };
+    vm.runInContext(html.slice(html.indexOf('  function calloutFee(j'), html.indexOf('  function renderReport(j')) + '\nthis.renderPayments = renderPayments;', ctx); ctx.renderPayments(job, qs); return text(box); };
   const t = ctxBox({ total_cents: 46500, booking_paid_cents: 3500 });
   assert.match(t, /Installation invoice \$430\.00/); assert.match(t, /Electrician call-out fee \$35\.00/);
   assert.match(t, /Invoice total \$465\.00/); assert.match(t, /Received \$35\.00/); assert.match(t, /Owing \$430\.00/);
   assert.match(ctxBox({ total_cents: 43000, booking_paid_cents: 3500 }), /Invoice total \$430\.00/);
+});
+
+test('electrician report lists the call-out fee line and totals $465 with $430 balance', () => {
+  const box = { innerHTML: '', style: {} }, ctx = { $: () => box, esc: (s) => String(s) }; vm.createContext(ctx);
+  vm.runInContext(html.slice(html.indexOf('  function calloutFee(j'), html.indexOf('  function renderReport(j')) + html.slice(html.indexOf('  function reportLines('), html.indexOf('  function renderReport(j')) + '\nthis.reportLines = reportLines; this.calloutFee = calloutFee;', ctx);
+  const j = { invoice_total_cents: 43000 }, items = [{ qty: 3, label: 'Alarm', unit_cents: 7900, amount_cents: 23700 }];
+  const fee = ctx.calloutFee(j, { total_cents: 46500, booking_paid_cents: 3500 });
+  const t = text({ innerHTML: ctx.reportLines(items, j, fee) });
+  assert.match(t, /Electrician call-out fee \(paid when booked\) \$35\.00 \$35\.00/); assert.match(t, /Invoice total \$465\.00/); assert.match(t, /Balance due \$430\.00/);
 });
