@@ -33,6 +33,7 @@ function billingFields(b, forUpdate) {
 module.exports = async (req, res) => {
   if (/[?&]resource=address-config(&|$)/.test(req.url || "")) return require("./_address-config")(req, res);
   if (/[?&]resource=reminders(&|$)/.test(req.url || "")) return require("./_quote-reminders").handler(req, res);
+  if (/[?&]resource=job-reminders(&|$)/.test(req.url || "")) return require("./_job-reminders").handler(req, res);
   // Job schedule shares this function (Vercel Hobby allows 12 functions); see api/_jobs.js.
   if (/[?&]resource=jobs(&|$)/.test(req.url || "")) return require("./_jobs")(req, res);
   // Electrician phone app (/tech) — own PIN auth; see api/_tech.js.
