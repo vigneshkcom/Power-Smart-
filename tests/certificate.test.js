@@ -36,6 +36,15 @@ test('only completed jobs paid in full (or with nothing owing) qualify', () => {
   assert.equal(C.paidInFull(job({ status: 'on_site' })), false);
 });
 
+test('only manuals for installed products are selected', () => {
+  const names = (items) => C.manualsForJob(job({ invoice_items: items })).map((m) => m.filename);
+  assert.deepEqual(names([{ code: 'alarm_battery', qty: 2 }]), ['Battery Operated Alarm Manual.pdf']);
+  assert.deepEqual(names([{ code: 'alarm_hardwired', qty: 1 }, { code: 'controller', qty: 1 }]), ['Hardwired Alarm Manual.pdf', 'Remote Controller Manual.pdf']);
+  assert.deepEqual(names([{ code: 'alarm_battery', qty: 2 }, { code: 'alarm_hardwired', qty: 1 }, { code: 'controller', qty: 0 }]), ['Battery Operated Alarm Manual.pdf', 'Hardwired Alarm Manual.pdf']);
+  assert.deepEqual(names([]), []);
+  assert.deepEqual(C.manualsForJob(job({ invoice_items: [{ code: 'alarm', qty: 1 }], alarm_type: 'hardwired' })).map((m) => m.filename), ['Hardwired Alarm Manual.pdf']);
+});
+
 test('an unpaid or already-sent job is skipped without touching anything', async () => {
   reset(job({ pay_status: 'later' }), { licence_no: '1515658' });
   assert.equal((await C.issueCertificate('j1')).status, 'skipped');

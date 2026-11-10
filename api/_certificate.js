@@ -16,6 +16,27 @@ const { PNG } = require("pngjs");
 
 const DIR = path.join(__dirname, "_cert-assets");
 const esc = Q.escapeHtml;
+const MANUALS = {
+  battery: { filename: "Battery Operated Alarm Manual.pdf", label: "battery alarm manual" },
+  hardwired: { filename: "Hardwired Alarm Manual.pdf", label: "hardwired alarm manual" },
+  controller: { filename: "Remote Controller Manual.pdf", label: "remote controller manual" },
+};
+
+function manualsForJob(job) {
+  const selected = new Set();
+  const items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
+  for (const item of items) {
+    if (Number(item.qty) <= 0) continue;
+    if (item.code === "alarm_battery") selected.add("battery");
+    if (item.code === "alarm_hardwired") selected.add("hardwired");
+    if (item.code === "controller") selected.add("controller");
+    if (item.code === "alarm" && ["battery", "hardwired"].includes(job.alarm_type)) selected.add(job.alarm_type);
+  }
+  if (!items.length && Array.isArray(job.alarm_units)) {
+    for (const unit of job.alarm_units) if (["battery", "hardwired"].includes(unit.type)) selected.add(unit.type);
+  }
+  return Object.entries(MANUALS).filter(([type]) => selected.has(type)).map(([, manual]) => manual);
+}
 
 const STATE_BY_DIGIT = { 0: "NT", 2: "NSW", 3: "VIC", 4: "QLD", 5: "SA", 6: "WA", 7: "TAS" };
 function stateFor(postcode) {
@@ -115,6 +136,8 @@ async function issueCertificate(jobId, { agent, force } = {}) {
     if (!claimed || !claimed.length) return { status: "skipped", reason: "Certificate already sent." };
     try {
       const pdf = await renderCertificatePdf({ job, electrician });
+      const manuals = manualsForJob(job);
+      const manualNote = manuals.length ? ` The ${manuals.map((manual) => manual.label).join(", ")} ${manuals.length === 1 ? "is" : "are"} attached too.` : "";
       const first = String(job.customer_name || "there").trim().split(/\s+/)[0] || "there";
       const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const subject = `Your PowerSmart smoke alarm compliance certificate (J${job.job_no})`;
@@ -125,19 +148,22 @@ async function issueCertificate(jobId, { agent, force } = {}) {
   <td valign="middle"><img src="${Q.SITE}/assets/logo/power-smart-logo-full-colour.png" alt="Power Smart Co" width="190" style="display:block;width:190px;height:auto;"></td>
   <td valign="middle" align="right"><div style="font-size:15px;font-weight:bold;color:#0B1B1F;letter-spacing:1px;">SMOKE ALARM<br>CERTIFICATE OF COMPLIANCE</div><div style="font-size:12px;color:#6B8288;padding-top:4px;">Job: <strong style="color:#41585D;">J${esc(job.job_no)}</strong></div></td>
 </tr></table></td></tr>
-<tr><td style="background:#ffffff;padding:24px 32px 8px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">Hi ${esc(first)},<br><br>Thanks for choosing PowerSmart and for your payment. Your smoke alarm <strong style="color:#0B1B1F;">Certificate of Compliance</strong> is attached to this email as a PDF.</p>${address ? `<p style="margin:12px 0 0;font-size:12px;color:#6B8288;">Property: <strong style="color:#41585D;">${esc(address)}</strong></p>` : ""}</td></tr>
+<tr><td style="background:#ffffff;padding:24px 32px 8px;"><p style="margin:0;font-size:14px;color:#41585D;line-height:1.65;">Hi ${esc(first)},<br><br>Thanks for choosing PowerSmart and for your payment. Your smoke alarm <strong style="color:#0B1B1F;">Certificate of Compliance</strong> is attached to this email as a PDF.${esc(manualNote)}</p>${address ? `<p style="margin:12px 0 0;font-size:12px;color:#6B8288;">Property: <strong style="color:#41585D;">${esc(address)}</strong></p>` : ""}</td></tr>
 <tr><td style="background:#ffffff;padding:16px 32px 8px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#F4F9FA;border-radius:10px;padding:16px 18px;font-size:13px;color:#41585D;line-height:1.7;">
   <strong style="color:#0B1B1F;">Please keep it safe.</strong> Give a copy to your property manager or insurer if they ask. The second page of the PDF explains how to look after your alarms.
 </td></tr></table></td></tr>
 <tr><td style="background:#ffffff;padding:16px 32px 26px;"><p style="margin:0;font-size:13px;color:#41585D;line-height:1.65;">Questions? Reply to this email or call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0;font-weight:bold;text-decoration:none;">${Q.PHONE_DISPLAY}</a>.</p></td></tr>
 <tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#A5B8BC;">Licensed &amp; insured electricians &middot; Installed to AS 3786:2014</p></td></tr>
 </table></td></tr></table></body></html>`;
-      const text = `Hi ${first},\n\nThanks for choosing PowerSmart and for your payment. Your smoke alarm Certificate of Compliance${address ? " for " + address : ""} is attached as a PDF. Please keep it for your records, and give a copy to your property manager or insurer if they ask.\n\nThe second page covers how to look after your alarms.\n\nQuestions? Reply to this email or call ${Q.PHONE_DISPLAY}.\n\nPowerSmart`;
+      const text = `Hi ${first},\n\nThanks for choosing PowerSmart and for your payment. Your smoke alarm Certificate of Compliance${address ? " for " + address : ""} is attached as a PDF.${manualNote} Please keep it for your records, and give a copy to your property manager or insurer if they ask.\n\nThe second page covers how to look after your alarms.\n\nQuestions? Reply to this email or call ${Q.PHONE_DISPLAY}.\n\nPowerSmart`;
       const { Resend } = require("resend");
       const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
         from: S.fromHeader("customer_service"), to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
         bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL, subject, html, text,
-        attachments: [{ filename: `PowerSmart-Smoke-Alarm-Certificate-J${job.job_no}.pdf`, content: pdf }],
+        attachments: [
+          { filename: `PowerSmart-Smoke-Alarm-Certificate-J${job.job_no}.pdf`, content: pdf },
+          ...manuals.map((manual) => ({ filename: manual.filename, content: fs.readFileSync(path.join(DIR, "manuals", manual.filename)) })),
+        ],
       });
       if (error) throw new Error(error.message || "Email provider rejected the request");
       await logEmail({ id: randomUUID(), kind: "email", sender: "customer_service", agent, to_email: to, to_name: job.customer_name, subject, body_html: html, body_text: text, lead_id: job.lead_id || null, provider_id: data && data.id });
@@ -158,4 +184,4 @@ async function issueCertificate(jobId, { agent, force } = {}) {
   }
 }
 
-module.exports = { renderCertificatePdf, issueCertificate, paidInFull, stateFor, dateText };
+module.exports = { renderCertificatePdf, issueCertificate, paidInFull, manualsForJob, stateFor, dateText };
