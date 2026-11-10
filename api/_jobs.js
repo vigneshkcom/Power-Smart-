@@ -478,6 +478,23 @@ module.exports = async (req, res) => {
       return res.status(200).json({ ok: true, job, owing_cents: owing - cents, paid_in_full: false });
     }
 
+    // Re-email the pending invoice (card link + bank details) for a completed job that still has a balance owing.
+    if (b.action === "job_resend_invoice") {
+      const id = clean(b.id, 40);
+      const job = id ? (await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`))?.[0] : null;
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      if (job.status !== "completed" || job.pay_status !== "later" || !(job.amount_due_cents > 0)) return res.status(409).json({ error: "Only a completed job with a balance owing has a pending invoice to resend." });
+      const T = require("./_tech"), items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
+      const credits = [...await T.prepaid(job.lead_id), ...T.priorCredit(job)];
+      const total = job.invoice_total_cents || items.reduce((n, i) => n + (i.amount_cents || 0), 0);
+      const lead = job.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
+      const r = await require("./_job-invoice").sendJobInvoice({ job, lead, items, totals: { total, due: job.amount_due_cents }, credits, bookingFee: await T.bookingFeePaid(job.lead_id), paid: false, method: null, agent: actor, reminder: true });
+      if (r.status !== "sent") return res.status(r.status === "skipped" ? 400 : 502).json({ error: r.error || "The invoice could not be sent." });
+      await sb(`jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: { invoice_emailed_at: new Date().toISOString() }, prefer: "return=minimal" }).catch(() => {});
+      if (job.lead_id) await leadNote(job.lead_id, actor, `📧 Pending invoice for J${job.job_no} ($${(job.amount_due_cents / 100).toFixed(2)} owing) re-sent to ${r.to}.`);
+      return res.status(200).json({ ok: true, to: r.to });
+    }
+
     // (Re)send the compliance certificate PDF for a completed, fully paid job.
     if (b.action === "certificate_send") {
       const id = clean(b.id, 40);

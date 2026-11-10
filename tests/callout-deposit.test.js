@@ -21,3 +21,12 @@ test('a separately priced $50 call-out is shown as already paid without reducing
   assert.match(invoice.text, /Electrician call-out fee of \$50\.00 received earlier/);
   assert.match(invoice.text, /Balance owing: \$395\.00/);
 });
+
+test('resent pending invoice reads as a payment reminder with card link and bank details', () => {
+  const { renderInvoice } = require('../api/_job-invoice');
+  const base = { name: 'Peter Wallmer', jobNo: 1005, items: [{ label: 'Alarm', qty: 1, amount_cents: 43000 }], total: 43000, credits: [], due: 43000, paid: false, date: '11 Nov 2026', invoiceUrl: 'https://x.test/invoice?token=abc' };
+  const r = renderInvoice({ ...base, reminder: true });
+  assert.match(r.text, /payment of \$430\.00 is still pending/); assert.match(r.text, /By card: https:\/\/x\.test\/invoice\?token=abc&pay=1/); assert.match(r.text, /BSB 083-004/);
+  assert.match(r.html, /PAYMENT PENDING/);
+  assert.doesNotMatch(renderInvoice(base).text, /friendly reminder/);
+});

@@ -185,6 +185,8 @@
   .fgrid.cust-collapsed .cust-field,.fgrid.cust-collapsed .cust-hide{display:none}
   .report .bill{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding-bottom:.55rem;margin-bottom:.45rem;border-bottom:1px solid var(--line)}
   .report .bill button{padding:.25rem .7rem;font-size:.72rem;flex:none}
+  .report .resend{padding:.25rem .8rem;font-size:.72rem;margin-left:.3rem}
+  .report .muted{color:var(--muted)}
   .report .quote-link{float:right;font-size:.72rem;font-weight:600;color:var(--teal-deep);text-decoration:underline}
   .report table.lines{width:100%;border-collapse:collapse;margin:.4rem 0;font-size:.78rem}
   .report .lines th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;font-weight:700;padding:.2rem .3rem;border-bottom:1px solid var(--line)}
@@ -344,6 +346,7 @@
         <div class="jm-links" id="jm-links"></div>
         <div class="report" id="jm-report" style="display:none"></div>
         <div class="report payb" id="jm-payments" style="display:none"></div>
+        <div class="report" id="jm-docs" style="display:none"></div>
         <div class="fgrid" id="jm-cust-edit-target">
           <div class="section-label cust-hide">Customer</div>
           <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
@@ -1077,7 +1080,7 @@
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
-    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; setCustCollapsed(false);
+    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; $("jm-docs").style.display = "none"; docsRequestId++; setCustCollapsed(false);
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
       var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
@@ -1173,6 +1176,7 @@
     if (!done && !items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
     var PAY = { paid:"Paid", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
+    var when = function(iso){ return new Date(iso).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" }); };
     var addr = [j.address, j.suburb, j.postcode].filter(Boolean).join(", ");
     box.innerHTML = '<b>Electrician report</b>' +
       (done ? '<div class="bill"><div><b>Bill to</b><br>' + [j.customer_name, j.phone, j.email, addr].filter(Boolean).map(esc).join('<br>') + '</div><button type="button" class="btn btn-ghost" data-edit-cust>Edit details</button></div>' : '') +
@@ -1181,6 +1185,7 @@
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
         (j.prior_paid_cents > 0 ? " · received so far " + money(j.prior_paid_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
+        (j.status === "completed" && j.pay_status === "later" && j.amount_due_cents > 0 ? ' <button type="button" class="btn btn-ghost resend" data-resend-invoice title="Email the customer a payment-pending invoice with the card link and bank details">Resend invoice</button>' + (j.invoice_emailed_at ? '<span class="muted" style="font-size:.7rem;margin-left:.4rem">last sent ' + esc(when(j.invoice_emailed_at)) + '</span>' : '') : '') +
         '</div>' + (j.approved_at ? '<div>Invoice approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</div>' : '') : '') +
       (j.tech_notes ? '<br>Notes: ' + esc(j.tech_notes) : '');
     box.style.display = "";
@@ -1238,8 +1243,45 @@
   // Completed jobs: customer details sit at the top of the invoice-style report; the fields below only open on Edit.
   function setCustCollapsed(on){ $("jm-cust-edit-target").classList.toggle("cust-collapsed", on); }
   $("jm-report").addEventListener("click", function(e){
+    var rs = e.target.closest("[data-resend-invoice]");
+    if (rs){
+      var jb = state.editing; if (!jb) return;
+      if (!confirm("Email a payment-pending invoice for J" + jb.job_no + " ($" + ((jb.amount_due_cents || 0) / 100).toFixed(2) + " owing) to " + (jb.email || "the customer") + "?\n\nIt includes the card payment link and our bank details.")) return;
+      rs.disabled = true;
+      jobsApi({ action:"job_resend_invoice", id: jb.id }).then(function(r){
+        toast("Pending invoice emailed to " + r.to);
+        jb.invoice_emailed_at = new Date().toISOString(); renderReport(jb); loadSentDocs(jb);
+      }).catch(function(err){ toast(err.message); rs.disabled = false; });
+      return;
+    }
     if (!e.target.closest("[data-edit-cust]")) return;
     setCustCollapsed(false); $("jm-name").scrollIntoView({ block:"center" }); $("jm-name").focus();
+  });
+
+  // "Sent to customer": every email logged for this customer (quote, booking, invoices, certificate), newest first.
+  var docsRequestId = 0;
+  function loadSentDocs(j){
+    var box = $("jm-docs"), id = ++docsRequestId;
+    if (!j || !(j.lead_id || j.email)){ box.style.display = "none"; return; }
+    box.style.display = ""; box.innerHTML = '<b>Sent to customer</b><div class="muted">Loading…</div>';
+    call("/api/pipeline", "POST", { action:"emails", lead_id: j.lead_id || "", email: j.email || "" }).then(function(d){
+      if (id !== docsRequestId) return;
+      var list = (d.emails || []).filter(function(m){ return m.status !== "failed"; });
+      state.sentDocs = list;
+      box.innerHTML = '<b>Sent to customer</b>' + (list.length ? list.map(function(m, n){
+        var kind = m.kind === "quote" ? "Quote" : /invoice/i.test(m.subject || "") ? "Invoice" : /certificate/i.test(m.subject || "") ? "Certificate" : "Email";
+        return '<div class="payrow"><span><span class="pay">' + kind + '</span> ' + esc(m.subject || "(no subject)") + '<br><span class="muted" style="font-size:.7rem">' +
+          esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", year:"numeric", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + ' · to ' + esc(m.to_email || "") + (m.agent ? ' · by ' + esc(m.agent) : '') + '</span></span>' +
+          '<button type="button" class="btn btn-ghost" style="padding:.2rem .6rem;font-size:.7rem;align-self:center" data-view-doc="' + n + '">View</button></div>';
+      }).join("") : '<div class="muted">Nothing has been emailed to this customer yet.</div>');
+    }).catch(function(){ if (id === docsRequestId) box.innerHTML = '<b>Sent to customer</b><div class="muted">Could not load sent emails.</div>'; });
+  }
+  $("jm-docs").addEventListener("click", function(e){
+    var b = e.target.closest("[data-view-doc]"); if (!b) return;
+    var m = (state.sentDocs || [])[Number(b.getAttribute("data-view-doc"))]; if (!m) return;
+    var html = m.body_html || ("<pre style='font-family:Arial;white-space:pre-wrap'>" + esc(m.body_text || "") + "</pre>");
+    var url = URL.createObjectURL(new Blob([html], { type:"text/html" }));
+    window.open(url, "_blank", "noopener"); setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
   });
 
   function openJob(j){
@@ -1271,6 +1313,7 @@
       function(path){ return call("/api/pipeline", "POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
     renderReport(j); renderPayments(j);
     setCustCollapsed(j.status === "completed" && !!j.id);
+    loadSentDocs(j);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
     $("job-overlay").classList.add("show");

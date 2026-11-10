@@ -405,4 +405,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-Object.assign(module.exports, { reconcileJobPayment, ALARM_CODES, priceItems, totals });
+Object.assign(module.exports, { reconcileJobPayment, ALARM_CODES, priceItems, totals, prepaid, priorCredit, bookingFeePaid });

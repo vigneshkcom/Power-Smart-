@@ -11,15 +11,17 @@ const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const BANK = { name: "PowerSmart Pty Ltd", bsb: "083-004", account: "27-010-3472" };
 const METHOD = { card: "card", bank_transfer: "bank transfer", cash: "cash" };
 
-function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl }) {
+function renderInvoice({ name, jobNo, items, total, credits, due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl, reminder }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const rows = (items || []).map((i) => `<tr><td style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${esc(i.label)}</td><td align="center" style="padding:8px;border-bottom:1px solid #E5EEEF;">${i.qty}</td><td align="right" style="padding:8px 12px;border-bottom:1px solid #E5EEEF;">${fmt(i.amount_cents)}</td></tr>`).join("");
   const creditRows = (credits || []).map((c) => `<tr><td colspan="2" style="padding:4px 12px;color:#32925d;">Less paid in advance: ${esc(c.label)}</td><td align="right" style="padding:4px 12px;color:#32925d;">-${fmt(c.cents)}</td></tr>`).join("");
   const gst = Math.round(total / 11);
   const separateFee = [3500, 5000].includes(bookingFee) && !(credits || []).some(c => /call-out deposit/i.test(c.label || ''));
   const feeRow = separateFee ? `<tr><td colspan="3" style="padding:6px 12px;font-size:12px;color:#32925d;">Electrician call-out fee of ${fmt(bookingFee)} received earlier (separate from the installation total above)</td></tr>` : "";
-  const title = paid ? "TAX INVOICE (PAID)" : "INVOICE";
-  const lead = paid
+  const title = paid ? "TAX INVOICE (PAID)" : reminder ? "INVOICE (PAYMENT PENDING)" : "INVOICE";
+  const lead = reminder && !paid
+    ? `This is a friendly reminder that payment of <strong>${fmt(due)}</strong> is still pending for your PowerSmart smoke alarm installation. Your invoice is below, and you can pay by card or bank transfer using the details at the bottom of this email.`
+    : paid
     ? `Thanks for choosing PowerSmart. Your smoke alarm installation is complete and your invoice is below${method ? ` (paid by ${METHOD[method] || method})` : ""}.`
     : `Thanks for choosing PowerSmart. Your smoke alarm installation is complete. There is a balance of <strong>${fmt(due)}</strong> still to pay; your invoice is below.`;
   const btn = (href, label) => `<a href="${href}" style="display:inline-block;background:#43A8B6;color:#0B1B1F;font-weight:bold;font-size:14px;text-decoration:none;padding:12px 22px;border-radius:999px;">${label}</a>`;
@@ -84,15 +86,15 @@ async function billingAddressFor(job) {
 }
 
 // Emails the invoice. Never throws: returns { status: 'sent' | 'skipped' | 'failed', ... }.
-async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, paid, method, agent }) {
+async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, paid, method, agent, reminder }) {
   const to = String(job.email || (lead && lead.email) || "").trim().toLowerCase();
   if (!to) return { status: "skipped", error: "No customer email saved." };
   if (!process.env.RESEND_API_KEY) return { status: "failed", error: "Email service is not configured." };
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const date = Q.fmtDate(new Date());
   const billingAddress = await billingAddressFor(job);
-  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
-  const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
+  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, reminder, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
+  const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : reminder ? `Payment pending: PowerSmart invoice J${job.job_no}, ${fmt(totals.due)} owing` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
   try {
     const { Resend } = require("resend");
     const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
