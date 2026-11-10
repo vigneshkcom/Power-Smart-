@@ -182,9 +182,9 @@
   .report{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.8rem;color:var(--body);line-height:1.55}
   .report b{color:var(--ink)}
   .report .pay{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);margin-left:.3rem}
-  .cust-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.8rem;line-height:1.5}
-  .cust-sum button{padding:.3rem .7rem;font-size:.72rem;flex:none}
-  .fgrid.cust-collapsed .cust-field{display:none}
+  .fgrid.cust-collapsed .cust-field,.fgrid.cust-collapsed .cust-hide{display:none}
+  .report .bill{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding-bottom:.55rem;margin-bottom:.45rem;border-bottom:1px solid var(--line)}
+  .report .bill button{padding:.25rem .7rem;font-size:.72rem;flex:none}
   .report .quote-link{float:right;font-size:.72rem;font-weight:600;color:var(--teal-deep);text-decoration:underline}
   .report table.lines{width:100%;border-collapse:collapse;margin:.4rem 0;font-size:.78rem}
   .report .lines th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;font-weight:700;padding:.2rem .3rem;border-bottom:1px solid var(--line)}
@@ -344,14 +344,13 @@
         <div class="jm-links" id="jm-links"></div>
         <div class="report" id="jm-report" style="display:none"></div>
         <div class="report payb" id="jm-payments" style="display:none"></div>
-        <div class="fgrid">
-          <div class="section-label">Customer</div>
+        <div class="fgrid" id="jm-cust-edit-target">
+          <div class="section-label cust-hide">Customer</div>
           <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
             <select id="jm-lead"><option value="">— Not linked to a lead —</option></select>
           </div>
-          <div class="lead-chip" id="jm-lead-chip" style="display:none"></div>
+          <div class="lead-chip cust-hide" id="jm-lead-chip" style="display:none"></div>
           <div class="field full" id="jm-payment" aria-live="polite" style="display:none;background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:14px"></div>
-          <div class="field full cust-sum" id="jm-cust-sum" style="display:none"><span id="jm-cust-text"></span><button type="button" class="btn btn-ghost" id="jm-cust-edit">Edit details</button></div>
           <div class="field full cust-field"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
           <div class="field cust-field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
           <div class="field cust-field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
@@ -1170,10 +1169,13 @@
   }
   function renderReport(j, qs){
     var box = $("jm-report"), items = j.invoice_items || [];
-    if (!items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
+    var done = j.status === "completed" && !!j.id;
+    if (!done && !items.length && !j.alarm_type && !j.tech_notes){ box.style.display = "none"; return; }
     var money = function(cents){ return "$" + ((cents || 0) / 100).toFixed(2); };
     var PAY = { paid:"Paid", pending:"Card payment started", later:"To collect", none:"Nothing to pay", unpaid:"Not paid" };
+    var addr = [j.address, j.suburb, j.postcode].filter(Boolean).join(", ");
     box.innerHTML = '<b>Electrician report</b>' +
+      (done ? '<div class="bill"><div><b>Bill to</b><br>' + [j.customer_name, j.phone, j.email, addr].filter(Boolean).map(esc).join('<br>') + '</div><button type="button" class="btn btn-ghost" data-edit-cust>Edit details</button></div>' : '') +
       (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
       (items.length ? reportLines(items, j, calloutFee(j, qs)) + '<div>' +
         (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
@@ -1233,14 +1235,12 @@
     else { paymentRequestId++; $("jm-quote-hint").textContent = ""; $("jm-payment").style.display="none"; }
   });
 
-  // Completed jobs: the customer's details are already settled, so show one line with an Edit button instead of six fields.
-  function setCustCollapsed(on){
-    var parts = [$("jm-name").value, $("jm-phone").value, $("jm-email").value, [$("jm-address").value, $("jm-suburb").value, $("jm-postcode").value].filter(Boolean).join(", ")].filter(Boolean);
-    $("jm-cust-text").innerHTML = parts.map(esc).join('<br>');
-    $("jm-cust-sum").style.display = on ? "" : "none";
-    $("jm-cust-sum").parentNode.classList.toggle("cust-collapsed", on);
-  }
-  $("jm-cust-edit").addEventListener("click", function(){ setCustCollapsed(false); $("jm-name").focus(); });
+  // Completed jobs: customer details sit at the top of the invoice-style report; the fields below only open on Edit.
+  function setCustCollapsed(on){ $("jm-cust-edit-target").classList.toggle("cust-collapsed", on); }
+  $("jm-report").addEventListener("click", function(e){
+    if (!e.target.closest("[data-edit-cust]")) return;
+    setCustCollapsed(false); $("jm-name").scrollIntoView({ block:"center" }); $("jm-name").focus();
+  });
 
   function openJob(j){
     if (!j) return;
