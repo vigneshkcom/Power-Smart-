@@ -68,6 +68,7 @@
   .cardk .meta{display:flex;flex-wrap:wrap;gap:.3rem .45rem;font-size:.68rem;color:var(--muted);margin-bottom:.45rem}
   .chip{background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:.08rem .5rem;font-weight:600}
   .chip.src{background:var(--teal-soft);border-color:transparent;color:var(--teal-deep)}
+  .chip.owe{background:#FDECEA;border-color:transparent;color:#B3261E;font-weight:700}
   .chip.quote{background:#FDF3DC;border-color:transparent;color:#8a6a14}
   .fee-pill{display:inline-block;margin-left:.45rem;padding:.08rem .5rem;border-radius:999px;background:#e8f0fb;color:#235184;font-size:.72em;vertical-align:middle;white-space:nowrap}
   .cardk .foot{display:flex;align-items:center;gap:.55rem;border-top:1px solid var(--line);padding-top:.45rem}
@@ -769,6 +770,9 @@
         if (l.paid_total_cents > 0) chips += '<span class="chip src" title="Total payments received">Paid ' + fmt$(l.paid_total_cents / 100) + ((l.paid_methods || []).length ? ' · ' + esc(l.paid_methods.join(", ")) : '') + '</span>';
         else if (l.payment) chips += '<span class="chip quote">' + (l.payment.status === "paid" ? "Paid " : "Call-out fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
         else if (l.payment_preference === "phone" && l.stage !== "scheduled" && l.stage !== "won") chips += '<span class="chip quote">Payment call requested</span>';
+        // Still to pay on the quote (quote total less everything received): red, on part-paid leads and on installed jobs with nothing paid.
+        var pendingCents = l.quote_total > 0 ? Math.round(l.quote_total * 100) - (l.paid_total_cents || 0) : 0;
+        if (pendingCents > 0 && ((l.paid_total_cents || 0) > 0 || l.stage === "won")) chips += '<span class="chip owe" title="Quote total less payments received">Pending ' + fmt$(pendingCents / 100) + '</span>';
         if (l.scheduled_start) chips += '<span class="chip sched" title="Scheduled visit">&#128197; ' + esc(fmtVisit(l.scheduled_start)) + '</span>';
         var jobBtns = "";
         if (l.job) jobBtns = '<div class="jobrow"><button type="button" class="jbtn view-job" title="Open this job in the job schedule">View job J' + esc(String(l.job.job_no)) + '</button>' +
