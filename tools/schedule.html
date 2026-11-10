@@ -182,6 +182,10 @@
   .report{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;margin-bottom:.9rem;font-size:.8rem;color:var(--body);line-height:1.55}
   .report b{color:var(--ink)}
   .report .pay{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);margin-left:.3rem}
+  .cust-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.8rem;line-height:1.5}
+  .cust-sum button{padding:.3rem .7rem;font-size:.72rem;flex:none}
+  .fgrid.cust-collapsed .cust-field{display:none}
+  .report .quote-link{float:right;font-size:.72rem;font-weight:600;color:var(--teal-deep);text-decoration:underline}
   .report table.lines{width:100%;border-collapse:collapse;margin:.4rem 0;font-size:.78rem}
   .report .lines th{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;font-weight:700;padding:.2rem .3rem;border-bottom:1px solid var(--line)}
   .report .lines td{padding:.3rem;border-bottom:1px solid var(--line);vertical-align:top}
@@ -347,12 +351,13 @@
           </div>
           <div class="lead-chip" id="jm-lead-chip" style="display:none"></div>
           <div class="field full" id="jm-payment" aria-live="polite" style="display:none;background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:14px"></div>
-          <div class="field full"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
-          <div class="field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
-          <div class="field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
-          <div class="field full"><label for="jm-address">Street address</label><input id="jm-address" data-address-autofill data-address-suburb="jm-suburb" data-address-postcode="jm-postcode" placeholder="e.g. 27 Wilga Street"></div>
-          <div class="field"><label for="jm-suburb">Suburb</label><input id="jm-suburb"></div>
-          <div class="field"><label for="jm-postcode">Postcode</label><input id="jm-postcode" inputmode="numeric"></div>
+          <div class="field full cust-sum" id="jm-cust-sum" style="display:none"><span id="jm-cust-text"></span><button type="button" class="btn btn-ghost" id="jm-cust-edit">Edit details</button></div>
+          <div class="field full cust-field"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
+          <div class="field cust-field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
+          <div class="field cust-field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
+          <div class="field full cust-field"><label for="jm-address">Street address</label><input id="jm-address" data-address-autofill data-address-suburb="jm-suburb" data-address-postcode="jm-postcode" placeholder="e.g. 27 Wilga Street"></div>
+          <div class="field cust-field"><label for="jm-suburb">Suburb</label><input id="jm-suburb"></div>
+          <div class="field cust-field"><label for="jm-postcode">Postcode</label><input id="jm-postcode" inputmode="numeric"></div>
 
           <div class="section-label">Job</div>
           <div class="field"><label for="jm-type">Work type</label>
@@ -1073,7 +1078,7 @@
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
-    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none";
+    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; setCustCollapsed(false);
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
       var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
@@ -1137,7 +1142,7 @@
     var owing = j.pay_status === "later" ? (j.amount_due_cents || 0) : (j.pay_status === "paid" || j.pay_status === "none") ? 0 : Math.max(0, total - got);
     if (fee){ rows.unshift({ at: null, amount_cents: fee, method: "", by: "", label: "Electrician call-out fee (paid when booked)" }); got += fee; }
     var when = function(iso){ return iso ? new Date(iso).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" }) : "Date not recorded"; };
-    box.innerHTML = '<b>Payments</b>' +
+    box.innerHTML = '<b>Payments</b>' + (qs && qs.quote_url ? '<a class="quote-link" href="' + qs.quote_url + '" target="_blank" rel="noopener">View quote ' + esc(qs.quote_ref || "") + '</a>' : '') +
       (fee ? '<div class="payrow"><span>Installation invoice</span><span>' + money(total) + '</span></div><div class="payrow"><span>Electrician call-out fee</span><span>' + money(fee) + '</span></div>' : '') +
       (total > 0 ? '<div class="payrow' + (fee ? ' tot' : '') + '"><span>Invoice total</span><b>' + money(total + fee) + '</b></div>' : '') +
       '<div class="payrow muted" style="margin-top:.5rem"><span><b>Paid so far</b></span><span></span></div>' +
@@ -1184,13 +1189,13 @@
     box.style.display="";
     if(d.payment_error){box.textContent=d.payment_error;return;}
     if(!q || !s){box.textContent="No linked quote payment summary is available.";return;}
-    if(state.editing){ renderPayments(state.editing, s); renderReport(state.editing, s); }   // fold the call-out fee into the job's payment totals
     var cash=function(c){return "$"+(c/100).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2});};
     var labels={unpaid:"Unpaid",part_paid:"Part paid",paid:"Paid in full",overpaid:"Credit balance"};
-    box.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:12px"><strong>Quote '+esc(q.ref)+' · '+esc(labels[s.status] || s.status)+'</strong>'+(q.id?'<a href="https://quotes.powersmartco.com.au/quote?token='+encodeURIComponent(q.id)+'" target="_blank" rel="noopener" style="color:#267582;font-size:12px">View quote</a>':'')+'</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">'+[['Quote total',s.total_cents],['Received',s.received_cents],['Pending',s.pending_cents]].map(function(x){return '<div><span style="display:block;font-size:11px;color:#526B63;margin-bottom:4px">'+x[0]+'</span><strong style="font-size:17px">'+cash(x[1])+'</strong></div>';}).join('')+'</div>'+
-      '<div style="font-size:12px;margin-top:12px;color:#37604F">Electrician call-out fee paid: <strong>'+cash(s.booking_paid_cents)+'</strong>'+(s.other_paid_cents?' · Other payments: '+cash(s.other_paid_cents):'')+(s.overpaid_cents?' · Credit: '+cash(s.overpaid_cents):'')+'</div>'+
-      '<div style="font-size:11px;margin-top:6px;color:#657B73">Pending is based on the quoted total. Final work may change the installation invoice.</div>';
+    var url=q.id?"https://quotes.powersmartco.com.au/quote?token="+encodeURIComponent(q.id):"";
+    var qs=Object.assign({},s,{quote_ref:q.ref,quote_url:url});
+    if(state.editing){ renderPayments(state.editing, qs); renderReport(state.editing, qs); }   // fold the call-out fee into the job's totals
+    if($("jm-payments").style.display!=="none"){ box.style.display="none"; return; }   // completed job: the Payments box already shows this
+    box.innerHTML='<strong>Quote '+esc(q.ref)+' · '+esc(labels[s.status] || s.status)+'</strong> · '+cash(s.received_cents)+' of '+cash(s.total_cents)+' received'+(url?' · <a href="'+url+'" target="_blank" rel="noopener" style="color:#267582">View quote</a>':'');
   }
   function loadJobPayments(j){
     var requestId=++paymentRequestId;
@@ -1228,6 +1233,15 @@
     else { paymentRequestId++; $("jm-quote-hint").textContent = ""; $("jm-payment").style.display="none"; }
   });
 
+  // Completed jobs: the customer's details are already settled, so show one line with an Edit button instead of six fields.
+  function setCustCollapsed(on){
+    var parts = [$("jm-name").value, $("jm-phone").value, $("jm-email").value, [$("jm-address").value, $("jm-suburb").value, $("jm-postcode").value].filter(Boolean).join(", ")].filter(Boolean);
+    $("jm-cust-text").innerHTML = parts.map(esc).join('<br>');
+    $("jm-cust-sum").style.display = on ? "" : "none";
+    $("jm-cust-sum").parentNode.classList.toggle("cust-collapsed", on);
+  }
+  $("jm-cust-edit").addEventListener("click", function(){ setCustCollapsed(false); $("jm-name").focus(); });
+
   function openJob(j){
     if (!j) return;
     state.editing = j;
@@ -1256,6 +1270,7 @@
       function(){ return call("/api/pipeline", "POST", { action:"job_photos", job_id: j.id }); },
       function(path){ return call("/api/pipeline", "POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
     renderReport(j); renderPayments(j);
+    setCustCollapsed(j.status === "completed" && !!j.id);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
     $("job-overlay").classList.add("show");
