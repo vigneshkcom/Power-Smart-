@@ -9,7 +9,10 @@ const { BANK, billingAddressFor, separateFeeFor } = require("./_job-invoice");
 
 const esc = Q.escapeHtml, fmt = (cents) => Q.fmt(cents / 100);
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
-const CSP = "default-src 'none'; img-src https://smokealarms.powersmartco.com.au https://portal.powersmartco.com.au data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+// One tiny inline script (the Print button). CSP allows only this exact script, by hash.
+const PRINT_JS = "document.getElementById('print-btn').addEventListener('click',function(){window.print()})";
+const PRINT_HASH = "'sha256-" + require("crypto").createHash("sha256").update(PRINT_JS).digest("base64") + "'";
+const CSP = `default-src 'none'; script-src ${PRINT_HASH}; img-src https://smokealarms.powersmartco.com.au https://portal.powersmartco.com.au data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'`;
 
 function page(job, thanks, billingAddress, fee) {
   fee = fee > 0 ? fee : 0;   // call-out fee paid when booking: shown as its own line, already paid
@@ -25,9 +28,7 @@ function page(job, thanks, billingAddress, fee) {
   const grand = total + fee;
   const payAmt = paid ? grand - fee - credit : 0;   // what the customer paid on top of the advance payments
   const payWord = { card: "card", cash: "cash", bank_transfer: "bank transfer" }[job.pay_method];
-  const banner = paid
-    ? `<div class="ok">Paid in full. Thank you!${job.certificate_sent_at ? " Your compliance certificate has been emailed to you." : " Your compliance certificate is emailed once payment is confirmed."}</div>`
-    : thanks ? `<div class="ok">Thanks! We're confirming your card payment. Your compliance certificate is emailed as soon as it's received.</div>` : "";
+  const banner = paid ? "" : thanks ? `<div class="ok">Thanks! We're confirming your card payment. Your compliance certificate is emailed as soon as it's received.</div>` : "";
   const pay = owing > 0 && !thanks ? `<div class="box"><h2>Pay ${fmt(owing)}</h2>
     <a class="btn" href="${me}&amp;pay=1">Pay ${fmt(owing)} by card</a>
     <p class="or">Or pay by bank transfer</p>
@@ -40,7 +41,9 @@ function page(job, thanks, billingAddress, fee) {
 .tot td{border:none;font-weight:bold;color:#0B1B1F}.sub td{border:none;color:#8AA0A5;font-size:12px;padding-top:0}.due td{background:#F4F9FA;font-weight:bold;color:#0B1B1F}
 .ok{background:#E8F5EE;color:#256B45;padding:12px 14px;border-radius:10px;font-weight:bold;font-size:14px;margin:0 0 16px}.box{margin-top:20px;background:#F4F9FA;border-radius:12px;padding:18px}.box h2{margin:0 0 12px;font-size:18px;color:#0B1B1F}
 .btn{display:block;text-align:center;background:#43A8B6;color:#0B1B1F;font-weight:bold;text-decoration:none;padding:14px;border-radius:999px;font-size:16px}.or{margin:16px 0 6px;font-size:13px;font-weight:bold}.bank td{border:none;padding:3px 0;font-size:14px}.note{font-size:12px;color:#6B8288;margin:12px 0 0}
-.ft{text-align:center;font-size:12px;color:#6B8288;padding:16px 26px 22px;border-top:1px solid #E5EEEF}</style></head><body><div class="w"><div class="card">
+.pr{display:block;margin:0 0 12px auto;background:#fff;border:1px solid #43A8B6;color:#1E5F6B;font-weight:bold;font-size:13px;padding:8px 18px;border-radius:999px;cursor:pointer}
+@media print{body{background:#fff}.w{padding:0;max-width:none}.card{border-radius:0}.pr,.box{display:none}}
+.ft{text-align:center;font-size:12px;color:#6B8288;padding:16px 26px 22px;border-top:1px solid #E5EEEF}</style></head><body><div class="w"><button type="button" class="pr" id="print-btn">Print invoice</button><div class="card">
 <div class="hd"><img src="${Q.SITE}/assets/logo/power-smart-logo-full-colour.png" alt="Power Smart Co"><div><b>${paid ? "TAX INVOICE (PAID)" : "INVOICE"}</b><span>J${esc(job.job_no)} &middot; ${esc(Q.fmtDate(new Date(job.completed_at || Date.now())))}</span></div></div>
 <div class="bd">${banner}<p style="margin:0 0 14px;font-size:14px;">${esc(job.customer_name || "")}${billingAddress ? `<br><span style="color:#6B8288;font-size:12px;">Bill to: ${esc(billingAddress)}</span>` : ""}${address ? `<br><span style="color:#6B8288;font-size:12px;">${billingAddress ? "Property: " : ""}${esc(address)}</span>` : ""}</p>
 <table><tr><th>Description</th><th class="c">Qty</th><th class="r">Amount</th></tr>${rows}
@@ -49,7 +52,7 @@ ${fee ? `<tr class="sub"><td colspan="2">Less paid: electrician call-out fee (pa
 ${credit ? `<tr class="sub"><td colspan="2">Less paid in advance</td><td class="r">-${fmt(credit)}</td></tr>` : ""}
 ${payAmt > 0 ? `<tr class="sub"><td colspan="2">Paid${payWord ? " by " + payWord : ""}</td><td class="r">-${fmt(payAmt)}</td></tr>` : ""}
 <tr class="due"><td colspan="2">Balance owing</td><td class="r" style="color:${owing ? "#B3261E" : "#32925d"}">${fmt(owing)}</td></tr></table>${pay}</div>
-<div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0">${Q.PHONE_DISPLAY}</a></div></div></div></body></html>`;
+<div class="ft"><strong>PowerSmart Pty Ltd</strong> &middot; ABN ${Q.ABN}<br>Questions? Call <a href="tel:${Q.PHONE_TEL}" style="color:#398ea0">${Q.PHONE_DISPLAY}</a></div></div></div><script>${PRINT_JS}</script></body></html>`;
 }
 
 module.exports = async (req, res) => {

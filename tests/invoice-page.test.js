@@ -30,7 +30,9 @@ test('an owing invoice shows the balance, pay by card and the bank details with 
 
 test('a paid invoice shows no payment options', async () => {
   const r = await run({ token: ID }, { ...base, pay_status: 'paid' });
-  assert.ok(r.body.includes('Paid in full') && r.body.includes('TAX INVOICE (PAID)'));
+  assert.ok(r.body.includes('TAX INVOICE (PAID)'));
+  assert.ok(!r.body.includes('Paid in full. Thank you') && !r.body.includes('compliance certificate has been emailed'));
+  assert.ok(r.body.includes('id="print-btn"') && r.body.includes('window.print()'));
   assert.ok(!r.body.includes('083-004') && !r.body.includes('by card'));
 });
 
