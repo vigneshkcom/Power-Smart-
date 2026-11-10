@@ -185,6 +185,14 @@
   .fgrid.cust-collapsed .cust-field,.fgrid.cust-collapsed .cust-hide{display:none}
   .report .bill{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding-bottom:.55rem;margin-bottom:.45rem;border-bottom:1px solid var(--line)}
   .report .bill button{padding:.25rem .7rem;font-size:.72rem;flex:none}
+  .docs-hd{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem}.docs-count{background:var(--teal-soft);color:var(--teal-deep);font-size:.66rem;font-weight:800;border-radius:999px;padding:1px 8px}.docs-to{margin-left:auto;font-size:.72rem}
+  .docs-list{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .doc-row{display:grid;grid-template-columns:5.6rem minmax(0,1fr) auto;grid-template-areas:"k s v" "k m v";align-items:center;column-gap:.7rem;row-gap:.05rem;padding:.55rem .7rem;border-top:1px solid var(--line)}.doc-row:first-child{border-top:0}
+  .doc-subj{grid-area:s;color:var(--ink);font-weight:600;line-height:1.35}.doc-meta{grid-area:m;font-size:.7rem;color:var(--muted)}
+  .doc-kind{grid-area:k;justify-self:start;font-size:.6rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:2px 9px;background:#EEF1F2;color:#51666B}
+  .doc-kind.inv{background:#DDF0F3;color:#1F6B78}.doc-kind.quote{background:#EDE7F8;color:#5B3FA0}.doc-kind.cert{background:#E3F5EC;color:#1E6B49}.doc-kind.book{background:#E4EEFB;color:#2B5BA8}.doc-kind.rem{background:#FFF4E0;color:#8A5A0B}
+  @media(max-width:520px){.doc-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"k v" "s s" "m m"}.docs-to{display:none}}
+  .doc-view{grid-area:v;padding:.2rem .7rem;font-size:.7rem}
   .report .resend{padding:.25rem .8rem;font-size:.72rem;margin-left:.3rem}
   .report .muted{color:var(--muted)}
   .report .quote-link{float:right;font-size:.72rem;font-weight:600;color:var(--teal-deep);text-decoration:underline}
@@ -1268,12 +1276,16 @@
       if (id !== docsRequestId) return;
       var list = (d.emails || []).filter(function(m){ return m.status !== "failed"; });
       state.sentDocs = list;
-      box.innerHTML = '<b>Sent to customer</b>' + (list.length ? list.map(function(m, n){
-        var kind = m.kind === "quote" ? "Quote" : /invoice/i.test(m.subject || "") ? "Invoice" : /certificate/i.test(m.subject || "") ? "Certificate" : "Email";
-        return '<div class="payrow"><span><span class="pay">' + kind + '</span> ' + esc(m.subject || "(no subject)") + '<br><span class="muted" style="font-size:.7rem">' +
-          esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", year:"numeric", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + ' · to ' + esc(m.to_email || "") + (m.agent ? ' · by ' + esc(m.agent) : '') + '</span></span>' +
-          '<button type="button" class="btn btn-ghost" style="padding:.2rem .6rem;font-size:.7rem;align-self:center" data-view-doc="' + n + '">View</button></div>';
-      }).join("") : '<div class="muted">Nothing has been emailed to this customer yet.</div>');
+      var KINDS = [[/certificate/i, "Certificate", "cert"], [/invoice/i, "Invoice", "inv"], [/booking is confirmed|booking confirm/i, "Booking", "book"], [/reminder/i, "Reminder", "rem"]];
+      var short = function(iso){ return new Date(iso).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" }); };
+      var to = list.length ? list[0].to_email : (j.email || "");
+      box.innerHTML = '<div class="docs-hd"><b>Sent to customer</b>' + (list.length ? '<span class="docs-count">' + list.length + '</span>' : '') + (to ? '<span class="muted docs-to">' + esc(to) + '</span>' : '') + '</div>' +
+        (list.length ? '<div class="docs-list">' + list.map(function(m, n){
+          var subj = m.subject || "(no subject)", k = m.kind === "quote" ? ["Quote", "quote"] : (KINDS.filter(function(x){ return x[0].test(subj); })[0] || [null, "Email", "mail"]).slice(1);
+          return '<div class="doc-row"><span class="doc-kind ' + k[1] + '">' + k[0] + '</span><span class="doc-subj" title="' + esc(subj) + '">' + esc(subj) + '</span>' +
+            '<span class="doc-meta">' + esc(short(m.created_at)) + (m.agent ? ' · ' + esc(m.agent) : '') + '</span>' +
+            '<button type="button" class="btn btn-ghost doc-view" data-view-doc="' + n + '">View</button></div>';
+        }).join("") + '</div>' : '<div class="muted" style="margin-top:.35rem">Nothing has been emailed to this customer yet.</div>');
     }).catch(function(){ if (id === docsRequestId) box.innerHTML = '<b>Sent to customer</b><div class="muted">Could not load sent emails.</div>'; });
   }
   $("jm-docs").addEventListener("click", function(e){
