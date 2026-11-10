@@ -254,6 +254,20 @@ Rollback-only database checks: `tests/quote-reminders.sql`. Provider-mocked test
 `node --test tests/quote-reminders.test.js`. No real messages are sent by either test.
 
 
+## Day-before job reminders
+
+At **5:00pm Brisbane time** the evening before an install, every customer with a `scheduled` job for the next day
+is emailed and texted that the job is booked in (date, AM/PM arrival window, address, "someone 18+ home").
+Texts go out only while `SMS_ENABLED=true`; otherwise the customer gets the email. Customers with no phone or email
+saved are skipped. Each job and booked time is reminded once (`job_reminders` is unique on job + start time), so the
+5:30pm retry never double-sends, and a job moved to a new day is reminded again for the new day.
+Jobs booked after 5pm for the next day are not reminded (the booking confirmation covers them).
+
+Setup: run `supabase/job-reminders.sql`, then `supabase/job-reminder-scheduler.sql`. The worker starts paused. Check
+who would be messaged with `POST /api/pipeline?resource=job-reminders` (header `x-portal-key`, body `{"action":"preview"}`),
+then switch it on with `update public.job_reminder_worker set active=true where id=true;`.
+Code: `api/_job-reminders.js`; tests: `node --test tests/job-reminders.test.js` (no real messages are sent).
+
 ## Australian address autofill
 
 Add `GOOGLE_MAPS_BROWSER_KEY` to Vercel Production environment variables and redeploy.
