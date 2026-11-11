@@ -29,14 +29,14 @@ async function findExistingLead({ email, phone }) {
   const conds = phoneVariants(phone).map((p) => `phone.eq.${encodeURIComponent(p)}`);
   if (email) conds.push(`email.eq.${encodeURIComponent(email.toLowerCase())}`);
   if (!conds.length) return null;
-  const rows = await SB.sb(`leads?or=(${conds.join(",")})&select=id,name,phone,email,postcode,stage&order=updated_at.desc&limit=1`);
+  const rows = await SB.sb(`leads?or=(${conds.join(",")})&select=id,name,phone,email,postcode,stage,source&order=updated_at.desc&limit=1`);
   return rows && rows[0] || null;
 }
 function isValidEmail(v) {
   return typeof v === "string" && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-module.exports = async (req, res) => {
+async function handleLead(req, res, source = "Website") {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -69,14 +69,15 @@ module.exports = async (req, res) => {
     `<tr><td style="padding:7px 12px;color:#6B8288;font-size:13px;width:110px;">${k}</td><td style="padding:7px 12px;font-size:14px;color:#0B1B1F;"><strong>${esc(v)}</strong></td></tr>`
   ).join("");
 
+  const leadLabel = source === "Instant Form" ? "instant form" : "website";
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#0B1B1F;">
       <div style="background:#43A8B6;padding:16px 20px;border-radius:10px 10px 0 0;">
-        <strong style="font-size:16px;color:#0B1B1F;">New website lead - call to quote</strong>
+        <strong style="font-size:16px;color:#0B1B1F;">New ${leadLabel} lead - call to quote</strong>
       </div>
       <div style="border:1px solid #eee;border-top:none;padding:14px 8px;border-radius:0 0 10px 10px;">
         <table style="width:100%;border-collapse:collapse;">${rows}</table>
-        <p style="margin:14px 12px 4px;font-size:12px;color:#6B8288;">Submitted via the landing page &middot; ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Brisbane" })} AEST</p>
+        <p style="margin:14px 12px 4px;font-size:12px;color:#6B8288;">Submitted via ${leadLabel} &middot; ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Brisbane" })} AEST</p>
         <p style="margin:8px 12px 4px;font-size:13px;">
           <a href="tel:${esc(phone)}" style="color:#2E8494;font-weight:bold;text-decoration:none;">Call ${esc(phone)}</a>
           ${email ? ` &middot; <a href="mailto:${esc(email)}" style="color:#2E8494;font-weight:bold;text-decoration:none;">Email ${esc(email)}</a>` : ""}
@@ -84,10 +85,11 @@ module.exports = async (req, res) => {
       </div>
     </div>`;
 
-  const text = `New website lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via the landing page.`;
+  const text = `New ${leadLabel} lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via ${leadLabel}.`;
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
   let savedLead = null, repeat = false;
+  if (source === "Instant Form" && !SB.configured()) return res.status(503).json({ error: "Sales pipeline is unavailable" });
   if (SB.configured()) {
     try {
       // Same phone or email already in the pipeline: update that lead instead of creating a duplicate.
@@ -98,18 +100,22 @@ module.exports = async (req, res) => {
         if (!existing.email && email) patch.email = email.toLowerCase();
         if (!existing.phone && phone) patch.phone = phone;
         if (!existing.postcode && postcode) patch.postcode = postcode;
+        if (existing.source !== source) patch.source = source;
         const reopened = ["not_interested", "not_reachable"].includes(existing.stage);
         if (reopened) patch.stage = "new_lead";
         await SB.sb(`leads?id=eq.${encodeURIComponent(existing.id)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
-        await Sms.logNote(existing.id, "System", `Repeat website enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened ? "; moved back to New Lead" : ""}.`).catch(() => {});
+        await Sms.logNote(existing.id, "System", `Repeat ${leadLabel} enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened ? "; moved back to New Lead" : ""}.`).catch(() => {});
       } else {
       const inserted = await SB.sb("leads", {
         method: "POST",
-        body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source: "Website", stage: "new_lead" },
+        body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source, stage: "new_lead" },
       });
       savedLead = inserted && inserted[0];
       }
-    } catch (e) { console.error("lead → pipeline insert failed:", e.message); }
+    } catch (e) {
+      console.error("lead → pipeline insert failed:", e.message);
+      if (source === "Instant Form") return res.status(503).json({ error: "Sales pipeline could not save this lead" });
+    }
   }
 
   const welcomeSms = savedLead ? await welcomeLead(savedLead, new Date(), { repeat }) : { status: 'skipped' };
@@ -149,4 +155,7 @@ module.exports = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error submitting lead" });
   }
-};
+}
+
+module.exports = (req, res) => handleLead(req, res);
+module.exports.handleLead = handleLead;
