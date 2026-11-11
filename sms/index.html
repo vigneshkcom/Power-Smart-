@@ -325,7 +325,9 @@ function renderMessages(messages, keepScroll) {
     const stuck = m.direction === 'outbound' && (m.status === 'failed' || waitedLong);
     const stLabel = m.status === 'failed' ? 'failed' : waitedLong ? 'not confirmed by the phone' : (m.status === 'queued' || m.status === 'pending') ? 'sending…' : m.status === 'unknown' ? 'delivery unknown' : m.status;
     const locked = m.status === 'optout' || m.status === 'optin';
-    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${m.direction === 'outbound' ? `<button type="button" class="rs ${stuck ? 'bad' : ''}" data-resend="${esc(m.id)}" title="Send this message again">${m.status === 'failed' ? '⚠ Failed · Resend' : stuck ? '⚠ Not confirmed · Resend' : '↻ Resend'}</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
+    // Never offer a one-click resend for queued / unknown texts: Android may still deliver them.
+    const canResend = m.direction === 'outbound' && m.status === 'failed';
+    html += `<div class="bubble ${m.direction === 'outbound' ? 'out' : 'in'}" data-id="${esc(m.id)}">${esc(m.message)}${canResend ? `<button type="button" class="rs bad" data-resend="${esc(m.id)}" title="Resend failed message">⚠ Failed · Resend</button>` : ''}${locked ? '' : `<button type="button" class="del" data-del="${esc(m.id)}">Delete message</button>`}<span class="stamp">${esc(new Date(m.created_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }))}${bad ? ` · <span class="st-bad">${esc(stLabel)}</span>` : ''}</span></div>`;
   });
   box.innerHTML = html || '<div class="th-empty">No messages yet. Say hello below.</div>';
   if (!keepScroll || nearBottom) box.scrollTop = box.scrollHeight;
@@ -348,7 +350,7 @@ async function openThread(phone, silent) {
     if (data.name) setHead(data.name, phone);
     renderLinkBar(phone, data.leads || []);
     const msgs = data.messages || [];
-    const sig = msgs.length + ':' + (msgs.length ? msgs[msgs.length - 1].id : '');
+    const sig = msgs.map(m => m.id + ':' + m.status).join('|');
     if (switching || sig !== lastSig) { renderMessages(msgs, !switching); lastSig = sig; }
     if (switching) { setStatus('Ready'); $('message').focus(); }
   } catch (e) { if (switching) setStatus(showError(e), true); }
@@ -586,10 +588,28 @@ $('message').addEventListener('input', () => { updateCount(); autoGrow(); });
 $('message').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('compose').requestSubmit(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNew(); });
 
+// Rotate through the queued backlog so messages picked up late by Android are reconciled
+// in Supabase, without resending or making a customer receive duplicates.
+let outboundOffset = 0, outboundRefreshing = false;
+async function refreshQueuedStatuses() {
+  if (outboundRefreshing || document.visibilityState === 'hidden') return;
+  outboundRefreshing = true;
+  try {
+    const result = await api('/api/sms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'refresh_outbound', offset: outboundOffset }),
+    });
+    outboundOffset = result.nextOffset || 0;
+    if (result.updated) { await load(); if (active) await openThread(active, true); }
+  } catch (e) { console.warn('[SMS] Could not refresh queued status:', e.message); }
+  finally { outboundRefreshing = false; }
+}
 const initialPhone = new URLSearchParams(location.search).get('phone');
-load().then(() => { if (initialPhone) openThread(initialPhone); });
+load().then(() => { if (initialPhone) openThread(initialPhone); refreshQueuedStatuses(); });
 // Keep the inbox and the open thread fresh without disturbing what's being typed or scrolled.
-setInterval(() => { load(); if (active) openThread(active, true); }, 15000);
+setInterval(() => { if (document.visibilityState !== 'hidden') { load(); if (active) openThread(active, true); } }, 15000);
+setInterval(refreshQueuedStatuses, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshQueuedStatuses(); });
 </script>
 </body>
 </html>

@@ -1370,9 +1370,9 @@
       .then(function(r){
         var author=currentAgent();
         smsWarning=(r&&r.warning)||"";
-        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:(smsWarning?"SMS submitted to ":"SMS sent to ")+phone+": "+message+(smsWarning?" ("+smsWarning+")":"")}).catch(function(){return null;});
+        return api("POST",{action:"comment",lead_id:leadId,author:author||"Team",kind:"sms",body:(r&&r.delivery==="queued"?"SMS queued for ":"SMS sent to ")+phone+": "+message+(smsWarning?" ("+smsWarning+")":"")}).catch(function(){return null;});
       })
-      .then(function(){$("sms-message").value="";$("sms-template").value="";updateSmsCount();toast(smsWarning?("Not sent yet: "+smsWarning):("SMS sent to "+phone));return loadSmsThread();})
+      .then(function(){$("sms-message").value="";$("sms-template").value="";updateSmsCount();toast(smsWarning||("SMS sent to "+phone));return loadSmsThread();})
       .then(function(){return load();})
       .catch(function(e){toast("Could not send SMS: "+e.message+(e.detail ? " "+e.detail : ""));})
       .finally(function(){button.disabled=false;button.textContent=original;});

@@ -44,17 +44,32 @@ async function gatewayState(gateId) {
     return status ? { status, raw, error: String(rec.error || d.error || '').slice(0, 200) } : null;
   } catch (_) { return null; }
 }
-// Brings recent outbound messages in a conversation up to date with the gateway (and saves any change).
+// Check SMS Gate before changing a local status; never resend a message during reconciliation.
+// A queued text may be picked up by Android much later. We reconcile rather than guessing "sent".
 async function refreshOutbound(rows) {
-  const cutoff = Date.now() - 3 * 86400000;
-  const todo = (rows || []).filter((m) => m.direction === 'outbound' && m.sms_gate_id && ['queued', 'sent', 'pending', 'unknown'].includes(m.status) && Date.parse(m.created_at) > cutoff).slice(-6);
-  await Promise.all(todo.map(async (m) => {
-    const st = await gatewayState(m.sms_gate_id);
-    if (st && st.status !== m.status) {
-      m.status = st.status;
-      await sb(`sms_messages?id=eq.${encodeURIComponent(m.id)}`, { method: 'PATCH', body: { status: st.status }, prefer: 'return=minimal' }).catch(() => {});
-    }
-  }));
+  const cutoff = Date.now() - 30 * 86400000;
+  const todo = (rows || []).filter((m) => m.direction === 'outbound' && m.sms_gate_id &&
+    ['queued', 'sent', 'pending', 'unknown'].includes(m.status) && Date.parse(m.created_at) > cutoff).slice(-20);
+  let updated = 0;
+  // Limit parallel gateway requests to keep the status refresh quick and gentle on SMS Gate.
+  for (let i = 0; i < todo.length; i += 5) {
+    await Promise.all(todo.slice(i, i + 5).map(async (m) => {
+      const st = await gatewayState(m.sms_gate_id);
+      if (!st || st.status === m.status) return;
+      // Never regress a successfully sent message just because a stale gateway read says Pending.
+      if (m.status === 'sent' && st.status === 'queued') return;
+      const previous = m.status;
+      try {
+        await sb(`sms_messages?id=eq.${encodeURIComponent(m.id)}&status=eq.${encodeURIComponent(previous)}`,
+          { method: 'PATCH', body: { status: st.status }, prefer: 'return=minimal' });
+        m.status = st.status;
+        updated++;
+      } catch (e) {
+        console.error('[SMS] Could not save refreshed message status:', e.message);
+      }
+    }));
+  }
+  return { checked: todo.length, updated };
 }
 
 // Customers (pipeline leads) whose saved mobile is this number, newest first, each with their latest sent quote link.
@@ -248,12 +263,12 @@ module.exports = async (req, res) => {
       if (action === 'conversation') {
         const phone = cleanPhone(req.query.phone);
         if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
-        const rows = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&order=created_at.asc&select=id,phone_number,message,direction,status,created_at`);
+        const rows = await sb(`sms_messages?phone_number=eq.${encodeURIComponent(phone)}&order=created_at.asc&select=id,phone_number,message,direction,status,created_at,sms_gate_id`);
         try { await refreshOutbound(rows); } catch (e) { console.error('[SMS] status refresh failed:', e.message); }
         const names = await leadNamesByPhone();
         let leads = [];
         try { leads = await leadsForPhone(phone); } catch (e) { console.error('[SMS] lead lookup failed:', e.message); }
-        return res.status(200).json({ messages: rows || [], name: names.get(phoneKey(phone)) || '', leads });
+        return res.status(200).json({ messages: (rows || []).map(({ sms_gate_id, ...m }) => m), name: names.get(phoneKey(phone)) || '', leads });
       }
       if (action === 'lead_search') {
         const q = String(req.query.q || '').replace(/[,()*%\\]/g, ' ').trim().slice(0, 60);
@@ -273,6 +288,18 @@ module.exports = async (req, res) => {
     }
 
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
+    if (body.action === 'refresh_outbound') {
+      if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured.' });
+      // Refresh old queued messages in rotating small batches. This never submits or resends SMS.
+      const rows = await sb('sms_messages?direction=eq.outbound&status=in.(queued,pending,unknown)&sms_gate_id=not.is.null&order=created_at.asc&limit=500&select=id,direction,status,created_at,sms_gate_id');
+      const waiting = (rows || []).length;
+      const requested = Number(body.offset);
+      const offset = Number.isSafeInteger(requested) && requested >= 0 && requested < waiting ? requested : 0;
+      const batch = (rows || []).slice(offset, offset + 20);
+      const result = await refreshOutbound(batch);
+      return res.status(200).json({ ok: true, checked: result.checked, updated: result.updated, waiting,
+        nextOffset: offset + batch.length >= waiting ? 0 : offset + batch.length });
+    }
     if (body.action === 'send') {
       if (String(process.env.SMS_ENABLED || '').toLowerCase() !== 'true') return res.status(503).json({ error: 'SMS is paused for now (new SIM being set up). Use email instead.' });
       if (!smsConfigured()) return res.status(503).json({ error: 'SMS Gate is not configured. Add SMSGATE_USERNAME and SMSGATE_PASSWORD in Vercel.' });
@@ -293,10 +320,11 @@ module.exports = async (req, res) => {
       // Accepted by the gateway is not sent by the phone: look at what the gateway says for a few seconds.
       let state = null;
       for (let i = 0; i < 3 && !(state && state.status !== 'queued'); i++) { await new Promise((r) => setTimeout(r, i === 0 ? 1200 : 1500)); state = await gatewayState(gatewayId); }
-      const status = state ? state.status : 'sent';
+      const status = state ? state.status : 'queued';
       const saved = await insertMessage({ id: msgId, phone_number: phone, message, direction: 'outbound', status, sms_gate_id: gatewayId });
-      // Only a definite failure is reported: a message still Pending a few seconds after sending is normal.
-      const warning = status === 'failed' ? 'The gateway phone could not send this message' + (state && state.error ? ': ' + state.error : '.') : '';
+      // Acceptance is not delivery. Do not label unreadable or Pending gateway states as sent.
+      const warning = status === 'failed' ? 'The gateway phone could not send this message' + (state && state.error ? ': ' + state.error : '.')
+        : status === 'queued' ? 'Accepted by SMS Gate, but still awaiting confirmation from the sending phone.' : '';
       return res.status(200).json({ ok: true, message: saved, delivery: status, warning });
     }
 

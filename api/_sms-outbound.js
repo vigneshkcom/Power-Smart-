@@ -83,7 +83,7 @@ async function sendLeadSms({ lead, message, key, author }) {
     state = await gatewayState(gateId);
     if (!state) break;                                   // gateway gives no state: treat as submitted
   }
-  const status = state ? state.status : 'sent';
+  const status = state ? state.status : 'queued';
   await SB.sb(`sms_messages?id=eq.${id}`, {method:'PATCH',body:{status,sms_gate_id:gateId},prefer:'return=minimal'});
   if (status === 'failed') throw new Error('The gateway phone could not send this text' + (state.error ? ': ' + state.error : '.') + ' Resend it from the SMS inbox.');
   try {await logNote(lead.id, author, noteBody);} catch(e) {return {status:'submitted',phone,warning:'SMS was submitted, but its customer note could not be saved. Check the SMS inbox.'};}
