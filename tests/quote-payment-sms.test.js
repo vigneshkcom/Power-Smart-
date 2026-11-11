@@ -20,7 +20,15 @@ function smsFixture({reject=false,timeout=false,optout=false,noteFailure=false}=
     if(opts.method==='PATCH'){const matches=rows.filter(r=>r.id===id && (!query.includes('status=eq.failed') || r.status==='failed'));matches.forEach(r=>Object.assign(r,opts.body));return matches;}
     return rows.filter(r=>r.id===id);
   }};
-  const Sms=load('_sms-outbound.js',{'./_supabase':SB},{fetch:async(url,opts)=>{calls.push(JSON.parse(opts.body));if(timeout)throw Error('Timeout');return {ok:!reject,status:reject?400:202,json:async()=>reject?{message:'Invalid device'}:{id:'gateway-id'}};}});
+  const Sms=load('_sms-outbound.js',{'./_supabase':SB},{fetch:async(url,opts={})=>{
+    if(opts.method==='POST') {
+      calls.push(JSON.parse(opts.body));
+      if(timeout)throw Error('Timeout');
+      return new Response(JSON.stringify(reject ? {message:'Invalid device'} : {id:'gateway-id'}),{status:reject?400:202});
+    }
+    // The sending phone reports Processed after taking the accepted SMS.
+    return new Response(JSON.stringify({state:'Processed',recipients:[{state:'Processed'}]}),{status:200});
+  }});
   const args={lead:{id:'lead1',phone:'0451 898 761'},message:'Hi Test, view your quote here: https://example.test/quote',key:'quote-email-id',author:'Sunny'};
   return {Sms,args,rows,notes,calls};
 }
