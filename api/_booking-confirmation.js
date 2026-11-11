@@ -110,7 +110,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   // SMS is paused: anything that would have gone by SMS goes by email instead.
   const smsPaused = !Sms.smsEnabled();
   if (smsPaused && sms) { email = true; sms = false; }
-  if (email && !process.env.RESEND_API_KEY) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
+  if (email && !(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) throw fail(500, "Email service is not configured (missing RESEND_API_KEY)");
   const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode";
   let job;
   if (jobId) {
@@ -162,7 +162,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
       const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note });
       const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
-        const { Resend } = require("resend");
+        const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
         const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
           from: S.fromHeader(sender.key), to: toEmail,
           replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL, bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL,

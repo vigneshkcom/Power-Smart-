@@ -24,7 +24,7 @@ function resolveSender(key) {
 // "Sam - PowerSmart <support@powersmartco.com.au>"
 function fromHeader(key) {
   const s = resolveSender(key);
-  const addr = process.env.RESEND_FROM_ADDRESS || SUPPORT_EMAIL;
+  const addr = process.env.EMAIL_PROVIDER === 'hostinger' ? SUPPORT_EMAIL : (process.env.RESEND_FROM_ADDRESS || SUPPORT_EMAIL);
   return `${s.fromName} <${addr}>`;
 }
 

@@ -95,14 +95,14 @@ async function billingAddressFor(job) {
 async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, paid, method, agent, reminder }) {
   const to = String(job.email || (lead && lead.email) || "").trim().toLowerCase();
   if (!to) return { status: "skipped", error: "No customer email saved." };
-  if (!process.env.RESEND_API_KEY) return { status: "failed", error: "Email service is not configured." };
+  if (!(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return { status: "failed", error: "Email service is not configured." };
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const date = Q.fmtDate(new Date());
   const billingAddress = await billingAddressFor(job);
   const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, reminder, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
   const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : reminder ? `Payment pending: PowerSmart invoice J${job.job_no}, ${fmt(totals.due)} owing` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
   try {
-    const { Resend } = require("resend");
+    const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
     const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from: S.fromHeader("customer_service"), to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
       bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL, subject, html, text,

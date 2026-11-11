@@ -3,7 +3,7 @@ const Stripe = require("./_stripe");
 const SB = require("./_supabase");
 const QP = require('./_quote-payments');
 const crypto = require('crypto');
-const { Resend } = require("resend");
+const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
 const Fee = require('./_callout-fee');
 
 const PORTAL_KEY = "2026";
@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
   if (!SB.configured()) return res.status(500).json({ error: "Pipeline storage is not configured" });
   const agent = clean(req.body?.agent, 120).replace(/^Vignesh$/i, "Sunny");
   const checkoutOnly = req.body?.action === "checkout";
-  if (!checkoutOnly && !process.env.RESEND_API_KEY) return res.status(500).json({ error: "Email service is not configured" });
+  if (!checkoutOnly && !(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return res.status(500).json({ error: "Email service is not configured" });
 
   const leadId = clean((req.body || {}).lead_id, 40);
   if (!leadId) return res.status(400).json({ error: "lead_id is required" });

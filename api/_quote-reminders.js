@@ -142,7 +142,7 @@ async function processRun(run,c,{manual=false}={}) {
         await Sms.sendLeadSms({lead:c.lead,message:content.sms,key:`quote-reminder-${run.id}`,author:'Automatic reminders'});
         await patchRun(run.id,{sms_status:'submitted'});
       } else {
-        const {Resend}=require('resend');
+        const {Resend}=require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
         const html=Senders.wrapMessageHtml({senderKey:content.sender,message:content.email}).replace(
           /https:\/\/smokealarms\.powersmartco\.com\.au\/(?:quote\?token=|api\/customer-link\?kind=reminders&amp;token=)[a-f\d-]+/g,
           url=>`<a href="${url}" style="color:#267582">${url.includes('kind=reminders')?'Stop automatic quote reminders':'View your quote'}</a>`);
@@ -167,7 +167,7 @@ async function processRun(run,c,{manual=false}={}) {
 // follow-ups and never moves the automatic schedule. It ignores the 9-5 window and a staff pause, but never overrides
 // STOP / opt-out, a payment, an expired quote or a changed recipient.
 async function sendNow(leadId,actor) {
-  if(!process.env.RESEND_API_KEY || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
+  if(!(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY) || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
   const c=await context(leadId);
   if(!c.lead)throw new Error('Customer not found');
   if(c.lead.stage!=='quote_sent' || !hasCurrentSentQuote(c))throw new Error('Send a quote and keep the lead in Quote Sent before sending a reminder');
@@ -186,7 +186,7 @@ async function sendNow(leadId,actor) {
   return {...await summary(leadId),manual:result,actor};
 }
 async function work({dryRun=false,now=new Date()}={}) {
-  if(!process.env.RESEND_API_KEY || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
+  if(!(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY) || (Sms.smsEnabled() && (!process.env.SMSGATE_USERNAME || !process.env.SMSGATE_PASSWORD)))throw new Error(Sms.smsEnabled() ? 'Both email and SMS services must be configured' : 'The email service must be configured');
   if(!businessHours(now))return {skipped:'Outside Queensland weekday sending hours (9am–5pm)',dry_run:dryRun};
   // A crashed send is held for staff review, never re-submitted automatically.
   const stale=await SB.sb(`quote_reminder_runs?finished_at=is.null&created_at=lt.${enc(new Date(now-15*60000).toISOString())}&select=id,lead_id,quote_id&limit=50`);
