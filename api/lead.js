@@ -162,13 +162,16 @@ async function handleLead(req, res, source = "Website") {
       text,
     });
     if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
-    return res.status(200).json({ ok: true, welcome_sms: welcomeSms });
+    return res.status(200).json({ ok: true, welcome_sms: welcomeSms, ...(source === 'Instant Form' && savedLead?.id ? { lead_id: savedLead.id } : {}) });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error submitting lead" });
   }
 }
 
 module.exports = async (req, res) => {
+  if (req.query?.make === '1' || String(req.url || '').split('?')[0] === '/api/make-lead') {
+    return require('./_make-lead')(req, res, parseRawBody, handleLead);
+  }
   if (req.query?.meta_webhook === '1') {
     return require('./_meta-lead-webhook')(req, res, parseRawBody, handleLead);
   }

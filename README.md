@@ -1,4 +1,4 @@
-# PowerSmart — QLD Smoke Alarms
+# PowerSmart â€” QLD Smoke Alarms
 
 Static site deployed on Vercel (production branch: `main`).
 
@@ -7,46 +7,46 @@ Static site deployed on Vercel (production branch: `main`).
 | Purpose | URL | Source file |
 |---|---|---|
 | **Customer landing page** (public, for ads/marketing) | `https://smokealarms.powersmartco.com.au/` | `index.html` |
-| **Staff quote tool** (internal — build & send quotes) | `https://smokealarms.powersmartco.com.au/tools` | `tools/index.html` |
+| **Staff quote tool** (internal â€” build & send quotes) | `https://smokealarms.powersmartco.com.au/tools` | `tools/index.html` |
 | **SMS portal** (internal) | `https://smokealarms.powersmartco.com.au/sms` | `sms/index.html` |
 
 The Vercel-provided domain (`https://power-smart-two.vercel.app/`) still works and serves
-the same content — `smokealarms.powersmartco.com.au` is a custom domain attached to the
+the same content â€” `smokealarms.powersmartco.com.au` is a custom domain attached to the
 same project.
 
 Old links still work via redirects in `vercel.json`:
-`/sales-portal.html` → `/tools`, `/qld-smoke-alarms.html` → `/`.
+`/sales-portal.html` â†’ `/tools`, `/qld-smoke-alarms.html` â†’ `/`.
 
 ## Structure
 
 ```
-index.html            Customer landing page — info + lead-capture form (no self-quoting)
-accept.html           Quote acceptance page (/accept) → Stripe
-tools/index.html      Staff sales portal — quote builder, SMS/email/PDF
-tools/pipeline.html   Staff sales pipeline (/tools/pipeline) — GHL-style kanban
-tools/schedule.html   Fieldworker job schedule (/tools/schedule) — assign jobs to electricians
-tech.html             Electrician phone app (/tech) — jobs, alarms installed, invoice, card payment
+index.html            Customer landing page â€” info + lead-capture form (no self-quoting)
+accept.html           Quote acceptance page (/accept) â†’ Stripe
+tools/index.html      Staff sales portal â€” quote builder, SMS/email/PDF
+tools/pipeline.html   Staff sales pipeline (/tools/pipeline) â€” GHL-style kanban
+tools/schedule.html   Fieldworker job schedule (/tools/schedule) â€” assign jobs to electricians
+tech.html             Electrician phone app (/tech) â€” jobs, alarms installed, invoice, card payment
 api/_quote.js         Shared pricing + quote-email rendering (not a route)
 api/_supabase.js      Server-side Supabase REST helper (not a route)
 api/_senders.js       Sender identities (Customer Service/Sam/Sunny) + signature (not a route)
 api/_maillog.js       Logs every outbound email to Supabase sent_emails (not a route)
 api/send-quote.js     POST /api/send-quote  - emails a customer their quotation
-api/send-email.js     POST /api/send-email  — free-form branded email (composer)
+api/send-email.js     POST /api/send-email  â€” free-form branded email (composer)
 api/accept-quote.js   POST /api/accept-quote - notifies staff a quote was accepted
-api/lead.js           POST /api/lead         — emails staff a new website lead
-api/pipeline.js       GET/POST /api/pipeline — kanban board CRUD (needs portal key)
+api/lead.js           POST /api/lead         â€” emails staff a new website lead
+api/pipeline.js       GET/POST /api/pipeline â€” kanban board CRUD (needs portal key)
 api/_jobs.js          Job schedule + electricians CRUD, served via /api/pipeline?resource=jobs
 api/_dropbox.js       Dropbox job photo storage (folders, upload, thumbnails, links)
 api/_tech.js          Electrician app API (code sign-in), served via /api/pipeline?resource=tech
-api/sms.js            GET/POST /api/sms — two-way SMS portal API
+api/sms.js            GET/POST /api/sms â€” two-way SMS portal API
 sms/index.html        Staff SMS inbox and composer (cyan PowerSmart interface)
-supabase/sms.sql      Run once — SMS message storage table and indexes
-supabase/schema.sql   Run once in Supabase SQL Editor — leads + comments tables
-supabase/emails.sql   Run once — sent_emails log table
+supabase/sms.sql      Run once â€” SMS message storage table and indexes
+supabase/schema.sql   Run once in Supabase SQL Editor â€” leads + comments tables
+supabase/emails.sql   Run once â€” sent_emails log table
 supabase/job-payments.sql  Run once - jobs.payments list (every payment received on a job, shown in the job window's Payments box)
 supabase/billing-address.sql  Run once - billing address columns on leads (invoice Bill to; empty = same as installation address)
-supabase/jobs.sql     Run once — electricians + jobs tables for the job schedule
-supabase/tech-app.sql Run once (after jobs.sql) — unique electrician codes, alarms installed/type, invoice + payment columns
+supabase/jobs.sql     Run once â€” electricians + jobs tables for the job schedule
+supabase/tech-app.sql Run once (after jobs.sql) â€” unique electrician codes, alarms installed/type, invoice + payment columns
 supabase/pipeline-quote-accepted-and-numbering.sql  Run once - quote accepted stage + quote numbers from 7000
 vercel.json           Clean URLs + redirects (preserves old links)
 assets/logo/          PowerSmart logo files (upload via GitHub web UI)
@@ -61,7 +61,7 @@ See `assets/README.md` for how to upload media and get its public URL.
 1. **Landing page** collects name / phone / email / postcode and POSTs to
    `/api/lead`, which emails the lead to the team so they can **call and quote
    over the phone**. No self-service pricing or payment on the landing page.
-2. **Staff** build the quote in `/tools` and hit *Email Quote to Customer* →
+2. **Staff** build the quote in `/tools` and hit *Email Quote to Customer* â†’
    `/api/send-quote` sends a branded quotation (ref, GST, valid-until, product
    photos) with an **Accept this quote** button.
 3. The button opens `/accept?...`; the customer reviews and clicks **Accept &
@@ -75,13 +75,13 @@ The tools portal's **Email Quote to Customer** button POSTs quantities to
 HTML quote email (logo + product photos hosted in `assets/`) and sends it
 through [Resend](https://resend.com) from `support@powersmartco.com.au`.
 
-Environment variables (Vercel → Settings → Environment Variables):
+Environment variables (Vercel â†’ Settings â†’ Environment Variables):
 
 | Name | Required | Purpose |
 |---|---|---|
 | `RESEND_API_KEY` | yes | Resend API key (used by all email routes) |
-| `SUPABASE_URL` | for pipeline | Supabase project URL (Settings → API) |
-| `SUPABASE_SERVICE_ROLE_KEY` | for pipeline | Supabase **service_role** key — server-side only, never in HTML |
+| `SUPABASE_URL` | for pipeline | Supabase project URL (Settings â†’ API) |
+| `SUPABASE_SERVICE_ROLE_KEY` | for pipeline | Supabase **service_role** key â€” server-side only, never in HTML |
 | `NOTIFY_EMAIL` | no | Where leads / acceptances / quote copies go, default `support@powersmartco.com.au` |
 | `RESEND_FROM_EMAIL` | no | Override sender, default `PowerSmart <support@powersmartco.com.au>` |
 | `RESEND_REPLY_TO` | no | Override reply-to, default `support@powersmartco.com.au` |
@@ -104,19 +104,19 @@ Follow-Up, Quote Sent, Won/Installed, Not Reachable, Out of Area.
   manually, search by name/phone/postcode.
 - Access requires the portal passcode `2026`, hardcoded in `api/pipeline.js`
   and `api/send-email.js` (asked once per device).
-- Data lives in Supabase with RLS enabled and **no** anon policies — only the
+- Data lives in Supabase with RLS enabled and **no** anon policies â€” only the
   serverless functions (service_role key) can touch it.
 
 Setup: run `supabase/schema.sql` in the Supabase SQL Editor, then add the
 two Supabase env vars in Vercel and redeploy. The portal passcode needs no
-env var — it lives in the code.
+env var â€” it lives in the code.
 
 ## Job schedule (/tools/schedule)
 
 Dispatch board for assigning smoke alarm jobs to electricians (phase 1 of field
 service management). Same portal passcode and Sam/Sunny picker as the pipeline.
 
-- **Day view**: one row per electrician on an hourly timeline (07:00–24:00), job
+- **Day view**: one row per electrician on an hourly timeline (07:00â€“24:00), job
   blocks coloured by status (scheduled, en route, on site, completed, cancelled)
   and a red line at the current time.
 - **3 Days / Week**: one column per day with readable job cards.
@@ -133,21 +133,21 @@ service management). Same portal passcode and Sam/Sunny picker as the pipeline.
 - **Electricians**: add, edit and deactivate fieldworkers from the *Electricians* button.
 - **Report**: completed jobs for This week / Last week / This month / Last month or any
   dates, optionally one electrician. Per-electrician totals (jobs, battery and hardwired
-  alarms, controllers, inspections, invoiced, paid by card, to collect) — use it to pay
-  electricians — plus every job. *Download Excel* gives a two-sheet workbook. Jobs count
-  by completion date (weeks run Monday–Sunday).
+  alarms, controllers, inspections, invoiced, paid by card, to collect) â€” use it to pay
+  electricians â€” plus every job. *Download Excel* gives a two-sheet workbook. Jobs count
+  by completion date (weeks run Mondayâ€“Sunday).
 
 Setup: run `supabase/jobs.sql` once in the Supabase SQL Editor (after `schema.sql`).
 
 ## Electrician app (/tech)
 
-Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
+Phone web app for electricians on site â€” `portal.powersmartco.com.au/tech`.
 
 - **Sign in**: the electrician types their code (e.g. 1011) from
-  /tools/schedule → *Electricians*; codes are unique. Each electrician only sees
-  their own jobs. Use hard-to-guess codes — anyone with a code can open that
+  /tools/schedule â†’ *Electricians*; codes are unique. Each electrician only sees
+  their own jobs. Use hard-to-guess codes â€” anyone with a code can open that
   electrician's jobs.
-- **My jobs**: today's schedule, ‹ › to change day, and a **Calendar** button (month
+- **My jobs**: today's schedule, â€¹ â€º to change day, and a **Calendar** button (month
   view with job counts per day). An empty day shows the next booked job.
   *Navigate*, *Call*, *On my way* / *Arrived on site* update the board and the lead.
 - **Alarms installed**: separate counts for **battery** and **hardwired** alarms (a job
@@ -161,7 +161,7 @@ Phone web app for electricians on site — `portal.powersmartco.com.au/tech`.
   app. The job is marked paid by the app's check or the Stripe webhook
   (`metadata.job_id`). *Customer pays later* completes the job with the balance
   flagged for the office.
-- **Complete**: job → Completed, lead → Won, and a note with the alarms installed,
+- **Complete**: job â†’ Completed, lead â†’ Won, and a note with the alarms installed,
   invoice and payment is added to the lead. The office sees the electrician's
   report on the job card in /tools/schedule.
 - **Edit job**: a completed job can be reopened from the app to correct it and be
@@ -199,10 +199,10 @@ real path is `Apps/<app name>/PowerSmart Jobs/...`). A job's folder is found aga
 
 ## Senders, composer & email log
 
-- **Agent**: opening `/tools` asks who's using it — **Sam** or **Sunny**
+- **Agent**: opening `/tools` asks who's using it â€” **Sam** or **Sunny**
   (remembered per device). This tags quotes, composed emails and pipeline notes.
-- **Send as**: every quote/email has a *Send as* picker — **Customer Service**,
-  **Sam**, or **Sunny**. It sets the From display name (e.g. "Sam —
+- **Send as**: every quote/email has a *Send as* picker â€” **Customer Service**,
+  **Sam**, or **Sunny**. It sets the From display name (e.g. "Sam â€”
   PowerSmart", address stays `support@`) and the signature. Defaults to the
   logged-in agent.
 - **Compose Email**: the *Compose Email* button on `/tools` opens a box (To,
@@ -215,7 +215,7 @@ Optional env var `RESEND_FROM_ADDRESS` overrides the bare send address
 (default `support@powersmartco.com.au`); the display name comes from the
 selected sender.
 
-Sending only works once `powersmartco.com.au` is **verified** in Resend →
+Sending only works once `powersmartco.com.au` is **verified** in Resend â†’
 Domains (SPF/DKIM DNS records added at the DNS provider). If sending fails,
 the portal falls back to opening a plain mail draft.
 
@@ -235,7 +235,7 @@ The worker starts paused. After deploying and checking `/api/pipeline?resource=r
 activate it with `update public.quote_reminder_worker set active=true where id=true`.
 The worker secret is generated in Supabase and never exposed to the browser.
 The scheduler invokes the existing pipeline function every ten minutes during Queensland
-sending hours; the worker additionally restricts sends to weekdays, 9am�5pm.
+sending hours; the worker additionally restricts sends to weekdays, 9am–5pm.
 
 Only successfully issued, current, unpaid Quote Sent quotes qualify. Both a valid Australian
 mobile and the original quote email address are required. Each quote has at most three rounds
@@ -292,3 +292,37 @@ It moves any legacy Shopping Around leads to Follow-Up before removing that stag
 Replies arrive through an SMS Gate webhook (`sms:received` -> `https://portal.powersmartco.com.au/api/sms`). SMS Gate's cloud never calls the portal itself: it passes the webhook to the sending phone, and the phone posts each received text here. The portal registers the webhook itself, without a device ID, so every phone on the account forwards replies, including after the app is reinstalled. Opening `/sms` connects it once per browser session. *Sync inbox* reconnects it and asks the phone to re-send the last 7 days (`/inbox/refresh`, falling back to the older `/messages/inbox/export`). *Check connection* reports each step: the phone is registered and recently seen, replies are connected to a phone that still exists, the public webhook address accepts a test post (this catches redirects and Vercel Firewall or Bot Protection challenges), and when the last reply was stored. Every webhook hit is logged in Vercel's function logs as `[SMS webhook]`.
 
 If the portal side is all OK but a reply shows on the sending phone and not in `/sms`, it almost certainly arrived as an RCS chat, which SMS Gate cannot read. iPhones on iOS 18+ send RCS too. Turn off RCS chats (Chat features) in the sending phone's messaging app. If the SIM was ever in an iPhone, also deregister the number from iMessage. The SMS Gate app needs the SMS permission (on Android 13+, *Allow restricted settings* first) and Battery = Unrestricted.
+
+
+## Make.com Facebook Instant Forms integration
+
+Make scenario: Facebook Lead Ads **New Lead** -> HTTP **Make a request**.
+
+1. URL: \`https://portal.powersmartco.com.au/api/make-lead\`, HTTP \`POST\`.
+2. Authentication type: **API key**, using the secure Make credentials manager.
+   Header name: \`x-api-key\`.
+3. Set a random secret of **at least 32 characters** as \`MAKE_LEADS_API_KEY\` in
+   Vercel's **Production** environment. Use the identical secret in Make's API-key
+   credential. Redeploy after configuring the variable. Do not put credentials
+   in the request body, URL or code.
+4. Request body content type: \`application/json\`, mapping the Make data
+   structure fields: \`lead_id\`, \`name\`, \`phone\`, \`email\`, \`postcode\`,
+   \`form_id\`, \`ad_id\`, \`ad_name\`, \`adset_id\`, \`adset_name\`,
+   \`campaign_id\`, \`campaign_name\`, and \`source\`. Set \`source\` to
+   \`Instant Form\` (the API enforces this source server-side).
+5. The API accepts only signed-integration traffic with the correct key.
+   Unconfigured environment returns 503; incorrect credentials return 401.
+   Incoming Meta lead IDs share the existing \`meta_lead_deliveries\` table
+   with the native Meta webhook; repeated deliveries return success without
+   importing twice.
+6. New customers enter **New Lead**, while customers with an existing phone
+   or email are updated, retaining existing pipeline stages. The campaign,
+   ad set, ad and form identifiers are saved in the CRM's system comments.
+7. The URL rewrites to the existing \`api/lead.js\` function, so this integration
+   does not add another Vercel serverless function.
+8. Keep the Make scenario **Inactive** until the key is configured, redeployed
+   and a fresh test lead succeeds. Verify the HTTP response and CRM customer.
+   Historical missed leads require a separate backfill with the original Meta
+   lead ID. Never place the Supabase service-role key in Make.com.
+
+Run tests with \`node --test tests/make-lead.test.js\`.

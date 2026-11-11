@@ -14,6 +14,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/make-lead",
+      "destination": "/api/lead?make=1"
+    },
+    {
       "source": "/quote",
       "destination": "/api/customer-link?kind=quote"
     },
