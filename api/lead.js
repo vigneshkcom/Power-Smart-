@@ -13,6 +13,17 @@ const { logEmail } = require("./_maillog");
 const Sms = require("./_sms-outbound");
 const { isBlocked } = require("./_blocked-numbers");
 
+async function parseRawBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 1024 * 1024) throw new Error('Request body too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -157,5 +168,17 @@ async function handleLead(req, res, source = "Website") {
   }
 }
 
-module.exports = (req, res) => handleLead(req, res);
+module.exports = async (req, res) => {
+  if (req.query?.meta_webhook === '1') {
+    return require('./_meta-lead-webhook')(req, res, parseRawBody, handleLead);
+  }
+  if (req.method !== 'POST') return handleLead(req, res);
+  try {
+    req.body = JSON.parse((await parseRawBody(req)).toString('utf8'));
+  } catch (_) {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+  return handleLead(req, res);
+};
 module.exports.handleLead = handleLead;
+module.exports.config = { api: { bodyParser: false }, maxDuration: 60 };

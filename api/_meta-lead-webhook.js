@@ -2,9 +2,6 @@
 // A notification contains a lead ID only; the answers are fetched with the Page token.
 const crypto = require('node:crypto');
 const SB = require('./_supabase');
-const { handleLead } = require('./lead');
-
-module.exports.config = { api: { bodyParser: false }, maxDuration: 60 };
 
 const PAGE_ID = '1369534046242772';
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v24.0';
@@ -13,17 +10,6 @@ function same(a, b) {
   const left = Buffer.from(String(a || ''));
   const right = Buffer.from(String(b || ''));
   return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
-
-async function rawBody(req) {
-  const parts = [];
-  let size = 0;
-  for await (const part of req) {
-    size += part.length;
-    if (size > 1024 * 1024) throw new Error('Webhook body too large');
-    parts.push(part);
-  }
-  return Buffer.concat(parts);
 }
 
 function answers(fieldData) {
@@ -44,7 +30,7 @@ async function fetchLead(id) {
   return data;
 }
 
-async function deliver(id) {
+async function deliver(id, handleLead) {
   const claimed = await SB.sb('meta_lead_deliveries?on_conflict=leadgen_id', {
     method: 'POST', body: { leadgen_id: id }, prefer: 'resolution=ignore-duplicates,return=representation',
   });
@@ -76,7 +62,7 @@ async function deliver(id) {
   }
 }
 
-module.exports = async (req, res) => {
+module.exports = async (req, res, rawBody, handleLead) => {
   if (req.method === 'GET') {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query || {};
     if (mode === 'subscribe' && process.env.META_WEBHOOK_VERIFY_TOKEN && same(token, process.env.META_WEBHOOK_VERIFY_TOKEN)) {
@@ -106,7 +92,7 @@ module.exports = async (req, res) => {
     }
   }
   try {
-    for (const id of ids) await deliver(id);
+    for (const id of ids) await deliver(id, handleLead);
     return res.status(200).send('OK');
   } catch (error) {
     console.error('Meta lead webhook:', error.message);
