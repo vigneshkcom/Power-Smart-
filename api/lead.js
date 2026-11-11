@@ -174,7 +174,11 @@ module.exports = async (req, res) => {
   }
   if (req.method !== 'POST') return handleLead(req, res);
   try {
-    req.body = JSON.parse((await parseRawBody(req)).toString('utf8'));
+    if (req.body == null) {
+      req.body = JSON.parse((await parseRawBody(req)).toString('utf8'));
+    } else if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
+      req.body = JSON.parse(req.body.toString());
+    }
   } catch (_) {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
