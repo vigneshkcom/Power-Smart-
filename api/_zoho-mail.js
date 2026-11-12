@@ -6,7 +6,7 @@ function transportConfig() {
   const user = String(process.env.ZOHO_SMTP_USER || '').trim();
   const pass = process.env.ZOHO_SMTP_PASSWORD;
   if (!user || !pass) throw new Error('Set ZOHO_SMTP_USER and ZOHO_SMTP_PASSWORD in Vercel.');
-  return { host: 'smtp.zeptomail.com', port: 465, secure: true, auth: { user, pass }, connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000 };
+  return { host: 'smtp.zeptomail.com.au', port: 465, secure: true, auth: { user, pass }, connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000 };
 }
 async function send(mail) {
   let transport;
