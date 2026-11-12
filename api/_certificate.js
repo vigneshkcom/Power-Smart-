@@ -137,6 +137,10 @@ async function issueCertificate(jobId, { agent, force } = {}) {
     try {
       const pdf = await renderCertificatePdf({ job, electrician });
       const manuals = manualsForJob(job);
+      const attachments = [
+        { filename: `PowerSmart-Smoke-Alarm-Certificate-J${job.job_no}.pdf`, content: pdf },
+        ...manuals.map((manual) => ({ filename: manual.filename, content: fs.readFileSync(path.join(DIR, "manuals", manual.filename)) })),
+      ];
       const manualNote = manuals.length ? ` The ${manuals.map((manual) => manual.label).join(", ")} ${manuals.length === 1 ? "is" : "are"} attached too.` : "";
       const first = String(job.customer_name || "there").trim().split(/\s+/)[0] || "there";
       const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -160,15 +164,13 @@ async function issueCertificate(jobId, { agent, force } = {}) {
       const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
         from: S.fromHeader("customer_service"), to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
         bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL, subject, html, text,
-        attachments: [
-          { filename: `PowerSmart-Smoke-Alarm-Certificate-J${job.job_no}.pdf`, content: pdf },
-          ...manuals.map((manual) => ({ filename: manual.filename, content: fs.readFileSync(path.join(DIR, "manuals", manual.filename)) })),
-        ],
+        attachments,
       });
       if (error) throw new Error(error.message || "Email provider rejected the request");
       await logEmail({ id: randomUUID(), kind: "email", sender: "customer_service", agent, to_email: to, to_name: job.customer_name, subject, body_html: html, body_text: text, lead_id: job.lead_id || null, provider_id: data && data.id });
       await note(job, `📄 Compliance certificate for J${job.job_no} emailed to ${to}.`);
-      return { status: "sent", to };
+      const dropbox = await require("./_job-documents").saveCustomerDocuments(job, attachments);
+      return { status: "sent", to, dropbox };
     } catch (e) {
       await SB.sb(`jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: { certificate_sent_at: null } }).catch(() => {});
       await note(job, `⚠️ Certificate for J${job.job_no} could not be sent (${e.message}). Use Send certificate on the job to retry.`);

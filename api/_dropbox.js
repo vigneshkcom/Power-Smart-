@@ -159,9 +159,67 @@ async function archivePhotos(job) {
   return subs.length;
 }
 
+
+/** Save the PDFs emailed to a customer in the existing Dropbox app folder.
+ * Dropbox upload paths remain app-relative. Overwrite makes repeated attempts idempotent.
+ */
+async function uploadDocuments(job, attachments) {
+  if (!configured()) throw fail(503, "Dropbox is not configured");
+  const items = Array.isArray(attachments) ? attachments : [];
+  if (!items.length) return { saved: [], failed: [] };
+  const folder = await ensureJobFolder(job);
+  const documents = folder + "/Documents";
+  const existing = await rpc("files/get_metadata", { path: documents }, { allowNotFound: true });
+  if (existing && existing[".tag"] !== "folder") throw fail(409, "Documents path is not a folder");
+  if (!existing) {
+    try { await rpc("files/create_folder_v2", { path: documents, autorename: false }); }
+    catch (e) {
+      // Two payment triggers can create the same folder simultaneously.
+      if (!/path\/conflict\/folder/i.test(e.message)) throw e;
+    }
+  }
+  const saved = [], failed = [];
+  for (const attachment of items) {
+    const filename = String(attachment && attachment.filename || "");
+    if (!filename || filename !== safe(filename) || !/\.pdf$/i.test(filename)) {
+      failed.push({ filename, error: "Invalid PDF filename" });
+      continue;
+    }
+    const contents = attachment.content;
+    if (!(Buffer.isBuffer(contents) || contents instanceof Uint8Array) || contents.length < 5 || contents.length > 150 * 1024 * 1024) {
+      failed.push({ filename, error: "Invalid PDF contents" });
+      continue;
+    }
+    const path = documents + "/" + filename;
+    let error;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch("https://content.dropboxapi.com/2/files/upload", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + (await accessToken()),
+            "Dropbox-API-Arg": JSON.stringify({ path, mode: "overwrite", autorename: false, mute: true }),
+            "Content-Type": "application/octet-stream",
+          },
+          body: contents,
+        });
+        if (!response.ok) throw fail(502, "Dropbox document upload failed: " + (await response.text()).slice(0, 160));
+        saved.push(filename);
+        error = null;
+        break;
+      } catch (e) {
+        error = e;
+        if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+    }
+    if (error) failed.push({ filename, error: error.message });
+  }
+  return { folder: documents, saved, failed };
+}
+
 async function temporaryLink(path) {
   const res = await rpc("files/get_temporary_link", { path });
   return res.link;
 }
 
-module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside, dropboxWebFolderUrl };
+module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside, dropboxWebFolderUrl, uploadDocuments };

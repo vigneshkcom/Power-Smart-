@@ -109,7 +109,19 @@ async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, p
     });
     if (error) throw new Error(error.message || "Email provider rejected the request");
     await logEmail({ id: randomUUID(), kind: "email", sender: "customer_service", agent, to_email: to, to_name: job.customer_name, subject, body_html: html, body_text: text, lead_id: job.lead_id || null, provider_id: data && data.id });
-    return { status: "sent", to };
+    let dropbox = { status: "skipped" };
+    if (paid) {
+      try {
+        const pdf = await require("./_invoice-pdf").renderPaidInvoicePdf({ job, items, total: totals.total, credits, bookingFee, method, billingAddress, date });
+        dropbox = await require("./_job-documents").saveCustomerDocuments(job, [
+          { filename: `Tax-Invoice-J${job.job_no}.pdf`, content: pdf },
+        ]);
+      } catch (error) {
+        console.error("Paid tax invoice PDF backup failed for J" + job.job_no + ":", error.message);
+        dropbox = { status: "failed", error: error.message };
+      }
+    }
+    return { status: "sent", to, dropbox };
   } catch (e) { return { status: "failed", error: e.message }; }
 }
 
