@@ -92,9 +92,9 @@ async function sendOne(job, now) {
   const m = reminderMessages(job, address);
   const result = { job_no: job.job_no, email: "skipped", sms: "skipped" };
   const toEmail = String(job.email || "").trim().toLowerCase();
-  if (toEmail && (process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) {
+  if (toEmail && (process.env.EMAIL_PROVIDER === 'zoho' ? (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASSWORD) : process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) {
     try {
-      const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
+      const { Resend } = require(process.env.EMAIL_PROVIDER === 'zoho' ? './_zoho-mail' : process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
       const sender = S.resolveSender("customer_service");
       const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
         from: S.fromHeader(sender.key), to: toEmail,

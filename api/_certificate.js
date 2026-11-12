@@ -123,7 +123,7 @@ async function issueCertificate(jobId, { agent, force } = {}) {
     const to = String(job.email || "").trim().toLowerCase() ||
       String((job.lead_id && (await SB.sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&select=email&limit=1`).catch(() => []))?.[0]?.email) || "").trim().toLowerCase();
     if (!to) { await note(job, `⚠️ Certificate for J${job.job_no} not sent: no customer email saved.`); return { status: "failed", reason: "No customer email saved." }; }
-    if (!(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return { status: "failed", reason: "Email service is not configured." };
+    if (!(process.env.EMAIL_PROVIDER === 'zoho' ? (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASSWORD) : process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return { status: "failed", reason: "Email service is not configured." };
     const electrician = (job.electrician_id && (await SB.sb(`electricians?id=eq.${encodeURIComponent(job.electrician_id)}&select=name,licence_no&limit=1`))?.[0]) || {};
     if (!electrician.licence_no) {
       await note(job, `⚠️ Certificate for J${job.job_no} not sent: add ${electrician.name || "the electrician"}'s licence number in Schedule → Electricians, then use Send certificate.`);
@@ -156,7 +156,7 @@ async function issueCertificate(jobId, { agent, force } = {}) {
 <tr><td align="center" style="background:#ffffff;border-radius:0 0 14px 14px;border-top:1px solid #E5EEEF;padding:18px 32px 24px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#A5B8BC;">Licensed &amp; insured electricians &middot; Installed to AS 3786:2014</p></td></tr>
 </table></td></tr></table></body></html>`;
       const text = `Hi ${first},\n\nThanks for choosing PowerSmart and for your payment. Your smoke alarm Certificate of Compliance${address ? " for " + address : ""} is attached as a PDF.${manualNote} Please keep it for your records, and give a copy to your property manager or insurer if they ask.\n\nThe second page covers how to look after your alarms.\n\nQuestions? Reply to this email or call ${Q.PHONE_DISPLAY}.\n\nPowerSmart`;
-      const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
+      const { Resend } = require(process.env.EMAIL_PROVIDER === 'zoho' ? './_zoho-mail' : process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
       const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
         from: S.fromHeader("customer_service"), to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
         bcc: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL, subject, html, text,

@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
 
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) return res.status(401).json({ error: "Invalid portal key" });
 
-  const apiKey = process.env.EMAIL_PROVIDER === 'hostinger' ? 'hostinger-smtp' : process.env.RESEND_API_KEY;
+  const apiKey = process.env.EMAIL_PROVIDER === 'zoho' ? 'zoho-smtp' : process.env.EMAIL_PROVIDER === 'hostinger' ? 'hostinger-smtp' : process.env.RESEND_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Email service is not configured (missing RESEND_API_KEY)" });
 
   const b = req.body || {};
@@ -43,7 +43,7 @@ module.exports = async (req, res) => {
   const html = S.wrapMessageHtml({ senderKey: sender.key, message });
   const text = message + S.signatureText(sender.key);
 
-  const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
+  const { Resend } = require(process.env.EMAIL_PROVIDER === 'zoho' ? './_zoho-mail' : process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
   const resend = new Resend(apiKey);
 
   async function logComment(status, err) {

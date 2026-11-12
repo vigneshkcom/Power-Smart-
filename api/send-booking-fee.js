@@ -3,7 +3,7 @@ const Stripe = require("./_stripe");
 const SB = require("./_supabase");
 const QP = require('./_quote-payments');
 const crypto = require('crypto');
-const { Resend } = require(process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
+const { Resend } = require(process.env.EMAIL_PROVIDER === 'zoho' ? './_zoho-mail' : process.env.EMAIL_PROVIDER === 'hostinger' ? './_hostinger-mail' : 'resend');
 const Fee = require('./_callout-fee');
 
 const PORTAL_KEY = "2026";
@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
   if (!SB.configured()) return res.status(500).json({ error: "Pipeline storage is not configured" });
   const agent = clean(req.body?.agent, 120).replace(/^Vignesh$/i, "Sunny");
   const checkoutOnly = req.body?.action === "checkout";
-  if (!checkoutOnly && !(process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return res.status(500).json({ error: "Email service is not configured" });
+  if (!checkoutOnly && !(process.env.EMAIL_PROVIDER === 'zoho' ? (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASSWORD) : process.env.EMAIL_PROVIDER === 'hostinger' ? (process.env.HOSTINGER_SMTP_USER && process.env.HOSTINGER_SMTP_PASSWORD) : process.env.RESEND_API_KEY)) return res.status(500).json({ error: "Email service is not configured" });
 
   const leadId = clean((req.body || {}).lead_id, 40);
   if (!leadId) return res.status(400).json({ error: "lead_id is required" });
@@ -85,7 +85,7 @@ module.exports = async (req, res) => {
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0B1B1F"><h2>Secure your smoke alarm appointment</h2><p>Hi ${firstName},</p><p>Please pay your <strong>${feeDisplay} ${feeLabel}</strong> to secure your licensed electrician. ${explanation} It includes GST and is fully refundable if we cannot complete your installation.</p><p style="margin:28px 0"><a href="${session.url}" style="background:#43A8B6;color:#0B1B1F;padding:13px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Pay ${feeDisplay} ${feeLabel}</a></p><p>If you have any questions, reply to this email or call 0475 184 984.</p></div>`;
     const text = `Hi ${firstName},\n\nPlease pay your ${feeDisplay} ${feeLabel}, including GST, to secure your licensed electrician. ${explanation} It is fully refundable if we cannot complete your installation.\n\nPay securely: ${session.url}\n\nQuestions? Call 0475 184 984.`;
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const sent = await resend.emails.send({ from: process.env.RESEND_FROM_EMAIL || "PowerSmart <support@powersmartco.com.au>", to: lead.email, replyTo: process.env.RESEND_REPLY_TO || "support@powersmartco.com.au", subject: "Secure your PowerSmart appointment", html, text });
+    const sent = await resend.emails.send({ from: ['zoho','hostinger'].includes(process.env.EMAIL_PROVIDER) ? "PowerSmart <support@powersmartco.com.au>" : (process.env.RESEND_FROM_EMAIL || "PowerSmart <support@powersmartco.com.au>"), to: lead.email, replyTo: process.env.RESEND_REPLY_TO || "support@powersmartco.com.au", subject: "Secure your PowerSmart appointment", html, text });
     if (sent.error) throw new Error(sent.error.message || "Could not send payment email");
     await SB.sb("lead_comments", { method: "POST", body: { lead_id: lead.id, author: ["Sam", "Sunny"].includes(agent) ? agent : "System", kind: "payment", body: `Stripe ${feeLabel} request for ${feeDisplay} emailed to ${lead.email}.` }, prefer: "return=minimal" });
     return res.status(200).json({ ok: true, amount: feeCents / 100, session_id: session.id, checkout_url: session.url });
