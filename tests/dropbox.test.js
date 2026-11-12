@@ -18,3 +18,11 @@ test('storage reports not configured without the Dropbox keys', () => {
   assert.equal(D.configured(), false);
   Object.assign(process.env, keep);
 });
+
+test('Dropbox browser links include the app folder and open the alarm photos', () => {
+  const folder = '/PowerSmart Jobs/J1019 - Rajendra Kumar - 49 Harrison Crescent';
+  assert.equal(D.dropboxWebFolderUrl(folder, 'Alarms'),
+    'https://www.dropbox.com/home/Apps/PowerSmart%20Job%20Photos%20QLD/PowerSmart%20Jobs/J1019%20-%20Rajendra%20Kumar%20-%2049%20Harrison%20Crescent/Alarms');
+  assert.equal(D.dropboxWebFolderUrl(folder),
+    'https://www.dropbox.com/home/Apps/PowerSmart%20Job%20Photos%20QLD/PowerSmart%20Jobs/J1019%20-%20Rajendra%20Kumar%20-%2049%20Harrison%20Crescent');
+});

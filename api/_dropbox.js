@@ -8,6 +8,13 @@
 // The folder is found again by its "J1013 - " prefix, so renaming the customer never splits a job's photos.
 
 const ROOT = "/PowerSmart Jobs";
+// Dropbox API paths are relative to the app folder, but web links must include its full Dropbox path.
+const DROPBOX_WEB_APP_ROOT = "/Apps/PowerSmart Job Photos QLD";
+
+function dropboxWebFolderUrl(folder, category) {
+  const path = DROPBOX_WEB_APP_ROOT + folder + (category ? "/" + category : "");
+  return "https://www.dropbox.com/home" + path.split("/").map(encodeURIComponent).join("/");
+}
 const CATEGORIES = { before: "Before", after: "After", alarms: "Alarms", receipt: "Receipts", other: "Other" };
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic)$/i;
 
@@ -133,7 +140,9 @@ async function photosForJob(job) {
     category: (f.path_display.slice(folder.length + 1).split("/")[0] || "Other"),
     thumb: thumbs[f.path_display] || "",
   }));
-  return { folder, folder_url: "https://www.dropbox.com/home" + encodeURI(folder), photos };
+  // The office link opens alarm photos directly when present, otherwise the job folder.
+  const preferredCategory = photos.some((p) => p.category === CATEGORIES.alarms) ? CATEGORIES.alarms : null;
+  return { folder, folder_url: dropboxWebFolderUrl(folder, preferredCategory), photos };
 }
 
 // Moves the job's photo folders (Before/After/Alarms/Receipts/Other) into "Archived/<date time>" inside the job folder,
@@ -155,4 +164,4 @@ async function temporaryLink(path) {
   return res.link;
 }
 
-module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside };
+module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside, dropboxWebFolderUrl };
