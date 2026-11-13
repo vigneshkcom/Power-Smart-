@@ -186,3 +186,31 @@ test('historical repair refuses a checkout allocated to another customer or quot
   const f=fixture(),h=historicalReceipt(f);f.payments.push({id:'other',stripe_session_id:h.session.id,lead_id:'another',quote_ref:'8000'});
   assert.equal((await f.call(h.body)).status,409);assert.equal(f.payments.length,1);assert.equal(f.comments.length,0);
 });
+
+const manualBody = { action: 'record_manual', lead_id: 'lead1', payment_type: 'booking_fee', method: 'bank_transfer', amount: '50.00', paid_date: new Date().toISOString().slice(0, 10), reference: 'Smith deposit', description: 'Deposit after quote accepted', request_key: 'manual-request-key-0001', agent: 'Sam' };
+test('manual bank transfer is stored as a paid payment on the current quote, with a note, and without calling Stripe', async () => {
+  const f = fixture(), result = await f.call(manualBody);
+  assert.equal(result.status, 200);
+  const p = f.payments[0];
+  assert.equal(p.status, 'paid'); assert.equal(p.amount_cents, 5000); assert.equal(p.amount_paid_cents, 5000);
+  assert.equal(p.quote_ref, '7000'); assert.equal(p.payment_type, 'booking_fee'); assert.match(p.stripe_session_id, /^manual_/);
+  assert.match(p.description, /Deposit after quote accepted \(Bank transfer, ref Smith deposit\)/);
+  assert.equal(f.stripeCalls.length, 0);
+  assert.equal(f.comments.length, 1); assert.equal(f.comments[0].author, 'Sam'); assert.match(f.comments[0].body, /recorded manually: \$50\.00 AUD received by bank transfer/);
+});
+test('retrying a manual payment never records it twice', async () => {
+  const f = fixture(); await f.call(manualBody); const again = await f.call(manualBody);
+  assert.equal(again.status, 200); assert.equal(again.data.duplicate, true);
+  assert.equal(f.payments.length, 1); assert.equal(f.comments.length, 1);
+});
+test('manual payment validates amount, type, method, date and retry token before writing', async () => {
+  const tomorrow = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  for (const patch of [{ amount: '0' }, { amount: '1.234' }, { payment_type: '__proto__' }, { method: 'bitcoin' }, { method: '__proto__' }, { paid_date: '' }, { paid_date: '2026-02-30' }, { paid_date: tomorrow }, { paid_date: '2020-01-01' }, { request_key: 'bad' }]) {
+    const f = fixture(), result = await f.call({ ...manualBody, ...patch });
+    assert.equal(result.status, 400, JSON.stringify(patch)); assert.equal(f.payments.length, 0);
+  }
+});
+test('manual payment requires staff auth and an existing customer', async () => {
+  const f = fixture(); assert.equal((await f.call(manualBody, { headers: {} })).status, 401);
+  assert.equal((await f.call({ ...manualBody, lead_id: 'nope' })).status, 404); assert.equal(f.payments.length, 0);
+});

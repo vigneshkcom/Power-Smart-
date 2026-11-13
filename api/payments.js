@@ -51,6 +51,35 @@ module.exports = async (req, res) => {
       await P.note(leadId, 'Stripe', `Electrician call-out fee paid: $35.00 AUD. Quote ${ref}. Verified historical Stripe payment: ${intentId}. Stripe checkout: ${sessionId}.`);
       return res.status(200).json({ ok: true, payment: row });
     }
+    if (b.action === 'record_manual') {
+      // Staff-recorded money received outside Stripe (bank transfer, cash, cheque).
+      // Stored as a paid payment_requests row so quote totals and history include it.
+      let amount;
+      try { amount = P.amountCents(b.amount); } catch (e) { return res.status(400).json({ error: e.message }); }
+      if (!Object.hasOwn(P.TYPES, b.payment_type)) return res.status(400).json({ error: 'Choose a valid payment type.' });
+      const method = Object.hasOwn(P.MANUAL_METHODS, b.method) ? P.MANUAL_METHODS[b.method] : '';
+      if (!method) return res.status(400).json({ error: 'Choose how the customer paid.' });
+      const date = clean(b.paid_date, 10), reference = clean(b.reference, 80), token = clean(b.request_key, 80);
+      let paidAt;
+      try { paidAt = P.manualPaidAt(date); } catch (e) { return res.status(400).json({ error: e.message }); }
+      if (!/^[\w-]{16,80}$/.test(token)) return res.status(400).json({ error: 'Invalid payment request. Close and reopen the payment window.' });
+      const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,email,quote_ref&limit=1`), lead = leads?.[0];
+      if (!lead) return res.status(404).json({ error: 'Customer not found.' });
+      if (!lead.quote_ref) return res.status(409).json({ error: 'This customer has no issued quote to attach the payment to.' });
+      const sessionId = 'manual_' + crypto.createHash('sha256').update(JSON.stringify([leadId, token, b.payment_type, amount, b.method, date, reference])).digest('hex').slice(0, 40);
+      const existing = await SB.sb(`payment_requests?stripe_session_id=eq.${sessionId}&select=${fields}&limit=1`);
+      if (existing?.[0]) return res.status(200).json({ ok: true, payment: existing[0], duplicate: true });
+      const detail = clean(b.description, 200) || P.TYPES[b.payment_type];
+      const description = `${detail} (${method}${reference ? `, ref ${reference}` : ''})`;
+      const row = { lead_id: leadId, quote_ref: lead.quote_ref, customer_email: lead.email || '', payment_type: b.payment_type, description,
+        request_key: sessionId, amount_cents: amount, amount_paid_cents: amount, currency: 'aud', status: 'paid', stripe_session_id: sessionId,
+        checkout_url: 'https://portal.powersmartco.com.au/manual-payment', sent_at: paidAt, paid_at: paidAt };
+      const rows = await SB.sb('payment_requests?on_conflict=stripe_session_id', { method: 'POST', body: row, prefer: 'resolution=ignore-duplicates,return=representation' });
+      const payment = rows?.[0] || (await SB.sb(`payment_requests?stripe_session_id=eq.${sessionId}&select=${fields}&limit=1`))?.[0];
+      if (!payment) throw new Error('Could not save the payment. Please retry.');
+      await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[b.payment_type]} recorded manually: $${(amount / 100).toFixed(2)} AUD received by ${method.toLowerCase()} on ${date}${reference ? `, ref ${reference}` : ''}. Quote ${lead.quote_ref}. ${detail}.`);
+      return res.status(200).json({ ok: true, payment });
+    }
     if (['refresh','send_sms','preview_sms'].includes(b.action)) {
       const rows = await SB.sb(`payment_requests?id=eq.${encodeURIComponent(clean(b.payment_id, 40))}&lead_id=eq.${encodeURIComponent(leadId)}&select=${fields}&limit=1`);
       if (!rows?.[0]) return res.status(404).json({ error: 'Payment request not found.' });

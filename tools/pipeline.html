@@ -429,6 +429,20 @@
           <p style="font-size:.75rem;color:var(--muted)">Sent from PowerSmart's SMS number. The full message is saved in the customer's notes.</p>
           <button class="btn btn-primary" id="payment-sms-send">Send SMS</button>
         </div>
+        <details id="manual-box" style="border:1px solid var(--line);border-radius:12px;padding:.8rem 1rem;margin:1rem 0">
+          <summary style="cursor:pointer;font-weight:700;font-size:.85rem">Record a payment received (bank transfer, cash, cheque)</summary>
+          <p style="font-size:.78rem;color:var(--muted);margin:.6rem 0">Use this when the customer has already paid outside Stripe. It is added to payment history and counts toward the quote total. No card is charged and nothing is sent to the customer.</p>
+          <div class="fgrid">
+            <div class="field"><label for="manual-type">Payment type</label><select id="manual-type"><option value="booking_fee">Deposit / call-out fee</option><option value="installation_balance">Installation balance</option><option value="inspection">Inspection</option><option value="other">Other</option></select></div>
+            <div class="field"><label for="manual-method">Paid by</label><select id="manual-method"><option value="bank_transfer">Bank transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option><option value="other">Other</option></select></div>
+            <div class="field"><label for="manual-amount">Amount received (AUD)</label><input id="manual-amount" type="number" min="0.50" max="999999.99" step="0.01" inputmode="decimal" placeholder="e.g. 50.00"></div>
+            <div class="field"><label for="manual-date">Date received</label><input id="manual-date" type="date"></div>
+            <div class="field"><label for="manual-reference">Bank reference (optional)</label><input id="manual-reference" maxlength="80" placeholder="e.g. Smith deposit"></div>
+            <div class="field"><label for="manual-description">Note (optional)</label><input id="manual-description" maxlength="200" placeholder="e.g. Deposit after quote accepted"></div>
+          </div>
+          <div id="manual-error" role="alert" style="color:#a33131;font-size:.82rem;margin-top:.6rem"></div>
+          <button class="btn btn-primary" id="manual-save" style="margin-top:.6rem">Record payment</button>
+        </details>
         <h4 style="margin:1rem 0 .6rem">Payment history</h4>
         <p id="payment-total" style="font-size:.82rem;font-weight:700"></p>
         <div id="payment-history" style="display:grid;gap:.6rem"></div>
@@ -1184,7 +1198,8 @@
   /* ---------- Custom Stripe payments ---------- */
   var paymentLeadId = null, paymentRows = [], paymentBusy = false, paymentRequestKey = "", paymentSmsPreview = null;
   var paymentTypeLabels = {booking_fee:"Electrician call-out fee",inspection:"Inspection",installation_balance:"Installation balance",other:"Pending balance"};
-  function paymentLabel(p){return p.payment_type === "booking_fee" && /deposit/i.test(p.description || "") ? "Deposit" : paymentTypeLabels[p.payment_type] || "Payment";}
+  function isManualPayment(p){return String(p.stripe_session_id||"").indexOf("manual_")===0;}
+  function paymentLabel(p){return p.payment_type === "booking_fee" && (isManualPayment(p) || /deposit/i.test(p.description || "")) ? "Deposit" : paymentTypeLabels[p.payment_type] || "Payment";}
   function paymentApi(body){
     return fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json","x-portal-key":portalKey()},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error || "Payment request failed");return d;});});
@@ -1206,7 +1221,7 @@
     $("payment-total").textContent="Confirmed payments: "+fmt$(total/100)+" AUD";
     $("payment-history").innerHTML=paymentRows.length ? paymentRows.map(function(p){
       var status={paid:"Paid",sent:"Awaiting payment",expired:"Expired",failed:"Failed"}[p.status] || p.status;
-      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentLabel(p))+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(p.payment_type === "booking_fee" ? (/deposit/i.test(p.description || "") ? "Credited against issued quote total" : "Electrician call-out fee") : (p.description || "Payment"))+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap"><button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>'+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button><button class="btn btn-ghost" data-payment-sms="'+esc(p.id)+'">Text payment link</button>' : '')+'</div></div>';
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:.8rem"><div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.84rem"><strong>'+esc(paymentLabel(p))+' · '+fmt$(p.amount_cents/100)+'</strong><span>'+esc(isManualPayment(p) && p.status === "paid" ? "Paid (recorded manually)" : status)+'</span></div><p style="font-size:.8rem;margin:.4rem 0">'+esc(isManualPayment(p) ? (p.description || "Payment") : p.payment_type === "booking_fee" ? (/deposit/i.test(p.description || "") ? "Credited against issued quote total" : "Electrician call-out fee") : (p.description || "Payment"))+'</p><small style="color:var(--muted)">'+esc(new Date(p.created_at).toLocaleString("en-AU"))+'</small><div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">'+(isManualPayment(p) ? "" : '<button class="btn btn-ghost" data-payment-refresh="'+esc(p.id)+'">Check Stripe status</button>')+(p.status === "sent" ? '<button class="btn btn-ghost" data-payment-use="'+esc(p.id)+'">Use this link</button><button class="btn btn-ghost" data-payment-sms="'+esc(p.id)+'">Text payment link</button>' : '')+'</div></div>';
     }).join("") : '<p style="font-size:.82rem;color:var(--muted)">No payment requests yet.</p>';
   }
   function loadPaymentHistory(){
@@ -1227,6 +1242,7 @@
     $("payment-title").textContent="Take payment · "+(lead ? lead.name : "Customer");
     $("payment-type").value="other";$("payment-amount").value="";$("payment-description").value="";
     $("payment-error").textContent="";$("payment-result").hidden=true;$("payment-total").textContent="";
+    resetManual();
     $("payment-history").textContent="Loading payment history...";
     closeModal();$("payment-overlay").classList.add("show");
     loadPaymentHistory().catch(function(e){$("payment-error").textContent=e.message;});
@@ -1296,6 +1312,24 @@
       }).then(function(){return load();})
       .catch(function(err){$("payment-error").textContent=err.message;})
       .finally(function(){paymentBusy=false;button.disabled=false;});
+  });
+  /* Manual (non-Stripe) payments */
+  var manualKey="";
+  function todayLocal(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+  function resetManual(){manualKey=crypto.randomUUID();$("manual-box").open=false;$("manual-error").textContent="";$("manual-type").value="booking_fee";$("manual-method").value="bank_transfer";$("manual-amount").value="";$("manual-date").value=todayLocal();$("manual-date").max=todayLocal();$("manual-reference").value="";$("manual-description").value="";}
+  ["manual-type","manual-method","manual-amount","manual-date","manual-reference","manual-description"].forEach(function(id){$(id).addEventListener("input",function(){manualKey=crypto.randomUUID();$("manual-error").textContent="";});});
+  $("manual-save").addEventListener("click",function(){
+    if(paymentBusy || !paymentLeadId)return;
+    var amount=$("manual-amount").value.trim(), date=$("manual-date").value;
+    if(!/^\d{1,6}(\.\d{1,2})?$/.test(amount) || Number(amount)<.5){$("manual-error").textContent="Enter the amount received in AUD, with no more than two decimal places.";return;}
+    if(!date){$("manual-error").textContent="Enter the date the payment was received.";return;}
+    if(!confirm("Record "+fmt$(Number(amount))+" AUD received by "+$("manual-method").options[$("manual-method").selectedIndex].text.toLowerCase()+" on "+date+"?\n\nThis marks it as paid. It cannot be undone from this screen."))return;
+    var button=this,leadId=paymentLeadId;paymentBusy=true;button.disabled=true;button.textContent="Saving...";$("manual-error").textContent="";
+    paymentApi({action:"record_manual",lead_id:leadId,payment_type:$("manual-type").value,method:$("manual-method").value,amount:amount,paid_date:date,reference:$("manual-reference").value.trim(),description:$("manual-description").value.trim(),request_key:manualKey,agent:currentAgent()})
+      .then(function(d){toast(d.duplicate?"This payment was already recorded":"Payment recorded");resetManual();return loadPaymentHistory();})
+      .then(function(){return load();})
+      .catch(function(e){$("manual-error").textContent=e.message;})
+      .finally(function(){paymentBusy=false;button.disabled=false;button.textContent="Record payment";});
   });
   $("payment-close").addEventListener("click",closePayments);$("payment-cancel").addEventListener("click",closePayments);
   $("payment-overlay").addEventListener("click",function(e){if(e.target===this)closePayments();});

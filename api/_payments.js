@@ -9,6 +9,18 @@ function amountCents(value) {
   if (amount < 50 || amount > 99999999) throw new Error('Enter an amount between $0.50 and $999,999.99.');
   return amount;
 }
+const MANUAL_METHODS = { bank_transfer: 'Bank transfer', cash: 'Cash', cheque: 'Cheque', other: 'Other' };
+// Date a staff member says money arrived (YYYY-MM-DD). Stored at midday AEST.
+function manualPaidAt(date) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) throw new Error('Enter the date the payment was received.');
+  const utc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (utc.getUTCFullYear() !== +m[1] || utc.getUTCMonth() !== +m[2] - 1 || utc.getUTCDate() !== +m[3]) throw new Error('Enter a valid payment date.');
+  const at = new Date(`${date}T12:00:00+10:00`);
+  if (at.getTime() > Date.now() + 14 * 36e5) throw new Error('The payment date cannot be in the future.');
+  if (at.getTime() < Date.now() - 400 * 864e5) throw new Error('The payment date is too far in the past.');
+  return at.toISOString();
+}
 function checkoutUrl(value) {
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com') throw new Error('Stripe returned an invalid checkout link.');
@@ -38,4 +50,4 @@ async function reconcile(payment, session, eventId) {
   }
   return payment;
 }
-module.exports = { TYPES, amountCents, checkoutUrl, note, reconcile };
+module.exports = { MANUAL_METHODS, manualPaidAt, TYPES, amountCents, checkoutUrl, note, reconcile };
