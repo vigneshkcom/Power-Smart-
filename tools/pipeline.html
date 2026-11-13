@@ -386,6 +386,7 @@
             <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for this customer's electrician call-out fee">Send call-out fee</button>
             <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for this customer's electrician call-out fee">Open Stripe checkout</button>
             <button class="btn btn-ghost" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
+            <button class="btn btn-ghost" id="lm-record-payment" title="Record money the customer already paid by bank transfer, cash or cheque">Record payment</button>
           </div></details>
           <details class="menu more"><summary class="btn btn-ghost">Job &amp; invoice</summary><div class="menu-pop">
             <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
@@ -1312,6 +1313,11 @@
       }).then(function(){return load();})
       .catch(function(err){$("payment-error").textContent=err.message;})
       .finally(function(){paymentBusy=false;button.disabled=false;});
+  });
+  $("lm-record-payment").addEventListener("click",function(){
+    $("lm-payment").click();
+    $("manual-box").open=true;
+    setTimeout(function(){$("manual-box").scrollIntoView({block:"start",behavior:"smooth"});$("manual-amount").focus();},60);
   });
   /* Manual (non-Stripe) payments */
   var manualKey="";

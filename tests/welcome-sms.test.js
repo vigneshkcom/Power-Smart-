@@ -78,11 +78,20 @@ test('returning customer we already quoted gets a short message that does not as
   const r=await f.W.welcomeLead({...f.lead,stage:'quote_accepted'},new Date('2026-10-23T11:00:00Z'),{repeat:'existing'});
   assert.equal(r.status,'submitted');assert.match(f.calls[0].key,/^welcome-existing-/);assert.doesNotMatch(f.calls[0].message,/bedrooms/i);
   for(const stage of ['quote_sent','quote_accepted','scheduled','won'])assert.equal(f.W.repeatKind(stage),'existing');
-  for(const stage of ['new_lead','follow_up','not_interested'])assert.equal(f.W.repeatKind(stage),true);
+  for(const stage of ['follow_up','not_interested'])assert.equal(f.W.repeatKind(stage),true);
 });
 test('repeat kind is detected from the stages of existing leads for the same mobile or email',async()=>{
-  for(const [rows,expected] of [[[],false],[[{stage:'new_lead'}],true],[[{stage:'follow_up'},{stage:'quote_accepted'}],'existing']]){
+  for(const [rows,expected] of [[[],false],[[{stage:'follow_up'}],true],[[{stage:'follow_up'},{stage:'quote_accepted'}],'existing']]){
     const W=load('_welcome-sms.js',{'./_supabase':{async sb(){return rows;}},'./_sms-outbound':{}});
     assert.equal(await W.isRepeatCustomer({phone:'0400000000',email:''}),expected);
   }
+});
+
+test('a customer already in New Lead who enquires again gets no SMS',async()=>{
+  const f=fixture();assert.equal(f.W.repeatKind('new_lead'),'skip');
+  const r=await f.W.welcomeLead(f.lead,new Date(),{repeat:'skip'});assert.equal(r.status,'skipped');assert.equal(f.calls.length,0);assert.equal(f.queries.length,0);
+  const W=load('_welcome-sms.js',{'./_supabase':{async sb(){return [{stage:'new_lead'}];}},'./_sms-outbound':{}});
+  assert.equal(await W.isRepeatCustomer({phone:'0400000000'}),'skip');
+  const W2=load('_welcome-sms.js',{'./_supabase':{async sb(){return [{stage:'new_lead'},{stage:'won'}];}},'./_sms-outbound':{}});
+  assert.equal(await W2.isRepeatCustomer({phone:'0400000000'}),'existing');
 });

@@ -3,9 +3,11 @@ const Sms = require('./_sms-outbound');
 
 // Stages where we already hold a quote for this customer: never ask for property details again.
 const QUOTED_STAGES = ['quote_sent', 'quote_accepted', 'scheduled', 'won'];
-const repeatKind = (stage) => QUOTED_STAGES.includes(stage) ? 'existing' : true;
+// 'skip' = already sitting in New Lead (they were welcomed when that lead was created): send nothing.
+const repeatKind = (stage) => stage === 'new_lead' ? 'skip' : QUOTED_STAGES.includes(stage) ? 'existing' : true;
 
 // repeat: false = first enquiry, true = returning customer without a quote, 'existing' = returning customer we already quoted.
+// (welcomeLead sends nothing for 'skip'.)
 function welcomeMessage(name, repeat = false) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'there';
   if (repeat === 'existing') return `Hi ${first},
@@ -40,7 +42,7 @@ PowerSmart Team`;
 
 // Runs only at lead creation. SMS failures must never reject a saved enquiry.
 async function welcomeLead(lead, now = new Date(), { repeat = false } = {}) {
-  if (!lead?.id || (!repeat && lead.stage !== 'new_lead')) return { status: 'skipped' };
+  if (!lead?.id || repeat === 'skip' || (!repeat && lead.stage !== 'new_lead')) return { status: 'skipped' };
   if (!Sms.smsEnabled()) return { status: 'skipped', paused: true }; // SMS paused: the enquiry confirmation email covers this
   const message = welcomeMessage(lead.name, repeat), phone = Sms.cleanPhone(lead.phone);
   try {
@@ -69,7 +71,8 @@ async function isRepeatCustomer({ phone, email }) {
     if (!conds.length) return false;
     const rows = await SB.sb(`leads?or=(${conds.join(',')})&select=id,stage&order=updated_at.desc&limit=10`);
     if (!rows?.length) return false;
-    return rows.some(r => QUOTED_STAGES.includes(r.stage)) ? 'existing' : true;
+    if (rows.some(r => QUOTED_STAGES.includes(r.stage))) return 'existing';
+    return rows.some(r => r.stage === 'new_lead') ? 'skip' : true;
   } catch (_) { return false; }
 }
 module.exports = { welcomeMessage, welcomeLead, isRepeatCustomer, repeatKind };
