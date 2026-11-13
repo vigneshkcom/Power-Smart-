@@ -70,3 +70,19 @@ test('staff-created lead for a returning customer gets the repeat wording; new c
     const q=decodeURIComponent(queries.find(x=>x.startsWith('leads?or=')));assert.match(q,/phone\.eq\.\+61400000000/);assert.match(q,/email\.eq\.a@x\.com/);
   }
 });
+
+test('returning customer we already quoted gets a short message that does not ask for property details',async()=>{
+  const f=fixture(),m=f.W.welcomeMessage(' Anirudh Test ','existing');
+  assert.match(m,/^Hi Anirudh,\n\nThanks for getting in touch with PowerSmart again!/);assert.match(m,/already have your details on file/);
+  assert.doesNotMatch(m,/bedrooms|hallways|storey/i);
+  const r=await f.W.welcomeLead({...f.lead,stage:'quote_accepted'},new Date('2026-10-23T11:00:00Z'),{repeat:'existing'});
+  assert.equal(r.status,'submitted');assert.match(f.calls[0].key,/^welcome-existing-/);assert.doesNotMatch(f.calls[0].message,/bedrooms/i);
+  for(const stage of ['quote_sent','quote_accepted','scheduled','won'])assert.equal(f.W.repeatKind(stage),'existing');
+  for(const stage of ['new_lead','follow_up','not_interested'])assert.equal(f.W.repeatKind(stage),true);
+});
+test('repeat kind is detected from the stages of existing leads for the same mobile or email',async()=>{
+  for(const [rows,expected] of [[[],false],[[{stage:'new_lead'}],true],[[{stage:'follow_up'},{stage:'quote_accepted'}],'existing']]){
+    const W=load('_welcome-sms.js',{'./_supabase':{async sb(){return rows;}},'./_sms-outbound':{}});
+    assert.equal(await W.isRepeatCustomer({phone:'0400000000',email:''}),expected);
+  }
+});

@@ -6,7 +6,7 @@
 
 const SUPPORT_EMAIL = "support@powersmartco.com.au";
 const SB = require("./_supabase");
-const { welcomeLead } = require('./_welcome-sms');
+const { welcomeLead, repeatKind } = require('./_welcome-sms');
 const S = require("./_senders");
 const { renderEnquiryConfirmation } = require("./_enquiry-confirmation");
 const { logEmail } = require("./_maillog");
@@ -106,7 +106,7 @@ async function handleLead(req, res, source = "Website") {
       // Same phone or email already in the pipeline: update that lead instead of creating a duplicate.
       const existing = await findExistingLead({ email, phone });
       if (existing) {
-        repeat = true; savedLead = existing;
+        repeat = repeatKind ? repeatKind(existing.stage) : true; savedLead = existing;
         const patch = { updated_at: new Date().toISOString() };
         if (!existing.email && email) patch.email = email.toLowerCase();
         if (!existing.phone && phone) patch.phone = phone;

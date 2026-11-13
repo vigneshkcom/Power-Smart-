@@ -1,8 +1,21 @@
 const SB = require('./_supabase');
 const Sms = require('./_sms-outbound');
 
+// Stages where we already hold a quote for this customer: never ask for property details again.
+const QUOTED_STAGES = ['quote_sent', 'quote_accepted', 'scheduled', 'won'];
+const repeatKind = (stage) => QUOTED_STAGES.includes(stage) ? 'existing' : true;
+
+// repeat: false = first enquiry, true = returning customer without a quote, 'existing' = returning customer we already quoted.
 function welcomeMessage(name, repeat = false) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'there';
+  if (repeat === 'existing') return `Hi ${first},
+
+Thanks for getting in touch with PowerSmart again! We've received your new enquiry and already have your details on file, so there's no need to send them again.
+
+A member of our team will be in touch within the next 24 hours. If there's anything you'd like us to know in the meantime, simply reply to this message.
+
+Kind regards,
+PowerSmart Team`;
   return `Hi ${first},
 
 ${repeat ? "Thanks for getting in touch with PowerSmart again about your smoke alarms! We've received your new enquiry, and our team" : "Thanks for contacting PowerSmart regarding your smoke alarms! We've received your enquiry, and our team"} will be in touch within the next 24 hours.
@@ -39,14 +52,14 @@ async function welcomeLead(lead, now = new Date(), { repeat = false } = {}) {
       await Sms.logNote(lead.id, 'System', `Welcome SMS not repeated: an earlier submission to ${phone} is ${confirmed ? 'already recorded within the last 24 hours' : 'pending or uncertain'}. Message: ${message}`);
       return { status: 'skipped', duplicate: true, ...(confirmed ? {} : { error: 'An earlier welcome SMS is pending or uncertain. Check the SMS inbox.' }) };
     }
-    return await Sms.sendLeadSms({ lead, message, key: `welcome-${repeat ? 'repeat-' : ''}${phone}-${now.toISOString().slice(0,10)}`, author: 'System' });
+    return await Sms.sendLeadSms({ lead, message, key: `welcome-${repeat === 'existing' ? 'existing-' : repeat ? 'repeat-' : ''}${phone}-${now.toISOString().slice(0,10)}`, author: 'System' });
   } catch (error) {
     try { await Sms.logNote(lead.id, 'System', `Welcome SMS issue: ${error.message} Message: ${message}`); } catch (_) {}
     console.error('PowerSmart welcome SMS:', error.message);
     return { status: 'failed', error: error.message };
   }
 }
-// True when another lead already uses this mobile or email (call BEFORE inserting the new lead).
+// false for a new customer, otherwise the repeat kind for welcomeLead (call BEFORE inserting the new lead).
 async function isRepeatCustomer({ phone, email }) {
   try {
     const digits = String(phone || '').replace(/[^\d+]/g, ''), local = digits.replace(/^\+?61/, '0'), set = new Set([digits]);
@@ -54,8 +67,9 @@ async function isRepeatCustomer({ phone, email }) {
     const conds = [...set].filter(Boolean).map(p => `phone.eq.${encodeURIComponent(p)}`);
     if (email) conds.push(`email.eq.${encodeURIComponent(String(email).toLowerCase())}`);
     if (!conds.length) return false;
-    const rows = await SB.sb(`leads?or=(${conds.join(',')})&select=id&limit=1`);
-    return !!rows?.length;
+    const rows = await SB.sb(`leads?or=(${conds.join(',')})&select=id,stage&order=updated_at.desc&limit=10`);
+    if (!rows?.length) return false;
+    return rows.some(r => QUOTED_STAGES.includes(r.stage)) ? 'existing' : true;
   } catch (_) { return false; }
 }
-module.exports = { welcomeMessage, welcomeLead, isRepeatCustomer };
+module.exports = { welcomeMessage, welcomeLead, isRepeatCustomer, repeatKind };
