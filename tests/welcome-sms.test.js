@@ -73,7 +73,7 @@ test('staff-created lead for a returning customer gets the repeat wording; new c
 
 test('returning customer we already quoted gets a short message that does not ask for property details',async()=>{
   const f=fixture(),m=f.W.welcomeMessage(' Anirudh Test ','existing');
-  assert.match(m,/^Hi Anirudh,\n\nThanks for getting in touch with PowerSmart again!/);assert.match(m,/already have your details on file/);
+  assert.match(m,/^Hi Anirudh,\n\nThanks for getting in touch with PowerSmart again, we really appreciate it/);assert.doesNotMatch(m,/no need/i);
   assert.doesNotMatch(m,/bedrooms|hallways|storey/i);
   const r=await f.W.welcomeLead({...f.lead,stage:'quote_accepted'},new Date('2026-10-23T11:00:00Z'),{repeat:'existing'});
   assert.equal(r.status,'submitted');assert.match(f.calls[0].key,/^welcome-existing-/);assert.doesNotMatch(f.calls[0].message,/bedrooms/i);

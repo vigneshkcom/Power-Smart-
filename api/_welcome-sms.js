@@ -12,9 +12,9 @@ function welcomeMessage(name, repeat = false) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'there';
   if (repeat === 'existing') return `Hi ${first},
 
-Thanks for getting in touch with PowerSmart again! We've received your new enquiry and already have your details on file, so there's no need to send them again.
+Thanks for getting in touch with PowerSmart again, we really appreciate it! We've received your new enquiry and one of our team will be in touch within the next 24 hours.
 
-A member of our team will be in touch within the next 24 hours. If there's anything you'd like us to know in the meantime, simply reply to this message.
+In the meantime, if there's anything you'd like us to know, feel free to reply to this message, or let us know the best time to call.
 
 Kind regards,
 PowerSmart Team`;
