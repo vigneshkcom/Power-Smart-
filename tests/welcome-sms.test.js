@@ -58,3 +58,15 @@ test('repeat welcome uses the similar wording, its own dedupe pattern and works 
   assert.match(f.calls[0].message,/Number of bedrooms/);assert.match(f.calls[0].key,/^welcome-repeat-/);assert.match(decodeURIComponent(f.queries[0]),/Thanks for getting in touch with PowerSmart again/);
   assert.equal((await f.W.welcomeLead({...f.lead,stage:'quote_sent'})).status,'skipped');
 });
+
+test('staff-created lead for a returning customer gets the repeat wording; new customers get the normal one',async()=>{
+  for(const [existing,repeat] of [[[{id:'old'}],true],[[],false]]){
+    const calls=[],queries=[];const handler=load('pipeline.js',{
+      './_supabase':{configured:()=>true,async sb(q,o){if(o?.method==='POST')return [{id:'lead1',stage:'new_lead',...o.body}];queries.push(q);return existing;}},
+      './_welcome-sms':{...load('_welcome-sms.js',{'./_supabase':{async sb(q){queries.push(q);return existing;}},'./_sms-outbound':{}}),async welcomeLead(lead,now,opts){calls.push(opts);return {status:'submitted'};}},
+    });
+    await handler({method:'POST',headers:{'x-portal-key':'2026'},body:{action:'create',name:'Test',phone:'0400000000',email:'A@x.com'}},{setHeader(){},status(){return this;},json(){return this;}});
+    assert.equal(calls[0].repeat,repeat);
+    const q=decodeURIComponent(queries.find(x=>x.startsWith('leads?or=')));assert.match(q,/phone\.eq\.\+61400000000/);assert.match(q,/email\.eq\.a@x\.com/);
+  }
+});

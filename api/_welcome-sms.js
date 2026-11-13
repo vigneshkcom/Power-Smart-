@@ -46,4 +46,16 @@ async function welcomeLead(lead, now = new Date(), { repeat = false } = {}) {
     return { status: 'failed', error: error.message };
   }
 }
-module.exports = { welcomeMessage, welcomeLead };
+// True when another lead already uses this mobile or email (call BEFORE inserting the new lead).
+async function isRepeatCustomer({ phone, email }) {
+  try {
+    const digits = String(phone || '').replace(/[^\d+]/g, ''), local = digits.replace(/^\+?61/, '0'), set = new Set([digits]);
+    if (/^0\d{9}$/.test(local)) { set.add(local); set.add('+61' + local.slice(1)); set.add('61' + local.slice(1)); }
+    const conds = [...set].filter(Boolean).map(p => `phone.eq.${encodeURIComponent(p)}`);
+    if (email) conds.push(`email.eq.${encodeURIComponent(String(email).toLowerCase())}`);
+    if (!conds.length) return false;
+    const rows = await SB.sb(`leads?or=(${conds.join(',')})&select=id&limit=1`);
+    return !!rows?.length;
+  } catch (_) { return false; }
+}
+module.exports = { welcomeMessage, welcomeLead, isRepeatCustomer };

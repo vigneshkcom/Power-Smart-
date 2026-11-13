@@ -10,7 +10,7 @@
 // ?resource=tech → electrician phone app API (api/_tech.js)
 
 const { sb, configured } = require("./_supabase");
-const { welcomeLead } = require('./_welcome-sms');
+const { welcomeLead, isRepeatCustomer } = require('./_welcome-sms');
 
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
@@ -121,6 +121,8 @@ module.exports = async (req, res) => {
       const name = clean(b.name, 120);
       if (!name) return res.status(400).json({ error: "Name is required" });
       const stage = STAGES.includes(b.stage) ? b.stage : "new_lead";
+      // A returning customer (same mobile or email already on file) gets the "thanks for getting in touch again" wording.
+      const repeat = b.send_sms !== false && b.skip_welcome !== true && isRepeatCustomer ? await isRepeatCustomer({ phone: clean(b.phone, 40), email: clean(b.email, 254) }) : false;
       const rows = await sb("leads", {
         method: "POST",
         body: {
@@ -141,7 +143,7 @@ module.exports = async (req, res) => {
       const lead = rows && rows[0];
       // The staff form has tick boxes for each message; callers that don't send them keep the old behaviour (SMS yes, email no).
       const sendSms = b.skip_welcome !== true && b.send_sms !== false;
-      const welcomeSms = sendSms ? await welcomeLead(lead) : { status: 'skipped' };
+      const welcomeSms = sendSms ? await welcomeLead(lead, new Date(), { repeat }) : { status: 'skipped' };
       let confirmationEmail = { status: 'skipped' };
       if (b.send_email === true && lead && lead.email) {
         try {
