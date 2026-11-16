@@ -99,7 +99,7 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     const subject = `Reminder: ${q.subject || `Your PowerSmart quotation (${q.quote_ref})`}`;
     // Older saved quote emails can contain an acceptance link on the former host.
     const replaceLegacyQuoteLinks = value => String(value || '').replace(/https:\/\/smokealarms\.powersmartco\.com\.au\/(accept|quote)(?=[?"\s<])/g, `${Q.QUOTE_SITE}/$1`);
-    const { Resend } = require('./_zoho-mail');
+    const { Resend } = require('resend');
     const { data, error } = await new Resend(apiKey).emails.send({
       from: S.fromHeader(sender.key), to: to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
       subject, html: replaceLegacyQuoteLinks(q.body_html), text: replaceLegacyQuoteLinks(q.body_text),
@@ -126,8 +126,8 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiKey = 'zeptomail-smtp';
-  if (!process.env.ZOHO_SMTP_USER || !process.env.ZOHO_SMTP_PASSWORD) return res.status(500).json({ error: 'ZeptoMail SMTP credentials are not configured' });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Resend email service is not configured (missing RESEND_API_KEY)' });
 
   const b = req.body || {};
   const customerEmail = b.customerEmail == null ? "" : String(b.customerEmail).trim();
@@ -202,7 +202,7 @@ module.exports = async (req, res) => {
     ref, issueDate: Q.fmtDate(now), validUntil: Q.fmtDate(validUntilDate),
   });
 
-  const { Resend } = require('./_zoho-mail');
+  const { Resend } = require('resend');
   const resend = new Resend(apiKey);
   const notify = process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL;
 
