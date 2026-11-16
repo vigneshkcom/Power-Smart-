@@ -98,7 +98,8 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: error.message || "Could not save the accepted quote" });
   }
 
-  if (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASSWORD) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) {
     const rows = q.lines.map((l) =>
       `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">${Q.escapeHtml(l.label)}</td><td align="center" style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">${l.qty}</td><td align="right" style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">${Q.fmt(l.amount)}</td></tr>`
     ).join("");
@@ -131,8 +132,8 @@ module.exports = async (req, res) => {
     const text = `Quote accepted - ${ref || "no ref"}\n\n${customerName || "A customer"} accepted their ${serviceMode} quote and ${paymentText}.\n\nCustomer: ${customerName || "Not provided"}\nEmail: ${customerEmail || "Not provided"}\nInstallation address: ${address.full}\nRef: ${ref || "Not provided"}\nPayment method: ${paymentMethod === "phone" ? "Call requested" : "Stripe"}\n${agentName ? "Prepared by: " + agentName + "\n" : ""}\n${q.lines.map((l) => `- ${l.label} (${l.qty}): ${Q.fmt(l.amount)}`).join("\n")}\nTotal (incl. GST): ${Q.fmt(q.total)}`;
 
     try {
-      const { Resend } = require('./_zoho-mail');
-      const resend = new Resend();
+      const { Resend } = require('resend');
+      const resend = new Resend(apiKey);
       await resend.emails.send({
         from: `PowerSmart <${Q.SUPPORT_EMAIL}>`,
         to: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL,
