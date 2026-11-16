@@ -53,7 +53,8 @@ async function handleLead(req, res, source = "Website") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  if (!process.env.ZOHO_SMTP_USER || !process.env.ZOHO_SMTP_PASSWORD) return res.status(500).json({ error: 'ZeptoMail SMTP credentials are not configured' });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Resend email service is not configured (missing RESEND_API_KEY)' });
 
   const b = req.body || {};
   const name = String(b.name || "").slice(0, 120).trim();
@@ -131,8 +132,8 @@ async function handleLead(req, res, source = "Website") {
   const welcomeSms = savedLead ? await welcomeLead(savedLead, new Date(), { repeat }) : { status: 'skipped' };
 
   try {
-    const { Resend } = require('./_zoho-mail');
-    const resend = new Resend();
+    const { Resend } = require('resend');
+    const resend = new Resend(apiKey);
 
     // Confirmation to the customer (only when they gave an email). Never blocks the team alert.
     // A repeat enquiry gets the SMS above instead; the email goes out only if SMS is paused.
