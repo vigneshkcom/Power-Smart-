@@ -101,7 +101,7 @@ async function resendQuote(req, res, leadId, agentName, apiKey) {
     const replaceLegacyQuoteLinks = value => String(value || '').replace(/https:\/\/smokealarms\.powersmartco\.com\.au\/(accept|quote)(?=[?"\s<])/g, `${Q.QUOTE_SITE}/$1`);
     const { Resend } = require('./_transactional-mail');
     const { data, error } = await new Resend(apiKey).emails.send({
-      from: S.fromHeader(sender.key), to: to, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
+      from: S.fromHeader(sender.key), to: to, cc: Q.SUPPORT_EMAIL, replyTo: process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL,
       subject, html: replaceLegacyQuoteLinks(q.body_html), text: replaceLegacyQuoteLinks(q.body_text),
     });
     if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
