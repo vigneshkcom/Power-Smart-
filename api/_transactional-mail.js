@@ -1,8 +1,9 @@
 'use strict';
-// All outbound transactional emails pass through one quota-aware sender.
-// Daily reservations are atomic in Supabase, including concurrent Vercel functions.
+// Central transactional sender: Zoho CPaaS is primary for every email route.
+// Resend/Brevo remain available as emergency alternatives, with quota-aware mode.
 const nodemailer = require('nodemailer');
 const { Resend: ResendClient } = require('resend');
+const { Resend: ZohoClient } = require('./_zoho-mail');
 const SB = require('./_supabase');
 
 function recipients(mail) {
@@ -17,10 +18,12 @@ function recipients(mail) {
 }
 
 async function chooseProvider(mail) {
-  // Operator override is emergency-only. No auto retry after an ambiguous
-  // provider failure, which could send a customer two copies.
-  const override = (process.env.TRANSACTIONAL_EMAIL_PROVIDER || '').trim().toLowerCase();
+  // Zoho CPaaS is the default. Switch to 'resend-brevo' only if Zoho
+  // becomes unavailable; no automatic retry after an uncertain SMTP result.
+  const override = (process.env.TRANSACTIONAL_EMAIL_PROVIDER || 'zoho').trim().toLowerCase();
+  if (override === 'zoho') return 'zoho';
   if (override === 'resend' || override === 'brevo') return override;
+  if (override !== 'resend-brevo' && override !== 'auto') throw new Error('Unsupported transactional email provider');
   if (!SB.configured()) throw new Error('Email routing requires Supabase daily usage tracking');
   const count = recipients(mail);
   if (!count) throw new Error('Email has no recipients');
@@ -75,6 +78,7 @@ async function send(mail) {
   try {
     const provider = await chooseProvider(mail);
     console.info('Transactional email route:', provider, 'recipient count:', recipients(mail));
+    if (provider === 'zoho') return await new ZohoClient().emails.send(mail);
     return provider === 'resend' ? await sendResend(mail) : await sendBrevo(mail);
   } catch (err) {
     console.error('Transactional email routing failed:', err.message);
