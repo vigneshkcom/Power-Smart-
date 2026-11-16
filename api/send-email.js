@@ -24,8 +24,8 @@ module.exports = async (req, res) => {
 
   if ((req.headers["x-portal-key"] || "") !== PORTAL_KEY) return res.status(401).json({ error: "Invalid portal key" });
 
-  const apiKey = 'zeptomail-smtp';
-  if (!process.env.ZOHO_SMTP_USER || !process.env.ZOHO_SMTP_PASSWORD) return res.status(500).json({ error: 'ZeptoMail SMTP credentials are not configured' });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'Resend email service is not configured (missing RESEND_API_KEY)' });
 
   const b = req.body || {};
   const to = String(b.to || "").trim();
@@ -43,7 +43,7 @@ module.exports = async (req, res) => {
   const html = S.wrapMessageHtml({ senderKey: sender.key, message });
   const text = message + S.signatureText(sender.key);
 
-  const { Resend } = require('./_zoho-mail');
+  const { Resend } = require('resend');
   const resend = new Resend(apiKey);
 
   async function logComment(status, err) {
