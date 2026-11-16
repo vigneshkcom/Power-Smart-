@@ -226,6 +226,14 @@ async function handleLead(req, res, source = "Website") {
     }
     return res.status(200).json({ ok: true, welcome_sms: welcomeSms, ...(source === 'Instant Form' && savedLead?.id ? { lead_id: savedLead.id } : {}) });
   } catch (err) {
+    // A successfully saved lead must be acknowledged even if a customer or staff
+    // notification throws unexpectedly. Otherwise Make.com retries a saved lead.
+    console.error('lead → notification processing failed:', err && err.message);
+    if (savedLead?.id) {
+      await Sms.logNote(savedLead.id, 'System', 'Notification processing failed after the lead was saved: ' + String(err && err.message || 'Unknown error')).catch(() => {});
+      return res.status(200).json({ ok: true, lead_id: savedLead.id,
+        notification_email: 'failed', welcome_sms: welcomeSms });
+    }
     return res.status(500).json({ error: (err && err.message) || "Unexpected error submitting lead" });
   }
 }
