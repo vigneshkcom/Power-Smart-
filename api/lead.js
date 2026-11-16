@@ -12,6 +12,7 @@ const { renderEnquiryConfirmation } = require("./_enquiry-confirmation");
 const { logEmail } = require("./_maillog");
 const Sms = require("./_sms-outbound");
 const { isBlocked } = require("./_blocked-numbers");
+const { latestSentQuote, repeatQuoteMessages } = require("./_repeat-quote");
 
 async function parseRawBody(req) {
   const chunks = [];
@@ -98,21 +99,23 @@ async function handleLead(req, res, source = "Website") {
   const text = `New ${leadLabel} lead - call to quote\n\nName: ${name}\nPhone: ${phone}\nEmail: ${email || "Not provided"}\nPostcode: ${postcode || "Not provided"}\n\nSubmitted via ${leadLabel}.`;
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
-  let savedLead = null, repeat = false;
+  let savedLead = null, repeat = false, existingLead = null, existingQuote = null;
   if (source === "Instant Form" && !SB.configured()) return res.status(503).json({ error: "Sales pipeline is unavailable" });
   if (SB.configured()) {
     try {
       // Same phone or email already in the pipeline: update that lead instead of creating a duplicate.
       const existing = await findExistingLead({ email, phone });
       if (existing) {
-        repeat = repeatKind ? repeatKind(existing.stage) : true; savedLead = existing;
+        repeat = repeatKind ? repeatKind(existing.stage) : true; savedLead = existing; existingLead = existing;
+        try { existingQuote = await latestSentQuote(existing, email); } catch (e) { console.error("Repeat quote lookup:", e.message); }
+        if (existingQuote) repeat = "existing";
         const patch = { updated_at: new Date().toISOString() };
         if (!existing.email && email) patch.email = email.toLowerCase();
         if (!existing.phone && phone) patch.phone = phone;
         if (!existing.postcode && postcode) patch.postcode = postcode;
         if (existing.source !== source) patch.source = source;
         const reopened = ["not_interested", "not_reachable"].includes(existing.stage);
-        if (reopened) patch.stage = "new_lead";
+        if (reopened && !existingQuote) patch.stage = "new_lead";
         await SB.sb(`leads?id=eq.${encodeURIComponent(existing.id)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
         await Sms.logNote(existing.id, "System", `Repeat ${leadLabel} enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened ? "; moved back to New Lead" : ""}.`).catch(() => {});
       } else {
@@ -128,15 +131,66 @@ async function handleLead(req, res, source = "Website") {
     }
   }
 
-  const welcomeSms = savedLead ? await welcomeLead(savedLead, new Date(), { repeat }) : { status: 'skipped' };
+  let welcomeSms;
+  if (existingLead && existingQuote) {
+    const followup = repeatQuoteMessages(existingLead.name || name, existingQuote);
+    const originalPhone = String(existingLead.phone || '').trim();
+    const samePhone = Sms.cleanPhone(originalPhone) === Sms.cleanPhone(phone);
+    if (samePhone && Sms.smsEnabled()) {
+      try {
+        welcomeSms = await Sms.sendLeadSms({ lead: existingLead, message: followup.sms,
+          key: 'repeat-quote-' + existingQuote.id + '-' + new Date().toISOString().slice(0, 10),
+          author: 'System' });
+      } catch (err) {
+        welcomeSms = { status: 'failed', error: err.message };
+        await Sms.logNote(existingLead.id, 'System', 'Repeat quote SMS failed: ' + err.message).catch(() => {});
+      }
+    } else {
+      welcomeSms = { status: 'skipped', ...(Sms.smsEnabled() ? { reason: 'Contact phone differs from existing record' } : { paused: true }) };
+    }
+  } else {
+    welcomeSms = savedLead ? await welcomeLead(savedLead, new Date(), { repeat }) : { status: 'skipped' };
+  }
 
   try {
     const { Resend } = require('./_transactional-mail');
     const resend = new Resend(apiKey);
 
-    // Confirmation to the customer (only when they gave an email). Never blocks the team alert.
-    // A repeat enquiry gets the SMS above instead; the email goes out only if SMS is paused.
-    if (email && (!repeat || welcomeSms.paused)) {
+    // Send the existing quotation link to the original verified recipient.
+    // Never disclose a saved quote to a newly supplied email address.
+    if (existingLead && existingQuote) {
+      const originalEmail = String(existingLead.email || '').trim().toLowerCase();
+      const quoteRecipient = String(existingQuote.to_email || '').trim().toLowerCase();
+      if (originalEmail && originalEmail === quoteRecipient && (!email || email.toLowerCase() === originalEmail)) {
+        try {
+          const followup = repeatQuoteMessages(existingLead.name || name, existingQuote);
+          const prior = await SB.sb('sent_emails?lead_id=eq.' + encodeURIComponent(existingLead.id) +
+            '&kind=eq.email&status=eq.sent&subject=eq.' + encodeURIComponent(followup.subject) +
+            '&created_at=gte.' + encodeURIComponent(new Date(Date.now() - 86400000).toISOString()) +
+            '&select=id&limit=1');
+          if (!prior?.length) {
+            const { data, error: quoteError } = await resend.emails.send({
+              from: S.fromHeader('customer_service'), to: originalEmail, replyTo: SUPPORT_EMAIL,
+              subject: followup.subject, html: followup.html, text: followup.text,
+            });
+            if (quoteError) throw new Error(quoteError.message || 'Quote follow-up rejected');
+            await logEmail({ kind: 'email', sender: 'customer_service', agent: 'System',
+              to_email: originalEmail, to_name: existingLead.name || name, subject: followup.subject,
+              body_html: followup.html, body_text: followup.text, lead_id: existingLead.id,
+              provider_id: data && data.id, status: 'sent' });
+            await Sms.logNote(existingLead.id, 'System', 'Existing quote link emailed following repeat enquiry.').catch(() => {});
+          }
+        } catch (err) {
+          console.error('Existing quote follow-up failed:', err.message);
+          await Sms.logNote(existingLead.id, 'System', 'Existing quote email issue: ' + err.message).catch(() => {});
+        }
+      } else {
+        await Sms.logNote(existingLead.id, 'System', 'Existing quotation email skipped: contact address does not match saved quote recipient.').catch(() => {});
+      }
+    }
+
+    // Standard response for leads without a valid saved quote.
+    if (!existingQuote && email && (!repeat || welcomeSms.paused)) {
       try {
         const mail = renderEnquiryConfirmation({ name });
         const { error: custError } = await resend.emails.send({
