@@ -108,11 +108,17 @@ module.exports = async function makeLead(req, res, rawBody, handleLead) {
     await handleLead({ method: 'POST', body: { name, phone, email, postcode } }, inner, 'Instant Form');
     if (status !== 200 || !result?.ok) throw new Error('Existing intake failed with status ' + status);
     if (result.lead_id) {
-      await SB.sb('lead_comments', {
-        method: 'POST',
-        body: { lead_id: result.lead_id, author: 'Make.com', kind: 'system', body: attribution(data, id) },
-        prefer: 'return=minimal',
-      });
+      // Attribution is secondary: a transient comment failure must not cause
+      // Make.com to retry a lead that is already safely stored.
+      try {
+        await SB.sb('lead_comments', {
+          method: 'POST',
+          body: { lead_id: result.lead_id, author: 'Make.com', kind: 'system', body: attribution(data, id) },
+          prefer: 'return=minimal',
+        });
+      } catch (noteError) {
+        console.error('Make lead attribution note failed:', noteError.message);
+      }
     }
     await SB.sb(path, {
       method: 'PATCH', body: { processed_at: new Date().toISOString() },
