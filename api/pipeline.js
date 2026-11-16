@@ -147,8 +147,7 @@ module.exports = async (req, res) => {
       let confirmationEmail = { status: 'skipped' };
       if (b.send_email === true && lead && lead.email) {
         try {
-          if (!process.env.RESEND_API_KEY) throw new Error("Email service is not configured (missing RESEND_API_KEY)");
-          const { Resend } = require("resend"), S = require("./_senders"), { logEmail } = require("./_maillog");
+          const { Resend } = require("./_transactional-mail"), S = require("./_senders"), { logEmail } = require("./_maillog");
           const mail = require("./_enquiry-confirmation").renderEnquiryConfirmation({ name: lead.name });
           const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
             from: S.fromHeader("customer_service"), to: lead.email,
