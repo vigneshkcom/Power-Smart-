@@ -160,7 +160,16 @@ async function handleLead(req, res, source = "Website") {
       html,
       text,
     });
-    if (error) return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    if (error) {
+      console.error("lead → staff notification email failed:", error.message || "Email provider rejected the request");
+      // A saved Facebook lead must never be rejected merely because the optional
+      // staff notification email failed. Make.com retries the same lead otherwise.
+      if (source === 'Instant Form' && savedLead?.id) {
+        await Sms.logNote(savedLead.id, "System", "Staff lead notification email failed: " + (error.message || "Provider rejected email")).catch(() => {});
+        return res.status(200).json({ ok: true, lead_id: savedLead.id, notification_email: "failed", welcome_sms: welcomeSms });
+      }
+      return res.status(502).json({ error: error.message || "Email provider rejected the request" });
+    }
     return res.status(200).json({ ok: true, welcome_sms: welcomeSms, ...(source === 'Instant Form' && savedLead?.id ? { lead_id: savedLead.id } : {}) });
   } catch (err) {
     return res.status(500).json({ error: (err && err.message) || "Unexpected error submitting lead" });
