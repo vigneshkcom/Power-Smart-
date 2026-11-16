@@ -22,7 +22,9 @@ async function send(mail) {
     return { data: { id: result.messageId }, error: null };
   } catch (err) {
     // Do not retry automatically: an SMTP timeout may occur after acceptance.
-    return { data: null, error: { message: 'Zoho SMTP failed: ' + String(err.code || err.message).slice(0, 180) } };
+    const detail = String(err.response || err.message || 'Unknown SMTP error').replace(/[\r\n]+/g, ' ').slice(0, 240);
+    console.error('ZeptoMail SMTP failure:', { code: err.code || null, command: err.command || null, responseCode: err.responseCode || null, detail });
+    return { data: null, error: { message: 'ZeptoMail SMTP failed (' + String(err.code || 'SMTP_ERROR') + '): ' + detail } };
   } finally { if (transport) transport.close(); }
 }
 class Resend { constructor() { this.emails = { send }; } }
