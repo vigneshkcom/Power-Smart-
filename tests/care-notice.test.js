@@ -108,3 +108,55 @@ test('accept-quote refuses an acceptance without the tick or with out-of-date wo
   r = await call({ careNoticeAccepted: true, careNoticeVersion: 'v0' }); assert.equal(r.code, 400); assert.match(r.body.error, /out of date/);
   assert.equal(touched.length, 0);
 });
+
+// ---- archive to the job's Dropbox Documents folder when a job is completed ----
+function archiveHarness({ notes = [], lead = { name: 'Rajendra Kumar', address_line1: '99 Changed St', address_suburb: 'Forest Lake', address_state: 'QLD', address_postcode: '4078' }, saveResult = { status: 'saved' } } = {}) {
+  const saved = [], posted = [], queries = [];
+  const mod = fresh('../api/_care-notice', {
+    './_supabase': { async sb(q, o = {}) {
+      queries.push(q);
+      if (o.method === 'POST') { posted.push(o.body); return []; }
+      if (q.startsWith('lead_comments?')) return notes;
+      if (q.startsWith('leads?')) return [lead];
+      return [];
+    } },
+    './_maillog': { logEmail: async () => true },
+    './_job-documents': { async saveCustomerDocuments(job, attachments) { saved.push({ job, attachments }); return saveResult; } },
+  });
+  return { mod, saved, posted, queries };
+}
+const acceptedNote = { created_at: '2026-11-17T05:41:02Z', body: 'Alarm Care Notice and Acknowledgement (v1) accepted for quote PSQ-1057 at Tuesday. The customer ticked: "x" [accepted_at=2026-11-17T05:41:00.000Z] [name=Rajendra Kumar] [address=49 Harrison Crescent, Forest Lake QLD 4078]' };
+const job = { id: 'j1', job_no: 1061, lead_id: 'L1', quote_ref: 'PSQ-1057', work_type: 'install', customer_name: 'Rajendra Kumar', address: '49 Harrison Crescent', suburb: 'Forest Lake', postcode: '4078' };
+
+test('completing a job files the rebuilt PDF in the job Documents folder, using what the customer accepted', async () => {
+  const h = harness2(), r = await h.mod.archiveForJob(job);
+  assert.equal(r.status, 'saved'); assert.equal(h.saved.length, 1);
+  assert.equal(h.saved[0].attachments.length, 1); assert.equal(h.saved[0].attachments[0].filename, 'PowerSmart-Alarm-Care-Acknowledgement-J1061.pdf');
+  assert.equal(h.saved[0].attachments[0].content.subarray(0, 5).toString(), '%PDF-');
+  assert.match(decodeURIComponent(h.queries[0]), /accepted for quote PSQ-1057/);
+  assert.ok(h.posted.some((n) => /PDF saved to the Dropbox Documents folder for J1061/.test(n.body)));
+  function harness2() { return archiveHarness({ notes: [acceptedNote] }); }
+});
+test('the archived PDF uses the name, address and time recorded at acceptance, with sensible fallbacks for older notes', async () => {
+  const { PDFDocument } = require('pdf-lib');
+  const f = CN.archiveFields({ ...job, address: 'Edited later 1 Other Rd', customer_name: 'Renamed Person' }, acceptedNote, { name: 'Lead Name' });
+  assert.deepEqual(f, { name: 'Rajendra Kumar', ref: 'PSQ-1057', address: '49 Harrison Crescent, Forest Lake QLD 4078', acceptedAt: '2026-11-17T05:41:00.000Z' });
+  const old = { created_at: '2026-11-18T01:00:00Z', body: 'Alarm Care Notice and Acknowledgement (v1) accepted for quote PSQ-9 at x [accepted_at=2026-11-18T01:00:00.000Z]' };
+  const g = CN.archiveFields({ ...job, quote_ref: 'PSQ-9' }, old, { address_line1: '5 Lead St', address_suburb: 'X', address_state: 'QLD', address_postcode: '4000' });
+  assert.deepEqual([g.name, g.ref, g.address], ['Rajendra Kumar', 'PSQ-9', '49 Harrison Crescent, Forest Lake 4078'], 'older note: job details are used');
+  assert.equal(CN.archiveFields({ job_no: 1 }, { created_at: '2026-11-18T01:00:00Z', body: 'x' }, { name: 'L', address_line1: '5 Lead St', address_suburb: 'X', address_state: 'QLD', address_postcode: '4000' }).address, '5 Lead St, X QLD 4000');
+  const h = archiveHarness({ notes: [acceptedNote] }); await h.mod.archiveForJob(job);
+  assert.equal((await PDFDocument.load(h.saved[0].attachments[0].content)).getPageCount(), 1);
+});
+test('no care notice is filed for jobs whose customer never accepted it, warranty visits, or jobs with no customer', async () => {
+  let h = archiveHarness({ notes: [] }); let r = await h.mod.archiveForJob(job); assert.equal(r.status, 'skipped'); assert.equal(h.saved.length, 0);
+  h = archiveHarness({ notes: [acceptedNote] }); r = await h.mod.archiveForJob({ ...job, work_type: 'warranty' }); assert.equal(r.status, 'skipped'); assert.equal(h.saved.length, 0);
+  r = await h.mod.archiveForJob({ ...job, lead_id: null }); assert.equal(r.status, 'skipped'); assert.equal(h.saved.length, 0);
+});
+test('a quote reference that does not match falls back to the latest acceptance, and Dropbox failures never throw', async () => {
+  const h = archiveHarness({ notes: [acceptedNote], saveResult: { status: 'failed', error: 'Dropbox is not configured' } });
+  const r = await h.mod.archiveForJob({ ...job, quote_ref: 'OLD-1' });
+  assert.equal(r.status, 'failed'); assert.equal(h.saved.length, 1); assert.equal(h.posted.length, 0, 'no success note when it failed (Dropbox helper notes the failure)');
+  const boom = fresh('../api/_care-notice', { './_supabase': { sb: async () => { throw new Error('db down'); } }, './_maillog': { logEmail: async () => true } });
+  assert.equal((await boom.archiveForJob(job)).status, 'failed');
+});

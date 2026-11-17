@@ -48,10 +48,11 @@ function fakeStripe() {
     },
   };
 }
+const archived = [];   // jobs the electrician app asked to archive the Alarm Care Notice PDF for
 function vmLoad(file, mocks) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
-    module, require: (k) => (k in mocks ? mocks[k] : k === './_payment-summary' ? vmLoad('_payment-summary.js', mocks) : k === './_warranty' ? require('../api/_warranty') : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
+    module, require: (k) => (k in mocks ? mocks[k] : k === './_payment-summary' ? vmLoad('_payment-summary.js', mocks) : k === './_warranty' ? require('../api/_warranty') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
   }, { filename: file });
   return module.exports;
 }
@@ -191,6 +192,14 @@ test('the customer can pay later; the lead note records alarms installed and not
   assert.equal(t.job('j1').pay_status, 'later');
   assert.equal(invoiceCalls.at(-1).paid, false, 'a pending invoice is sent when not paid in full');
   assert.match(t.db.tables.lead_comments.at(-1).body, /1 × battery smoke alarm\. Not paid in full: \$79\.00 owing.*Notes: Customer to pay by bank transfer/);
+});
+
+test('completing a job files the customer\'s Alarm Care Notice PDF with the job documents, once per completion and with the completed job', async () => {
+  const t = setup(); archived.length = 0;
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
+  assert.equal(archived.length, 0, 'not before the job is completed');
+  assert.equal((await t.call({ action: 'complete', id: 'j1', paid_in_full: false, signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' })).code, 200);
+  assert.equal(archived.length, 1); assert.equal(archived[0].id, 'j1'); assert.equal(archived[0].status, 'completed'); assert.ok(archived[0].job_no);
 });
 
 test('a completed job can be reopened, changed and completed again', async () => {

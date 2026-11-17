@@ -408,6 +408,7 @@ module.exports = async (req, res) => {
             await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
           } catch (e) { console.error("jobs → lead stage update failed:", e.message); }
           await leadNote(job.lead_id, actor, `✅ Job J${job.job_no} completed${tech ? " by " + tech : ""}.`);
+          await require("./_care-notice").archiveForJob(job);   // Alarm Care Notice PDF into the job's Dropbox Documents folder
         } else if (f.status && f.status !== prev.status) {
           await leadNote(job.lead_id, actor, `🛠 Job J${job.job_no} status: ${STATUS_LABEL[f.status]}.`);
         } else if ((f.electrician_id !== undefined && f.electrician_id !== prev.electrician_id) ||

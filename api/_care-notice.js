@@ -159,15 +159,17 @@ function careNoticeEmail({ name, ref, acceptedAt }) {
 
 // ---------- record + send ----------
 const parseAccepted = (body) => { const m = /\[accepted_at=([^\]]+)\]/.exec(body || ""); return m && !isNaN(Date.parse(m[1])) ? m[1] : null; };
+const tag = (body, key) => { const m = new RegExp(`\\[${key}=([^\\]]*)\\]`).exec(body || ""); return m ? m[1].trim() : ""; };
+const tagSafe = (v) => String(v == null ? "" : v).replace(/[\[\]\r\n]/g, " ").trim().slice(0, 200);
 const noteLike = (ref) => `${enc(`*${NOTE_MARK}*accepted for quote ${ref}*`)}`;
 
 // Saves "customer ticked the notice" on the lead once per quote; returns the time of the first acceptance.
-async function recordAcceptance({ lead, ref, now = new Date() }) {
+async function recordAcceptance({ lead, ref, name, address, now = new Date() }) {
   const found = await SB.sb(`lead_comments?lead_id=eq.${enc(lead.id)}&kind=eq.status&body=like.${noteLike(ref)}&select=body,created_at&order=created_at.asc&limit=1`);
   if (found && found[0]) return { acceptedAt: parseAccepted(found[0].body) || found[0].created_at, existing: true };
   const acceptedAt = now.toISOString();
   await SB.sb("lead_comments", { method: "POST", prefer: "return=minimal", body: { lead_id: lead.id, author: "System", kind: "status",
-    body: `${NOTE_MARK} (${VERSION}) accepted for quote ${ref} at ${when(acceptedAt)}. The customer ticked: "${TICK}" [accepted_at=${acceptedAt}]` } });
+    body: `${NOTE_MARK} (${VERSION}) accepted for quote ${ref} at ${when(acceptedAt)}. The customer ticked: "${TICK}" [accepted_at=${acceptedAt}] [name=${tagSafe(name || lead.name)}] [address=${tagSafe(address)}]` } });
   return { acceptedAt, existing: false };
 }
 
@@ -210,7 +212,7 @@ async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "S
 async function acceptAndSend({ lead, name, ref, address, agent, limitMs = 6000 }) {
   let timer;
   const work = (async () => {
-    const { acceptedAt } = await recordAcceptance({ lead, ref });
+    const { acceptedAt } = await recordAcceptance({ lead, ref, name: name || lead.name, address });
     return { acceptedAt, ...(await sendCareNotice({ lead, name: name || lead.name, ref, address, acceptedAt, agent })) };
   })().catch((e) => { console.error("care notice failed:", e.message); return { status: "failed", error: e.message }; });
   const slow = new Promise((resolve) => { timer = setTimeout(() => resolve({ status: "pending", reason: "Still sending." }), limitMs); });
@@ -231,4 +233,40 @@ async function resendForLead(leadId, agent) {
   return result;
 }
 
-module.exports = { WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };
+// What goes on the archived copy: the name, address and time recorded when the customer ticked; if an older note lacks the
+// name or address, the job's, then the customer's.
+function archiveFields(job, note, lead = {}) {
+  const leadAddress = lead.address_line1 ? `${lead.address_line1}, ${[lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")}` : "";
+  return {
+    name: tag(note.body, "name") || job.customer_name || lead.name || "",
+    ref: (/accepted for quote (.+?) at /.exec(note.body) || [])[1] || job.quote_ref || "",
+    address: tag(note.body, "address") || [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ") || leadAddress,
+    acceptedAt: parseAccepted(note.body) || note.created_at,
+  };
+}
+
+// When a job is completed: rebuild the customer's Alarm Care Notice PDF from what they accepted and file it in the job's
+// Dropbox Documents folder with the other documents. No email. Never throws; skipped if the customer never accepted it
+// (older jobs, phone-only quotes) and for warranty visits. Saving again overwrites the same file, so it is safe to repeat.
+async function archiveForJob(job) {
+  try {
+    if (!job || !job.lead_id || !job.job_no || job.work_type === "warranty") return { status: "skipped" };
+    const select = "select=body,created_at&order=created_at.desc&limit=1";
+    let found = null;
+    if (job.quote_ref) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${noteLike(job.quote_ref)}&${select}`))?.[0];
+    if (!found) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${enc(`*${NOTE_MARK}*accepted for quote*`)}&${select}`))?.[0];
+    if (!found) return { status: "skipped", reason: "The customer has not accepted the Alarm Care Notice." };
+    const lead = (await SB.sb(`leads?id=eq.${enc(job.lead_id)}&select=name,address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0] || {};
+    const pdf = await renderCareNoticePdf(archiveFields(job, found, lead));
+    const result = await require("./_job-documents").saveCustomerDocuments(job, [{ filename: `PowerSmart-Alarm-Care-Acknowledgement-J${job.job_no}.pdf`, content: pdf }]);
+    if (result && result.status === "saved") {
+      await SB.sb("lead_comments", { method: "POST", prefer: "return=minimal", body: { lead_id: job.lead_id, author: "System", kind: "status", body: `📄 ${NOTE_MARK} PDF saved to the Dropbox Documents folder for J${job.job_no}.` } }).catch(() => {});
+    }
+    return result || { status: "saved" };
+  } catch (e) {
+    console.error("care notice archive failed for J" + (job && job.job_no) + ":", e.message);
+    return { status: "failed", error: e.message };
+  }
+}
+
+module.exports = { archiveForJob, archiveFields, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };

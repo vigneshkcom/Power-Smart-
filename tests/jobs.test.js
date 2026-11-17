@@ -1,9 +1,10 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 
+const archived = [];   // jobs the office completion asked to archive the Alarm Care Notice PDF for
 function load(SB, file = '_jobs.js') {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
-    module, require: (k) => (k === './_supabase' ? SB : k === './_payment-summary' ? load(SB, '_payment-summary.js') : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
+    module, require: (k) => (k === './_supabase' ? SB : k === './_payment-summary' ? load(SB, '_payment-summary.js') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
   }, { filename: '_jobs.js' });
   return module.exports;
 }
@@ -68,6 +69,7 @@ test('creating a job from a lead logs a status note on the lead', async () => {
 });
 
 test('completing a job moves the lead to Won and logs it', async () => {
+  archived.length = 0;
   const f = fixture({ id: 'j1', job_no: 1001, lead_id: 'lead1', electrician_id: 't1', status: 'on_site', scheduled_start: '2026-10-23T23:00:00.000Z' }), r = res();
   await f.handler({ method: 'POST', headers: KEY, body: { action: 'job_update', id: 'j1', status: 'completed', actor: 'Sunny' } }, r);
   assert.equal(r.code, 200);
@@ -75,6 +77,7 @@ test('completing a job moves the lead to Won and logs it', async () => {
   assert(won, 'lead stage set to won');
   const note = f.calls.find((c) => c.q === 'lead_comments');
   assert.match(note.body.body, /Job J1001 completed by Jake Turner/);
+  assert.equal(archived.length, 1, 'the Alarm Care Notice PDF is filed with the job documents'); assert.equal(archived[0].job_no, 1001);
 });
 
 test('rescheduling a linked job logs the new slot; unchanged time logs nothing', async () => {
@@ -121,7 +124,7 @@ test('the pipeline function serves job requests (keeps Vercel at 12 functions)',
   const SB = { configured: () => true, async sb() { return []; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
     module, console: { error() {} }, URL, process: { env: {} },
-    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area'), './_jobs': fakeJobs }[k] || require(k)),
+    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area'), './_care-notice': { archiveForJob: async () => ({ status: 'skipped' }) }, './_jobs': fakeJobs }[k] || require(k)),
   }, { filename: 'pipeline.js' });
   let r = res();
   await module.exports({ method: 'GET', headers: KEY, url: '/api/pipeline?resource=jobs&from=a&to=b' }, r);
@@ -254,7 +257,7 @@ test('the board shows what each customer has paid and how', async () => {
   const SB = { configured: () => true, async sb(q) { const k = Object.keys(data).find((p) => q.startsWith(p)); return k ? data[k] : []; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
     module, console: { error() {} }, URL, process: { env: {} },
-    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area') }[k] || require(k)),
+    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area'), './_care-notice': { archiveForJob: async () => ({ status: 'skipped' }) } }[k] || require(k)),
   }, { filename: 'pipeline.js' });
   const r = res();
   await module.exports({ method: 'GET', headers: KEY, url: '/api/pipeline' }, r);

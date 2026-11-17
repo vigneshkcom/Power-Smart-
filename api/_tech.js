@@ -422,6 +422,8 @@ async function handler(req, res) {
       if (invoice.status === "sent") await patchJob(current.id, { invoice_emailed_at: new Date().toISOString() }).catch(() => {});
       // Certificate only goes out when the job is paid in full (paid on site, or nothing owing).
       const certificate = f.pay_status !== "later" ? await require("./_certificate").issueCertificate(current.id, { agent: tech.name }) : { status: "skipped", reason: "Invoice not paid yet." };
+      // Rebuild the customer's Alarm Care Notice PDF and file it with the job's other documents (no email). Never blocks completion.
+      await require("./_care-notice").archiveForJob({ ...current, ...(done || {}) });
       const invoiceText = invoice.status === "sent" ? `${paid ? "Tax invoice" : "Pending invoice"} emailed to ${invoice.to}.` : `Invoice email not sent (${invoice.error}).`;
       if (current.lead_id) {
         try {
