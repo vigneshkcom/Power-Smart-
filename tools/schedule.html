@@ -151,6 +151,7 @@
   .rp-table th{text-align:left;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:.4rem .5rem;border-bottom:1.5px solid var(--line)}
   .rp-table td{padding:.45rem .5rem;border-bottom:1px solid var(--line)}
   .rp-table .n{text-align:right;font-variant-numeric:tabular-nums}
+  .rp-table td.wrap{white-space:normal;min-width:11rem;line-height:1.45}
   .rp-table tfoot td{font-weight:800;border-top:1.5px solid var(--ink);border-bottom:none}
   .rp-table .empty{color:var(--muted);text-align:center;padding:1rem}
   .modal-head{padding:1.05rem 1.4rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.7rem;flex:none}
@@ -1654,8 +1655,8 @@
         return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
           P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
           '<td>' + faultyText(t) + '</td>' +
-          '<td>' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
-            (t.unclassified ? ' · <span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td>' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
+          '<td class="wrap">' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
+            (t.unclassified ? '<br><span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td>' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
       }).join("") : '<tr><td class="empty" colspan="7">No electricians yet</td></tr>') + '</tbody>';
     $("st-log").innerHTML = '<thead><tr><th>When</th><th>Electrician</th><th>Product</th><th class="n">Qty</th><th>Note</th><th>By</th></tr></thead><tbody>' +
       (d.movements.length ? d.movements.map(function(m){
