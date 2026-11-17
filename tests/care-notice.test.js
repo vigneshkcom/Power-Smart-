@@ -67,9 +67,10 @@ test('accepting records the tick once and emails the customer a PDF with support
 });
 test('a second acceptance of the same quote keeps the first time and never emails twice', async () => {
   const first = new Date('2026-11-17T05:41:00.000Z').toISOString();
-  const h = harness({ existingNote: { body: `x [accepted_at=${first}]`, created_at: '2026-11-17T05:41:01Z' }, priorEmail: [{ id: 'e1' }] });
+  const h = harness({ existingNote: { body: `x [accepted_at=${first}]`, created_at: '2026-11-17T05:41:01Z' }, priorEmail: [{ id: 'e1', created_at: first }] });
   const r = await h.mod.acceptAndSend({ lead, name: 'Raj', ref: 'PSQ-1057', address: 'x' });
-  assert.equal(r.acceptedAt, first); assert.equal(r.duplicate, true); assert.equal(h.mail.length, 0); assert.equal(h.notes().length, 0);
+  assert.equal(r.acceptedAt, first); assert.equal(r.duplicate, true); assert.equal(h.mail.length, 0);
+  assert.equal(h.notes().length, 1, 'one note explaining why nothing was sent'); assert.match(h.notes()[0].body, /PDF not sent again: a copy was already emailed to raj@example\.com on Tuesday 17 November 2026.*Use Resend care notice/);
 });
 test('no email address or a failing mail provider never throws: the tick stays recorded and staff are told', async () => {
   let h = harness(); let r = await h.mod.acceptAndSend({ lead: { ...lead, email: '' }, name: 'Raj', ref: 'PSQ-1', address: 'x' });

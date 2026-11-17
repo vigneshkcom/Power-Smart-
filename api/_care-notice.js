@@ -180,8 +180,12 @@ async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "S
   try {
     if (!force) {
       try {
-        const prior = await SB.sb(`sent_emails?lead_id=eq.${enc(lead.id)}&subject=eq.${enc(mail.subject)}&status=eq.sent&select=id&limit=1`);
-        if (prior && prior.length) return { status: "skipped", duplicate: true, to };
+        const prior = await SB.sb(`sent_emails?lead_id=eq.${enc(lead.id)}&subject=eq.${enc(mail.subject)}&status=eq.sent&select=id,created_at&order=created_at.desc&limit=1`);
+        if (prior && prior.length) {
+          // Say so on the customer, so a repeat acceptance isn't a silent no-show.
+          await note(`${NOTE_MARK} PDF not sent again: a copy was already emailed to ${to}${prior[0].created_at ? " on " + when(prior[0].created_at) : ""}. Use Resend care notice to send another.`);
+          return { status: "skipped", duplicate: true, to };
+        }
       } catch (_) { /* email log unavailable: carry on */ }
     }
     const pdf = await renderCareNoticePdf({ name, address, ref, acceptedAt });
