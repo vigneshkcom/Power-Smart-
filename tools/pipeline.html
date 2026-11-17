@@ -400,6 +400,7 @@
             <button class="btn btn-ghost" id="lm-checkout" title="Open secure Stripe card payment for this customer's electrician call-out fee">Open Stripe checkout</button>
             <button class="btn btn-ghost" id="lm-payment" title="Take a custom card payment and view payment history">Take payment</button>
             <button class="btn btn-ghost" id="lm-record-payment" title="Record money the customer already paid by bank transfer, cash or cheque">Record payment</button>
+            <button class="btn btn-ghost" id="lm-care-resend" style="display:none" title="Email this customer another copy of the Alarm Care Notice and Acknowledgement they confirmed when accepting their quote (support gets a copy)">Resend care notice</button>
           </div></details>
           <details class="menu more"><summary class="btn btn-ghost">Job &amp; invoice</summary><div class="menu-pop">
             <button class="btn btn-ghost" id="lm-confirm" style="display:none" title="Email and text the customer their booked date and AM/PM arrival slot">Send booking confirmation</button>
@@ -981,6 +982,7 @@
     $("lm-photos").style.display = (l.stage === "scheduled" || l.stage === "won") ? "" : "none";
     $("lm-invoice").style.display = l.stage === "won" ? "" : "none";
     $("lm-warranty").style.display = (l.stage === "won" || l.job) ? "" : "none";   // installed customers
+    $("lm-care-resend").style.display = ["quote_accepted","scheduled","won"].indexOf(l.stage) !== -1 ? "" : "none";
     $("lm-cmts").style.display = "";
     $("cmt-list").innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Loading…</p>';
     $("lead-overlay").classList.add("show");
@@ -1086,7 +1088,7 @@
     $("lm-payment-row").style.display = "none";
     $("lm-delete").style.display = "none";
     $("lm-confirm").style.display = "none";
-    $("lm-photos").style.display = "none"; $("lm-invoice").style.display = "none"; $("lm-warranty").style.display = "none";
+    $("lm-photos").style.display = "none"; $("lm-invoice").style.display = "none"; $("lm-warranty").style.display = "none"; $("lm-care-resend").style.display = "none";
     $("lm-cmts").style.display = "none";
     $("lead-overlay").classList.add("show");
     $("lm-name").focus();
@@ -1486,6 +1488,14 @@
   $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
   $("lm-addr2").addEventListener("click", function(){ if (currentId) openAnotherAddress(); });
   $("lm-job").addEventListener("click", function(){ if (currentId) window.location.href = "https://portal.powersmartco.com.au/tools/schedule?lead=" + encodeURIComponent(currentId); });
+  $("lm-care-resend").addEventListener("click", function(){
+    var l = leads.find(function(x){ return x.id === currentId; }); if (!l) return;
+    if (!confirm("Email " + l.name + " another copy of the Alarm Care Notice and Acknowledgement?" + (l.email ? "\n\nIt goes to " + l.email + " with a copy to support@powersmartco.com.au." : ""))) return;
+    var b = this; b.disabled = true;
+    api("POST", { action:"care_notice_resend", lead_id:currentId, agent:currentAgent() })
+      .then(function(d){ toast("Care notice emailed to " + d.to); })
+      .catch(function(err){ toast(err.message); }).finally(function(){ b.disabled = false; });
+  });
   $("lm-warranty").addEventListener("click", function(){ if (currentId) window.location.href = "https://portal.powersmartco.com.au/tools/schedule?lead=" + encodeURIComponent(currentId) + "&warranty=1"; });
   $("sms-close").addEventListener("click",closeSms);$("sms-cancel").addEventListener("click",closeSms);$("sms-overlay").addEventListener("click",function(e){if(e.target===this)closeSms();});
   $("sms-message").addEventListener("input",updateSmsCount);

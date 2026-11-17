@@ -8,6 +8,7 @@
 const Q = require("./_quote");
 const SB = require("./_supabase");
 const QP = require('./_quote-payments');
+const CN = require('./_care-notice');
 
 async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address, billing }) {
   if (!SB.configured()) throw new Error("The customer record service is not configured");
@@ -67,6 +68,9 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: "Please enter the complete installation address" });
   }
   address.full = `${address.line1}, ${address.suburb} ${address.state} ${address.postcode}`;
+  // The faulty-alarm notice must have been ticked, and the page must be showing the wording this server knows.
+  if (b.careNoticeAccepted !== true) return res.status(400).json({ error: "Please tick the box to confirm you've read how faulty alarms are handled." });
+  if (b.careNoticeVersion !== CN.VERSION) return res.status(400).json({ error: "This page is out of date. Please refresh it and try again." });
   // Optional billing address: the customer ticks "same as installation" or enters a different one for the invoice.
   let billing = null;
   if (b.billingSame === false) {
@@ -77,7 +81,7 @@ module.exports = async (req, res) => {
     if (!billing.line1 || !billing.suburb || !billing.state || !billing.postcode) return res.status(400).json({ error: "Please enter the complete billing address" });
     billing.full = `${billing.line1}, ${billing.suburb} ${billing.state} ${billing.postcode}`;
   }
-  let serviceMode, q, stripeUrl = null, paymentReceived = false;
+  let serviceMode, q, stripeUrl = null, paymentReceived = false, careLead = null;
   try {
     if (!ref || !customerEmail) throw new Error('Please open the link in your quote or contact PowerSmart.');
     const quotes = await SB.sb(`sent_emails?quote_ref=eq.${encodeURIComponent(ref)}&to_email=eq.${encodeURIComponent(customerEmail.toLowerCase())}&kind=eq.quote&status=eq.sent&select=id,lead_id,quote_ref,quote_total,body_html&order=created_at.desc&limit=1`);
@@ -94,9 +98,13 @@ module.exports = async (req, res) => {
     }
     if (paymentReceived) return res.status(200).json({ ok: true, paymentMethod, paymentReceived, stripeUrl });
     await logAcceptance({ ref, customerName, lead, payableToday: q.payableToday, paymentMethod, address, billing });
+    careLead = lead;
   } catch (error) {
     return res.status(500).json({ error: error.message || "Could not save the accepted quote" });
   }
+
+  // Record the tick on the customer and email them (bcc support) the PDF copy. Never blocks or fails the acceptance.
+  await CN.acceptAndSend({ lead: careLead, name: customerName, ref, address: address.full, agent: "System" });
 
   const apiKey = 'transactional-email';
   if (apiKey) {

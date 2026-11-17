@@ -151,8 +151,8 @@ test('Stripe return verifies payment and redirects to the same quote even before
 });
 
 test('public acceptance uses stored quote quantities and amount, ignores changed URL prices, and refuses another email',async()=>{
-  const f=fixture();const handler=load('accept-quote.js',{'./_quote':Q,'./_supabase':f.SB,'./_quote-payments':f.QP});
-  const body={ref:'7011',customerEmail:f.lead.email,customerName:'Test',serviceMode:'inspect',alarmQty:0,paymentMethod:'stripe',addressLine1:'1 Test Road',addressSuburb:'Brisbane',addressState:'QLD',addressPostcode:'4000'};
+  const f=fixture();const handler=load('accept-quote.js',{'./_quote':Q,'./_supabase':f.SB,'./_quote-payments':f.QP,'./_care-notice':{VERSION:'v1',acceptAndSend:async()=>({status:'sent'})}});
+  const body={careNoticeAccepted:true,careNoticeVersion:'v1',ref:'7011',customerEmail:f.lead.email,customerName:'Test',serviceMode:'inspect',alarmQty:0,paymentMethod:'stripe',addressLine1:'1 Test Road',addressSuburb:'Brisbane',addressState:'QLD',addressPostcode:'4000'};
   const r=await invoke(handler,{method:'POST',body});assert.equal(r.status,200);assert.equal(f.payments[0].amount_cents,3500);assert.equal(f.payments[0].payment_type,'booking_fee');
   assert.equal((await invoke(handler,{method:'POST',body:{...body,customerEmail:'other@example.test'}})).status,500);assert.equal(f.sessions.size,1);
 });

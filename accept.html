@@ -84,6 +84,9 @@
   .nsteps b{display:block;font-size:.92rem;color:var(--ink);line-height:1.35}
   .nsteps span{display:block;font-size:.84rem;color:var(--body);line-height:1.55;margin-top:2px}
   .nsteps a{color:var(--teal-deep);font-weight:700}
+  .nsit{font-size:.9rem;font-weight:700;color:var(--ink);margin-bottom:12px;line-height:1.4}
+  .nsafe{background:var(--amber-soft);border:1px solid #EBCF8A;border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--body);line-height:1.55;margin-bottom:12px}
+  .nsafe strong{color:var(--ink)}
   .nhelp{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--body);line-height:1.55;margin-bottom:12px}
   .nhelp strong{color:var(--ink)}
   .nlaw{font-size:.74rem;color:var(--muted);line-height:1.5;margin-bottom:6px}
@@ -204,21 +207,23 @@
     <div class="notice">
       <div class="notice-head">
         <div class="eyebrow">Before you accept</div>
-        <h2 id="noticeTitle">If an alarm ever stops working, we've got you</h2>
-        <p>Your alarms come with a 10-year manufacturer warranty. Here's how we look after you.</p>
+        <h2 id="noticeTitle">Your alarms are backed for 10 years</h2>
+        <p>Problems are uncommon, but if one ever happens, here's exactly what to do.</p>
       </div>
       <div class="notice-body">
+        <div class="nsit">If an alarm is faulty, or sounds or chirps for no obvious reason</div>
         <ol class="nsteps">
-          <li><div class="n">1</div><div><b>Get in touch</b><span>Call <a href="tel:+61475184984">0475&nbsp;184&nbsp;984</a> or reply to your quote email. Tell us which alarm and, if you can, send a photo.</span></div></li>
-          <li><div class="n">2</div><div><b>We post you a replacement, free</b><span>If an alarm is faulty, we send a replacement to you at no cost. Postage is on us.</span></div></li>
+          <li><div class="n">1</div><div><b>Get in touch</b><span>Call <a href="tel:+61475184984">0475&nbsp;184&nbsp;984</a> or reply to your quote email. Tell us which alarm and what it's doing, and send a photo if you can.</span></div></li>
+          <li><div class="n">2</div><div><b>We post you a replacement, free</b><span>If the alarm is faulty, we send a replacement at no cost, and postage is on us.</span></div></li>
           <li><div class="n">3</div><div><b>Swap it and pair it</b><span>Swap the alarm over. For hardwired alarms our electrician has already wired the base plate, so you only change the alarm itself and never touch the wiring. Our <a href="/pairing" target="_blank" rel="noopener">step-by-step pairing guide</a> shows how to connect it to your other alarms.</span></div></li>
         </ol>
-        <div class="nhelp"><strong>Not comfortable, or something doesn't look right?</strong> If the base plate looks damaged, you can see exposed wires, or you'd simply rather not do it yourself, leave it alone and call us. We'll arrange a licensed electrician. If the problem is with our installation work, we always fix it.</div>
+        <div class="nsafe"><strong>Safety first:</strong> if an alarm sounds and you can see or smell smoke, treat it as real: get everyone out and call 000. Otherwise, a sounding or chirping alarm is usually steam, dust or a low battery, and we'll help you work out which.</div>
+        <div class="nhelp"><strong>Not comfortable, or something doesn't look right?</strong> If the base plate looks damaged, you can see exposed wires, or you'd rather not do it yourself, leave it alone and call us. We'll arrange a licensed electrician. If the problem is with our installation work, we always fix it.</div>
         <p class="nlaw">This doesn't limit your rights under the Australian Consumer Law.</p>
       </div>
       <div class="notice-foot">
         <div class="nscroll" id="noticeScrollHint">Scroll down to read everything, then tick the box</div>
-        <label class="nick" id="noticeTickRow"><input type="checkbox" id="noticeTick"> <span>I've read and understand how faulty alarms are handled.</span></label>
+        <label class="nick" id="noticeTickRow"><input type="checkbox" id="noticeTick"> <span>I've read and understand what to do if an alarm is faulty or sounds unexpectedly.</span></label>
         <div class="nbtns">
           <button class="btn need" id="noticeGo" type="button" disabled>Accept quote</button>
           <button class="nback" id="noticeBack" type="button">Go back</button>
@@ -306,6 +311,7 @@
       body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl, paymentMethod:paymentMethod,
         addressLine1:document.getElementById("addressLine1").value.trim(), addressSuburb:document.getElementById("addressSuburb").value.trim(),
         addressState:document.getElementById("addressState").value, addressPostcode:document.getElementById("addressPostcode").value.trim(),
+        careNoticeAccepted:true, careNoticeVersion:"v1",
         billingSame:document.getElementById("billingSame").checked,
         billingLine1:document.getElementById("billingLine1").value.trim(), billingSuburb:document.getElementById("billingSuburb").value.trim(),
         billingState:document.getElementById("billingState").value, billingPostcode:document.getElementById("billingPostcode").value.trim() })

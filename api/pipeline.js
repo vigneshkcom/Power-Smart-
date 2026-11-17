@@ -246,6 +246,14 @@ module.exports = async (req, res) => {
       }
     }
 
+    // Staff "Resend care notice": emails the customer the Alarm Care Notice PDF again (bcc support).
+    if (action === "care_notice_resend") {
+      const leadId = clean(b.lead_id, 40);
+      if (!leadId) return res.status(400).json({ error: "lead_id is required" });
+      try { return res.status(200).json(await require("./_care-notice").resendForLead(leadId, clean(b.agent, 120) || "Team")); }
+      catch (e) { return res.status(e.status || 500).json({ error: e.message || "Could not resend the care notice" }); }
+    }
+
     if (action === "booking_confirmation") {
       const leadId = clean(b.lead_id, 40), jobId = clean(b.job_id, 40);
       if (!leadId && !jobId) return res.status(400).json({ error: "lead_id or job_id is required" });
