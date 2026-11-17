@@ -11,7 +11,11 @@ const S = require("./_senders");
 const Q = require("./_quote");
 const { logEmail } = require("./_maillog");
 
-const VERSION = "v1";
+const VERSION = "v2";
+// Older acceptances keep the exact wording the customer ticked. Only step 3 has changed between versions.
+const STEP3_BY_VERSION = {
+  v1: "Swap the alarm over. For hardwired alarms our electrician has already wired the base plate, so you only change the alarm itself and never touch the wiring. Our step-by-step pairing guide shows how to connect it to your other alarms.",
+};
 const TITLE = "Alarm Care Notice and Acknowledgement";
 const SUBTITLE = "How we look after your smoke alarms";
 const HEADLINE = "Your alarms are backed for 10 years";
@@ -21,7 +25,7 @@ const PAIRING_URL = `${Q.SITE}/pairing`;
 const STEPS = [
   { title: "Get in touch", text: `Call ${Q.PHONE_DISPLAY} or reply to your quote email. Tell us which alarm and what it's doing, and send a photo if you can.` },
   { title: "We post you a replacement, free", text: "If the alarm is faulty, we send a replacement at no cost, and postage is on us." },
-  { title: "Swap it and pair it", text: "Swap the alarm over. For hardwired alarms our electrician has already wired the base plate, so you only change the alarm itself and never touch the wiring. Our step-by-step pairing guide shows how to connect it to your other alarms." },
+  { title: "Swap it and pair it", text: "Swap the alarm over. For hardwired alarms our electrician would have already wired the base plate, so you only change the alarm itself and never touch the wiring. Our step-by-step pairing guide shows how to connect it to your other alarms." },
 ];
 const SAFETY_LABEL = "Safety first:";
 const SAFETY = "if an alarm sounds and you can see or smell smoke, treat it as real: get everyone out and call 000. Otherwise, a sounding or chirping alarm is usually steam, dust or a low battery, and we'll help you work out which.";
@@ -30,6 +34,10 @@ const COMFORT = "If the base plate looks damaged, you can see exposed wires, or 
 const LAW = "This doesn't limit your rights under the Australian Consumer Law.";
 const TICK = "I've read and understand what to do if an alarm is faulty or sounds unexpectedly.";
 const NOTE_MARK = "Alarm Care Notice and Acknowledgement";   // start of the note saved on the customer when they accept
+
+// The steps as worded in a given version (default: the current one).
+const stepsFor = (version) => STEPS.map((s, i) => (i === 2 && STEP3_BY_VERSION[version] ? { ...s, text: STEP3_BY_VERSION[version] } : s));
+const versionOf = (body) => (/\((v\d+)\) accepted/.exec(body || "") || [])[1] || VERSION;
 
 const WORDING = { VERSION, TITLE, SUBTITLE, HEADLINE, LEAD, SITUATION, STEPS, SAFETY_LABEL, SAFETY, COMFORT_LABEL, COMFORT, LAW, TICK };
 
@@ -46,7 +54,7 @@ const safe = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]
 const hex = (h) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 const INK = hex("#0B1B1F"), BODY = hex("#41585D"), MUTED = hex("#6B8288"), TEAL = hex("#43A8B6"), TEAL_DK = hex("#1E5F6B"), PAPER = hex("#F4F9FA"), LINE = hex("#D6E8EB"), AMBER = hex("#FDF3DC"), AMBER_LN = hex("#EBCF8A");
 
-async function renderCareNoticePdf({ name, address, ref, acceptedAt }) {
+async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = VERSION }) {
   const doc = await PDFDocument.create();
   doc.setTitle(`${TITLE}${ref ? " - " + ref : ""}`); doc.setAuthor("PowerSmart Pty Ltd"); doc.setSubject(SUBTITLE);
   const font = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold), italic = await doc.embedFont(StandardFonts.HelveticaOblique);
@@ -101,7 +109,7 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt }) {
   para(HEADLINE, { f: bold, size: 14, color: TEAL_DK, lh: 18, gap: 2 });
   para(LEAD, { gap: 8 });
   para(SITUATION, { f: bold, size: 11, color: INK, gap: 4 });
-  STEPS.forEach((s, i) => {
+  stepsFor(version).forEach((s, i) => {
     const tl = wrap(s.text, font, 10, CW - 30), h = 16 + tl.length * 14.5 + 6; need(h);
     page.drawCircle({ x: M + 9, y: y - 9, size: 9, color: hex("#E7F4F6") });
     text(String(i + 1), M + 9 - bold.widthOfTextAtSize(String(i + 1), 9.5) / 2, y - 12.3, bold, 9.5, TEAL_DK);
@@ -121,7 +129,7 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt }) {
   const al = wrap(ack, font, 10, CW - 24), ah = 24 + al.length * 14.5 + 18 + 8; need(ah + 10);
   page.drawRectangle({ x: M, y: y - ah, width: CW, height: ah, color: rgb(1, 1, 1), borderColor: TEAL, borderWidth: 1.2 });
   let ay = y - 12; for (const l of al) { ay -= 14.5; text(l, M + 12, ay + 3, font, 10, INK); }
-  text(`Notice version ${VERSION}  |  Recorded electronically by PowerSmart`, M + 12, y - ah + 12, font, 8.5, MUTED);
+  text(`Notice version ${version}  |  Recorded electronically by PowerSmart`, M + 12, y - ah + 12, font, 8.5, MUTED);
   y -= ah + 10;
 
   // Footer on every page
@@ -135,9 +143,10 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt }) {
 }
 
 // ---------- email ----------
-function careNoticeEmail({ name, ref, acceptedAt }) {
+function careNoticeEmail({ name, ref, acceptedAt, version = VERSION }) {
+  const steps = stepsFor(version);
   const first = firstName(name), subject = `Your PowerSmart alarm care notice${ref ? ` (${ref})` : ""}`;
-  const stepsText = STEPS.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`).join("\n");
+  const stepsText = steps.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`).join("\n");
   const text = `Hi ${first},\n\nThanks for accepting your quote${ref ? " " + ref : ""}. Attached is a copy of the ${TITLE} you confirmed on ${when(acceptedAt)}. Please keep it for your records.\n\n${HEADLINE}. ${SITUATION}:\n\n${stepsText}\n\nPairing guide: ${PAIRING_URL}\n\n${SAFETY_LABEL} ${SAFETY}\n\n${COMFORT_LABEL} ${COMFORT}\n\n${LAW}\n\nKind regards,\nThe PowerSmart Team\n\nPowerSmart Pty Ltd | ABN ${Q.ABN}\n${Q.PHONE_DISPLAY} | ${Q.SUPPORT_EMAIL}`;
   const step = (s, i) => `<tr><td width="30" valign="top" style="padding:6px 0;"><span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:#E7F4F6;color:#1E5F6B;font-size:12px;font-weight:bold;text-align:center;line-height:24px;">${i + 1}</span></td><td style="padding:6px 0 6px 8px;font-size:14px;color:#41585D;line-height:1.6;"><strong style="color:#0B1B1F;">${esc(s.title)}</strong><br>${esc(s.text)}${i === 2 ? ` <a href="${PAIRING_URL}" style="color:#1E5F6B;font-weight:bold;">Open the pairing guide</a>` : ""}</td></tr>`;
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
@@ -148,7 +157,7 @@ function careNoticeEmail({ name, ref, acceptedAt }) {
 <tr><td style="background:#ffffff;padding:26px 32px 8px;"><h1 style="margin:0 0 12px;font-size:21px;color:#0B1B1F;line-height:1.3;">${esc(HEADLINE)}</h1>
 <p style="margin:0 0 12px;font-size:14px;color:#41585D;line-height:1.65;">Hi ${esc(first)},<br><br>Thanks for accepting your quote${ref ? " " + esc(ref) : ""}. Attached is a copy of the <strong style="color:#0B1B1F;">${esc(TITLE)}</strong> you confirmed on ${esc(when(acceptedAt))}. Please keep it for your records.</p>
 <p style="margin:0 0 6px;font-size:14px;color:#0B1B1F;font-weight:bold;">${esc(SITUATION)}</p>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%">${STEPS.map(step).join("")}</table></td></tr>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%">${steps.map(step).join("")}</table></td></tr>
 <tr><td style="background:#ffffff;padding:8px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#FDF3DC;border-radius:10px;padding:14px 16px;font-size:13px;color:#41585D;line-height:1.6;"><strong style="color:#0B1B1F;">${esc(SAFETY_LABEL)}</strong> ${esc(SAFETY)}</td></tr></table></td></tr>
 <tr><td style="background:#ffffff;padding:8px 32px 6px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background:#F4F9FA;border:1px solid #D6E8EB;border-radius:10px;padding:14px 16px;font-size:13px;color:#41585D;line-height:1.6;"><strong style="color:#0B1B1F;">${esc(COMFORT_LABEL)}</strong> ${esc(COMFORT)}</td></tr></table></td></tr>
 <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:12px 32px 28px;font-size:12px;color:#6B8288;line-height:1.6;"><em>${esc(LAW)}</em><p style="margin:14px 0 0;font-size:14px;color:#41585D;">Kind regards,<br><strong style="color:#0B1B1F;">The PowerSmart Team</strong></p></td></tr>
@@ -174,11 +183,11 @@ async function recordAcceptance({ lead, ref, name, address, now = new Date() }) 
 }
 
 // Emails the customer the PDF copy (bcc the office). Never throws. force = resend even if it was already sent.
-async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "System", force = false }) {
+async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "System", force = false, version = VERSION }) {
   const note = (t) => SB.sb("lead_comments", { method: "POST", prefer: "return=minimal", body: { lead_id: lead.id, author: agent, kind: "email", body: t } }).catch(() => {});
   const to = String(lead.email || "").trim().toLowerCase();
   if (!to) { await note("Alarm Care Notice PDF not sent: no email address on file."); return { status: "skipped", reason: "No email address on file." }; }
-  const mail = careNoticeEmail({ name, ref, acceptedAt });
+  const mail = careNoticeEmail({ name, ref, acceptedAt, version });
   try {
     if (!force) {
       try {
@@ -190,7 +199,7 @@ async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "S
         }
       } catch (_) { /* email log unavailable: carry on */ }
     }
-    const pdf = await renderCareNoticePdf({ name, address, ref, acceptedAt });
+    const pdf = await renderCareNoticePdf({ name, address, ref, acceptedAt, version });
     const filename = `PowerSmart-Alarm-Care-Acknowledgement${ref ? "-" + String(ref).replace(/[^A-Za-z0-9_-]/g, "") : ""}.pdf`;
     const { Resend } = require("./_transactional-mail");
     const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
@@ -228,7 +237,7 @@ async function resendForLead(leadId, agent) {
   if (!found) throw fail(404, "This customer hasn't accepted the Alarm Care Notice yet.");
   const ref = (/accepted for quote (.+?) at /.exec(found.body) || [])[1] || lead.quote_ref || "";
   const address = lead.address_line1 ? `${lead.address_line1}, ${[lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")}` : "";
-  const result = await sendCareNotice({ lead, name: lead.name, ref, address, acceptedAt: parseAccepted(found.body) || found.created_at, agent, force: true });
+  const result = await sendCareNotice({ lead, name: lead.name, ref, address, acceptedAt: parseAccepted(found.body) || found.created_at, agent, force: true, version: versionOf(found.body) });
   if (result.status !== "sent") throw fail(502, result.error || result.reason || "The care notice could not be sent");
   return result;
 }
@@ -242,6 +251,7 @@ function archiveFields(job, note, lead = {}) {
     ref: (/accepted for quote (.+?) at /.exec(note.body) || [])[1] || job.quote_ref || "",
     address: tag(note.body, "address") || [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ") || leadAddress,
     acceptedAt: parseAccepted(note.body) || note.created_at,
+    version: versionOf(note.body),
   };
 }
 
@@ -269,4 +279,4 @@ async function archiveForJob(job) {
   }
 }
 
-module.exports = { archiveForJob, archiveFields, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };
+module.exports = { archiveForJob, archiveFields, stepsFor, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };

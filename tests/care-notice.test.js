@@ -59,7 +59,7 @@ test('accepting records the tick once and emails the customer a PDF with support
   const h = harness(), r = await h.mod.acceptAndSend({ lead, name: 'Rajendra Kumar', ref: 'PSQ-1057', address: '49 Harrison Crescent, Forest Lake QLD 4078' });
   assert.equal(r.status, 'sent');
   const [record, sent] = h.notes();
-  assert.match(record.body, /^Alarm Care Notice and Acknowledgement \(v1\) accepted for quote PSQ-1057 at /); assert.match(record.body, /\[accepted_at=\d{4}-/); assert.equal(record.kind, 'status');
+  assert.match(record.body, /^Alarm Care Notice and Acknowledgement \(v2\) accepted for quote PSQ-1057 at /); assert.match(record.body, /\[accepted_at=\d{4}-/); assert.equal(record.kind, 'status');
   assert.equal(h.mail.length, 1); assert.equal(h.mail[0].to, 'raj@example.com'); assert.equal(h.mail[0].bcc, 'support@powersmartco.com.au');
   assert.match(h.mail[0].from, /<support@powersmartco\.com\.au>$/); assert.equal(h.mail[0].attachments[0].filename, 'PowerSmart-Alarm-Care-Acknowledgement-PSQ-1057.pdf');
   assert.equal(h.mail[0].attachments[0].content.subarray(0, 5).toString(), '%PDF-');
@@ -140,7 +140,7 @@ test('completing a job files the rebuilt PDF in the job Documents folder, using 
 test('the archived PDF uses the name, address and time recorded at acceptance, with sensible fallbacks for older notes', async () => {
   const { PDFDocument } = require('pdf-lib');
   const f = CN.archiveFields({ ...job, address: 'Edited later 1 Other Rd', customer_name: 'Renamed Person' }, acceptedNote, { name: 'Lead Name' });
-  assert.deepEqual(f, { name: 'Rajendra Kumar', ref: 'PSQ-1057', address: '49 Harrison Crescent, Forest Lake QLD 4078', acceptedAt: '2026-11-17T05:41:00.000Z' });
+  assert.deepEqual(f, { name: 'Rajendra Kumar', ref: 'PSQ-1057', address: '49 Harrison Crescent, Forest Lake QLD 4078', acceptedAt: '2026-11-17T05:41:00.000Z', version: 'v1' });
   const old = { created_at: '2026-11-18T01:00:00Z', body: 'Alarm Care Notice and Acknowledgement (v1) accepted for quote PSQ-9 at x [accepted_at=2026-11-18T01:00:00.000Z]' };
   const g = CN.archiveFields({ ...job, quote_ref: 'PSQ-9' }, old, { address_line1: '5 Lead St', address_suburb: 'X', address_state: 'QLD', address_postcode: '4000' });
   assert.deepEqual([g.name, g.ref, g.address], ['Rajendra Kumar', 'PSQ-9', '49 Harrison Crescent, Forest Lake 4078'], 'older note: job details are used');
@@ -159,4 +159,26 @@ test('a quote reference that does not match falls back to the latest acceptance,
   assert.equal(r.status, 'failed'); assert.equal(h.saved.length, 1); assert.equal(h.posted.length, 0, 'no success note when it failed (Dropbox helper notes the failure)');
   const boom = fresh('../api/_care-notice', { './_supabase': { sb: async () => { throw new Error('db down'); } }, './_maillog': { logEmail: async () => true } });
   assert.equal((await boom.archiveForJob(job)).status, 'failed');
+});
+
+// ---- wording versions: customers who ticked v1 keep seeing exactly what they ticked ----
+test('the current wording says "would have already wired", and v1 acceptances keep the original wording in their PDF and email', async () => {
+  assert.equal(CN.VERSION, 'v2');
+  assert.match(CN.stepsFor('v2')[2].text, /our electrician would have already wired the base plate, so you only change the alarm itself/);
+  assert.match(CN.stepsFor('v1')[2].text, /our electrician has already wired the base plate, so you only change the alarm itself/);
+  assert.equal(CN.stepsFor('v1')[0].text, CN.stepsFor('v2')[0].text, 'only step 3 differs');
+  const a = { acceptedAt: '2026-11-17T05:41:00.000Z', name: 'Raj', ref: 'PSQ-1' };
+  assert.match(CN.careNoticeEmail({ ...a, version: 'v1' }).text, /electrician has already wired/);
+  assert.match(CN.careNoticeEmail(a).text, /electrician would have already wired/);
+  const { PDFDocument } = require('pdf-lib');
+  for (const version of ['v1', 'v2']) assert.equal((await PDFDocument.load(await CN.renderCareNoticePdf({ ...a, address: 'x', version }))).getPageCount(), 1);
+  // a staff resend and the job archive both use the version recorded when the customer ticked
+  const h = harness({ existingNote: { body: 'Alarm Care Notice and Acknowledgement (v1) accepted for quote PSQ-1057 at x [accepted_at=2026-11-17T05:41:00.000Z]', created_at: '2026-11-17T05:41:00Z' } });
+  await h.mod.resendForLead('L1', 'Sam'); assert.match(h.mail[0].text, /electrician has already wired/);
+  const h2 = harness({ existingNote: { body: 'Alarm Care Notice and Acknowledgement (v2) accepted for quote PSQ-1057 at x [accepted_at=2026-11-17T05:41:00.000Z]', created_at: '2026-11-17T05:41:00Z' } });
+  await h2.mod.resendForLead('L1', 'Sam'); assert.match(h2.mail[0].text, /electrician would have already wired/);
+});
+test('the recorded acceptance note carries the current version', async () => {
+  const h = harness(); await h.mod.acceptAndSend({ lead, name: 'Raj', ref: 'PSQ-1', address: 'x' });
+  assert.match(h.notes()[0].body, /^Alarm Care Notice and Acknowledgement \(v2\) accepted for quote PSQ-1 at /);
 });
