@@ -183,6 +183,31 @@
   .report b{color:var(--ink)}
   .report .pay{display:inline-block;font-size:.64rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep);margin-left:.3rem}
   .fgrid.cust-collapsed .cust-field,.fgrid.cust-collapsed .cust-hide{display:none}
+  [hidden]{display:none!important}
+  /* Picked customer: one card instead of six fields (Edit details opens them). */
+  .fgrid.cust-brief .cust-field{display:none}
+  .cust-card{flex-direction:row!important;align-items:flex-start;justify-content:space-between;gap:.8rem;padding:.75rem .9rem;border:1px solid var(--line);border-radius:12px;background:var(--paper);font-size:.8rem;color:var(--body);line-height:1.6}
+  .cust-card b{display:block;color:var(--ink);font-size:.92rem}
+  .cust-card .muted{color:var(--muted)}
+  .cust-card button{flex:none;color:var(--teal-deep);font-weight:700;font-size:.78rem;background:none;border:0;cursor:pointer;padding:.15rem 0}
+  .cust-card button:hover{text-decoration:underline}
+  .paybox{background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:.7rem .9rem;font-size:.8rem;color:var(--body);gap:.15rem!important}
+  .paybox .pay-hd{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  .paybox .pay-hd b{color:var(--ink);font-size:.86rem}
+  .paybox .pay-hd a{margin-left:auto;color:var(--teal-deep);font-weight:700;font-size:.76rem;text-decoration:none}
+  .paybox .pay-hd a:hover{text-decoration:underline}
+  .paybox .pill{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--teal-soft);color:var(--teal-deep)}
+  .paybox .pill.unpaid,.paybox .pill.part_paid{background:#FBF1DA;color:#7A5C10}
+  .paybox .pill.paid{background:#E2F3E8;color:#23704A}
+  .w-hide{display:none!important}
+  .modal-foot .del{color:var(--red);font-size:.76rem;font-weight:600}
+  .modal-foot .spacer{flex:1}
+  .lead-actions{padding:1rem 1.4rem;border-top:1px solid var(--line);background:#F8FBFB;display:grid;grid-template-columns:1fr auto;gap:.8rem 1rem;align-items:center;flex:none}
+  .lead-workflow{grid-column:1/-1;display:flex;align-items:center;gap:.55rem;flex-wrap:wrap}.lead-workflow .action-label{margin-right:.2rem;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.lead-workflow .btn{border-radius:10px;min-height:42px;padding:.6rem .9rem;background:#fff}
+  .lead-workflow .btn:hover,.lead-workflow .menu[open]>summary{background:var(--teal-soft)}
+  .menu{position:relative}.menu>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;user-select:none}.menu>summary::-webkit-details-marker{display:none}
+  .menu>summary::after{content:"";width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px)}
+  .menu[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
   .report .bill{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding-bottom:.55rem;margin-bottom:.45rem;border-bottom:1px solid var(--line)}
   .report .bill button{padding:.25rem .7rem;font-size:.72rem;flex:none}
   .docs-hd{display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem}.docs-count{background:var(--teal-soft);color:var(--teal-deep);font-size:.66rem;font-weight:800;border-radius:999px;padding:1px 8px}.docs-to{margin-left:auto;font-size:.72rem}
@@ -361,11 +386,12 @@
             <select id="jm-lead"><option value="">— Not linked to a lead —</option></select>
           </div>
           <div class="lead-chip cust-hide" id="jm-lead-chip" style="display:none"></div>
-          <div class="field full" id="jm-payment" aria-live="polite" style="display:none;background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:14px"></div>
+          <div class="field full cust-card cust-hide" id="jm-cust-card" hidden></div>
+          <div class="field full paybox" id="jm-payment" aria-live="polite" style="display:none"></div>
           <div class="field full cust-field"><label for="jm-name">Customer name</label><input id="jm-name" autocomplete="off"></div>
           <div class="field cust-field"><label for="jm-phone">Phone</label><input id="jm-phone" type="tel"></div>
           <div class="field cust-field"><label for="jm-email">Email</label><input id="jm-email" type="email"></div>
-          <div class="field full cust-field"><label for="jm-address">Street address</label><input id="jm-address" data-address-autofill data-address-suburb="jm-suburb" data-address-postcode="jm-postcode" placeholder="e.g. 27 Wilga Street"></div>
+          <div class="field full cust-field"><label for="jm-address">Street address</label><input id="jm-address" data-address-autofill data-address-compact data-address-hint="" data-address-suburb="jm-suburb" data-address-postcode="jm-postcode" placeholder="e.g. 27 Wilga Street"></div>
           <div class="field cust-field"><label for="jm-suburb">Suburb</label><input id="jm-suburb"></div>
           <div class="field cust-field"><label for="jm-postcode">Postcode</label><input id="jm-postcode" inputmode="numeric"></div>
 
@@ -1073,6 +1099,7 @@
   function updateWarrantyUi(){
     var w = isWarrantyForm();
     $("jm-alarms-wrap").style.display = w ? "none" : "";
+    $("jm-payment").classList.toggle("w-hide", w);   // the quote and its payments don't apply to a warranty visit
     $("jm-wnotify-wrap").style.display = w ? "" : "none";
     $("jm-notes-label").textContent = w ? "What the customer reported (shown to the electrician)" : "Notes for the electrician";
     $("jm-notes").placeholder = w ? "e.g. Hallway alarm keeps chirping; bedroom alarm went off with no smoke" : "Access, parking, gate codes, existing hardwired alarms…";
@@ -1119,7 +1146,7 @@
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
-    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; $("jm-docs").style.display = "none"; docsRequestId++; setCustCollapsed(false);
+    $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; $("jm-docs").style.display = "none"; docsRequestId++; setCustCollapsed(false); setCustBrief(false);
     $("job-overlay").classList.add("show");
     loadLeads().then(function(leads){
       var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
@@ -1132,6 +1159,23 @@
     });
     $("jm-name").focus();
   }
+  // One card for the picked customer; Edit details opens the fields.
+  var custBrief = false;
+  function renderCustCard(){
+    var name = $("jm-name").value.trim(), phone = $("jm-phone").value.trim(), email = $("jm-email").value.trim();
+    var addr = [$("jm-address").value.trim(), [$("jm-suburb").value.trim(), $("jm-postcode").value.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    var show = custBrief && Boolean(name);
+    $("jm-cust-card").hidden = !show;
+    $("jm-cust-edit-target").classList.toggle("cust-brief", show);
+    if (show) $("jm-cust-card").innerHTML = '<div><b>' + esc(name) + '</b>' +
+      '<span' + (phone || email ? '' : ' class="muted"') + '>' + esc([phone, email].filter(Boolean).join(" · ") || "No phone or email") + '</span><br>' +
+      '<span' + (addr ? '' : ' class="muted"') + '>' + esc(addr || "No address") + '</span></div><button type="button" id="jm-cust-edit">Edit details</button>';
+  }
+  function setCustBrief(on){ custBrief = on; renderCustCard(); }
+  $("jm-cust-card").addEventListener("click", function(e){
+    if (!e.target.closest("#jm-cust-edit")) return;
+    setCustBrief(false); $("jm-name").focus();
+  });
   function applyLead(id){
     var l = (state.leads || []).find(function(x){ return x.id === id; });
     if (!l) return;
@@ -1141,6 +1185,8 @@
     $("jm-address").value = l.address_line1 || "";
     $("jm-suburb").value = l.address_suburb || "";
     $("jm-postcode").value = l.address_postcode || l.postcode || "";
+    setCustBrief(true);
+    updateWarrantyUi();   // contact details arrive after the form opened: refresh the Email / SMS ticks
     fillFromQuote(l);
   }
   // "3 battery + 2 hardwired smoke alarms" from the invoice lines (older saves: one "alarm" line + alarm_type).
@@ -1241,7 +1287,9 @@
     var qs=Object.assign({},s,{quote_ref:q.ref,quote_url:url});
     if(state.editing){ renderPayments(state.editing, qs); renderReport(state.editing, qs); }   // fold the call-out fee into the job's totals
     if($("jm-payments").style.display!=="none"){ box.style.display="none"; return; }   // completed job: the Payments box already shows this
-    box.innerHTML='<strong>Quote '+esc(q.ref)+' · '+esc(labels[s.status] || s.status)+'</strong> · '+cash(s.received_cents)+' of '+cash(s.total_cents)+' received'+(url?' · <a href="'+url+'" target="_blank" rel="noopener" style="color:#267582">View quote</a>':'');
+    var extra = s.received_cents > s.total_cents ? ' · ' + cash(s.received_cents - s.total_cents) + ' in credit' : s.received_cents < s.total_cents ? ' · ' + cash(s.total_cents - s.received_cents) + ' to pay' : '';
+    box.innerHTML='<div class="pay-hd"><b>Quote '+esc(q.ref)+'</b><span class="pill '+esc(s.status)+'">'+esc(labels[s.status] || s.status)+'</span>'+(url?'<a href="'+url+'" target="_blank" rel="noopener">View quote</a>':'')+'</div>'+
+      '<div>'+cash(s.received_cents)+' received of '+cash(s.total_cents)+extra+'</div>';
   }
   function loadJobPayments(j){
     var requestId=++paymentRequestId;
@@ -1257,6 +1305,7 @@
     jobsApi({ action:"lead_quote", lead_id: l.id, email: l.email || "" }).then(function(d){
       if (requestId!==paymentRequestId || $("jm-lead").value !== l.id) return;
       renderPaymentSummary(d);
+      if (isWarrantyForm()){ hint.textContent = ""; return; }   // a warranty visit keeps its type, alarm count and notes
       var q = d.quote;
       if (!q){ hint.classList.add("warn"); hint.textContent = "No sent quote found — enter the alarm count."; return; }
       if (q.service === "inspection"){
@@ -1276,7 +1325,7 @@
   }
   $("jm-lead").addEventListener("change", function(){
     if (this.value) applyLead(this.value);
-    else { paymentRequestId++; $("jm-quote-hint").textContent = ""; $("jm-payment").style.display="none"; }
+    else { paymentRequestId++; $("jm-quote-hint").textContent = ""; $("jm-payment").style.display="none"; setCustBrief(false); }
   });
 
   // Completed jobs: customer details sit at the top of the invoice-style report; the fields below only open on Edit.
@@ -1349,7 +1398,7 @@
     $("jm-invoice").style.display = j.status === "completed" ? "" : "none";
     $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     $("jm-recordpay").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
-    var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none");
+    var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none") && j.work_type !== "warranty";   // no certificate for a warranty visit
     $("jm-sendcert").style.display = certReady ? "" : "none";
     $("jm-sendcert").textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate";
     $("jm-photos-wrap").style.display = "";
@@ -1358,6 +1407,7 @@
       function(path){ return call("/api/pipeline", "POST", { action:"photo_link", path: path }).then(function(d){ return d.link; }); });
     renderReport(j); renderPayments(j);
     setCustCollapsed(j.status === "completed" && !!j.id);
+    setCustBrief(true);
     loadSentDocs(j);
     $("jm-unassign").style.display = (j.electrician_id || j.scheduled_start) ? "" : "none";
     renderLinks(j);
