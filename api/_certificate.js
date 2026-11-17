@@ -136,11 +136,15 @@ async function issueCertificate(jobId, { agent, force } = {}) {
     try {
       const pdf = await renderCertificatePdf({ job, electrician });
       const manuals = manualsForJob(job);
+      // Every customer also gets the Alarm Care Notice (how we look after their alarms) with the manuals; it never holds up the certificate.
+      const care = await require("./_care-notice").careNoticeForJob(job);
       const attachments = [
         { filename: `PowerSmart-Smoke-Alarm-Certificate-J${job.job_no}.pdf`, content: pdf },
         ...manuals.map((manual) => ({ filename: manual.filename, content: fs.readFileSync(path.join(DIR, "manuals", manual.filename)) })),
+        ...(care ? [{ filename: care.filename, content: care.content }] : []),
       ];
-      const manualNote = manuals.length ? ` The ${manuals.map((manual) => manual.label).join(", ")} ${manuals.length === 1 ? "is" : "are"} attached too.` : "";
+      const manualNote = (manuals.length ? ` The ${manuals.map((manual) => manual.label).join(", ")} ${manuals.length === 1 ? "is" : "are"} attached too.` : "") +
+        (care ? " Your Alarm Care Notice, which explains how we look after your alarms if anything ever goes wrong, is attached as well." : "");
       const first = String(job.customer_name || "there").trim().split(/\s+/)[0] || "there";
       const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
       const subject = `Your PowerSmart smoke alarm compliance certificate (J${job.job_no})`;

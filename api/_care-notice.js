@@ -18,6 +18,7 @@ const STEP3_BY_VERSION = {
 };
 const TITLE = "Alarm Care Notice and Acknowledgement";
 const SUBTITLE = "How we look after your smoke alarms";
+const NOTICE_TITLE = "Alarm Care Notice";   // the copy sent with the certificate to customers who did not tick the acknowledgement
 const HEADLINE = "Your alarms are backed for 10 years";
 const LEAD = "Problems are uncommon, but if one ever happens, here's exactly what to do.";
 const SITUATION = "If an alarm is faulty, or sounds or chirps for no obvious reason";
@@ -54,9 +55,12 @@ const safe = (s) => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]
 const hex = (h) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
 const INK = hex("#0B1B1F"), BODY = hex("#41585D"), MUTED = hex("#6B8288"), TEAL = hex("#43A8B6"), TEAL_DK = hex("#1E5F6B"), PAPER = hex("#F4F9FA"), LINE = hex("#D6E8EB"), AMBER = hex("#FDF3DC"), AMBER_LN = hex("#EBCF8A");
 
-async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = VERSION }) {
+// With acceptedAt: the Acknowledgement the customer ticked. Without it (customers who did not accept the notice online, e.g. sent
+// with their certificate): the same information as a plain "Alarm Care Notice", with no acknowledgement block.
+async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = VERSION, jobNo, issuedAt }) {
+  const acknowledged = Boolean(acceptedAt), docTitle = acknowledged ? TITLE : NOTICE_TITLE;
   const doc = await PDFDocument.create();
-  doc.setTitle(`${TITLE}${ref ? " - " + ref : ""}`); doc.setAuthor("PowerSmart Pty Ltd"); doc.setSubject(SUBTITLE);
+  doc.setTitle(`${docTitle}${acknowledged ? (ref ? " - " + ref : "") : (jobNo ? " - J" + jobNo : "")}`); doc.setAuthor("PowerSmart Pty Ltd"); doc.setSubject(SUBTITLE);
   const font = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold), italic = await doc.embedFont(StandardFonts.HelveticaOblique);
   const W = 595.28, H = 841.89, M = 44, CW = W - 2 * M;
   let page = doc.addPage([W, H]), y = H - M;
@@ -92,15 +96,16 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
   page.drawRectangle({ x: 0, y: H - 64, width: W, height: 64, color: INK });
   text("POWER SMART", M, H - 37, bold, 19, rgb(1, 1, 1)); text("Co", M + bold.widthOfTextAtSize("POWER SMART ", 19), H - 37, bold, 19, TEAL);
   text("PowerSmart Pty Ltd", M, H - 52, font, 8.5, hex("#9FB6BA"));
-  if (ref) { const r = safe(`Quote ${ref}`); text(r, W - M - font.widthOfTextAtSize(r, 10), H - 39, font, 10, hex("#9FB6BA")); }
+  const corner = acknowledged ? (ref ? `Quote ${ref}` : "") : (jobNo ? `Job J${jobNo}` : "");
+  if (corner) { const r = safe(corner); text(r, W - M - font.widthOfTextAtSize(r, 10), H - 39, font, 10, hex("#9FB6BA")); }
   page.drawRectangle({ x: 0, y: H - 67, width: W, height: 3, color: TEAL });
   y = H - 67 - 14;
 
-  para(TITLE, { f: bold, size: 20, color: INK, lh: 24, gap: 2 });
+  para(docTitle, { f: bold, size: 20, color: INK, lh: 24, gap: 2 });
   para(SUBTITLE, { size: 11, color: MUTED, gap: 10 });
 
   // Who and what this is for
-  const details = [["Customer", name], ["Installation address", address], ["Quote reference", ref]].filter(([, v]) => v);
+  const details = [["Customer", name], ["Installation address", address], acknowledged ? ["Quote reference", ref] : ["Job reference", jobNo ? `J${jobNo}` : ""]].filter(([, v]) => v);
   const dh = 12 + details.length * 17; need(dh + 10);
   page.drawRectangle({ x: M, y: y - dh, width: CW, height: dh, color: PAPER, borderColor: LINE, borderWidth: 0.8 });
   details.forEach(([k, v], i) => { const ly = y - 20 - i * 17 + 4; text(k, M + 12, ly, font, 9, MUTED); text(v, M + 130, ly, bold, 10, INK); });
@@ -122,6 +127,7 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
   box(COMFORT_LABEL, COMFORT);
   para(LAW, { f: italic, size: 9.5, color: MUTED, gap: 10 });
 
+  if (acknowledged) {
   // Acknowledgement
   need(130);
   para("Customer acknowledgement", { f: bold, size: 13, color: INK, lh: 17, gap: 6 });
@@ -131,6 +137,16 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
   let ay = y - 12; for (const l of al) { ay -= 14.5; text(l, M + 12, ay + 3, font, 10, INK); }
   text(`Notice version ${version}  |  Recorded electronically by PowerSmart`, M + 12, y - ah + 12, font, 8.5, MUTED);
   y -= ah + 10;
+  } else {
+    const issued = new Date(issuedAt || Date.now()).toLocaleDateString("en-AU", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    need(110);
+    para("Keep this notice", { f: bold, size: 13, color: INK, lh: 17, gap: 6 });
+    const kl = wrap("This notice explains how we look after your smoke alarms if anything ever goes wrong. Please keep it with your Compliance Certificate and your alarm manuals.", font, 10, CW - 24), kh = 24 + kl.length * 14.5 + 18 + 8; need(kh + 10);
+    page.drawRectangle({ x: M, y: y - kh, width: CW, height: kh, color: rgb(1, 1, 1), borderColor: TEAL, borderWidth: 1.2 });
+    let ky = y - 12; for (const l of kl) { ky -= 14.5; text(l, M + 12, ky + 3, font, 10, INK); }
+    text(`Issued by PowerSmart on ${issued}  |  Notice version ${version}`, M + 12, y - kh + 12, font, 8.5, MUTED);
+    y -= kh + 10;
+  }
 
   // Footer on every page
   doc.getPages().forEach((p, i, all) => {
@@ -255,16 +271,40 @@ function archiveFields(job, note, lead = {}) {
   };
 }
 
-// When a job is completed: rebuild the customer's Alarm Care Notice PDF from what they accepted and file it in the job's
-// Dropbox Documents folder with the other documents. No email. Never throws; skipped if the customer never accepted it
-// (older jobs, phone-only quotes) and for warranty visits. Saving again overwrites the same file, so it is safe to repeat.
+// The note saved when this job's customer ticked the notice (the one for the job's quote if there is one), or null.
+async function findAcceptance(job) {
+  const select = "select=body,created_at&order=created_at.desc&limit=1";
+  let found = null;
+  if (job.quote_ref) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${noteLike(job.quote_ref)}&${select}`))?.[0];
+  if (!found) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${enc(`*${NOTE_MARK}*accepted for quote*`)}&${select}`))?.[0];
+  return found || null;
+}
+
+// The care PDF to send with a job's compliance certificate (next to the manuals): the customer's Acknowledgement if they ticked it
+// online, otherwise the plain Alarm Care Notice, so every customer gets it. Returns { filename, content, kind } or null (never throws).
+async function careNoticeForJob(job) {
+  try {
+    if (!job || !job.job_no || job.work_type === "warranty") return null;
+    const found = job.lead_id ? await findAcceptance(job) : null;
+    if (found) {
+      const lead = (await SB.sb(`leads?id=eq.${enc(job.lead_id)}&select=name,address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0] || {};
+      return { kind: "acknowledgement", filename: `PowerSmart-Alarm-Care-Acknowledgement-J${job.job_no}.pdf`, content: await renderCareNoticePdf(archiveFields(job, found, lead)) };
+    }
+    const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    return { kind: "notice", filename: `PowerSmart-Alarm-Care-Notice-J${job.job_no}.pdf`, content: await renderCareNoticePdf({ name: job.customer_name, address, jobNo: job.job_no, issuedAt: new Date().toISOString() }) };
+  } catch (e) {
+    console.error("care notice for J" + (job && job.job_no) + " failed:", e.message);
+    return null;
+  }
+}
+
+// When a job is completed: rebuild the customer's Acknowledgement from what they accepted and file it in the job's Dropbox
+// Documents folder with the other documents. No email. Never throws; skipped if the customer never accepted it (they get the plain
+// notice with their certificate instead, which is filed with it) and for warranty visits. Saving again overwrites the same file.
 async function archiveForJob(job) {
   try {
     if (!job || !job.lead_id || !job.job_no || job.work_type === "warranty") return { status: "skipped" };
-    const select = "select=body,created_at&order=created_at.desc&limit=1";
-    let found = null;
-    if (job.quote_ref) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${noteLike(job.quote_ref)}&${select}`))?.[0];
-    if (!found) found = (await SB.sb(`lead_comments?lead_id=eq.${enc(job.lead_id)}&kind=eq.status&body=like.${enc(`*${NOTE_MARK}*accepted for quote*`)}&${select}`))?.[0];
+    const found = await findAcceptance(job);
     if (!found) return { status: "skipped", reason: "The customer has not accepted the Alarm Care Notice." };
     const lead = (await SB.sb(`leads?id=eq.${enc(job.lead_id)}&select=name,address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0] || {};
     const pdf = await renderCareNoticePdf(archiveFields(job, found, lead));
@@ -279,4 +319,4 @@ async function archiveForJob(job) {
   }
 }
 
-module.exports = { archiveForJob, archiveFields, stepsFor, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };
+module.exports = { careNoticeForJob, archiveForJob, archiveFields, stepsFor, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };

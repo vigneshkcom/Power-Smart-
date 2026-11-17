@@ -182,3 +182,62 @@ test('the recorded acceptance note carries the current version', async () => {
   const h = harness(); await h.mod.acceptAndSend({ lead, name: 'Raj', ref: 'PSQ-1', address: 'x' });
   assert.match(h.notes()[0].body, /^Alarm Care Notice and Acknowledgement \(v2\) accepted for quote PSQ-1 at /);
 });
+
+// ---- the care notice goes to every customer with their compliance certificate and manuals ----
+function certificateRun({ accepted = false, commentsFail = false, items = [{ code: 'alarm_battery', qty: 2 }], workType = 'install' } = {}) {
+  const mail = [], archived = [], notes = [];
+  const SIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const job = { id: 'j1', job_no: 1008, lead_id: 'L1', quote_ref: 'PSQ-1057', work_type: workType, status: 'completed', pay_status: 'paid', email: 'raj@example.com', customer_name: 'Rajendra Kumar',
+    address: '49 Harrison Crescent', suburb: 'Forest Lake', postcode: '4078', electrician_id: 't1', signoff_name: 'Jake Turner', signoff_signature: SIG, signoff_at: '2026-11-18T01:00:00Z', invoice_items: items };
+  const acceptance = { created_at: '2026-11-17T05:41:02Z', body: 'Alarm Care Notice and Acknowledgement (v1) accepted for quote PSQ-1057 at x [accepted_at=2026-11-17T05:41:00.000Z] [name=Rajendra Kumar] [address=49 Harrison Crescent, Forest Lake QLD 4078]' };
+  const mocks = {
+    './_supabase': { configured: () => true, async sb(q, o = {}) {
+      if (q.startsWith('jobs?id=eq.j1') && o.method === 'PATCH') return [job];
+      if (q.startsWith('jobs?id=eq.j1')) return [job];
+      if (q.startsWith('electricians?')) return [{ id: 't1', name: 'Jake Turner', licence_no: 'L123' }];
+      if (q.startsWith('lead_comments?')) { if (commentsFail) throw new Error('db down'); return accepted ? [acceptance] : []; }
+      if (q.startsWith('lead_comments') && o.method === 'POST') { notes.push(o.body.body); return []; }
+      if (q.startsWith('leads?')) return [{ name: 'Rajendra Kumar', email: 'raj@example.com' }];
+      return [];
+    } },
+    './_maillog': { logEmail: async () => true },
+    './_job-documents': { async saveCustomerDocuments(j, atts) { archived.push(atts.map((a) => a.filename)); return { status: 'saved' }; } },
+    './_transactional-mail': { Resend: class { constructor() { this.emails = { async send(m) { mail.push(m); return { data: { id: 'p' } }; } }; } } },
+  };
+  Module._load = function (r, ...a) { return r in mocks ? mocks[r] : ORIG_LOAD(r, ...a); };
+  for (const f of ['../api/_care-notice', '../api/_certificate']) delete require.cache[require.resolve(f)];
+  process.env.RESEND_API_KEY = 'k';
+  const C = require('../api/_certificate');
+  return C.issueCertificate('j1').then((result) => ({ result, mail, archived, notes }));
+}
+test('a customer who did not tick the notice still gets the Alarm Care Notice with their certificate and manuals, and it is filed with them', async () => {
+  const { result, mail, archived } = await certificateRun();
+  assert.equal(result.status, 'sent'); assert.equal(mail.length, 1);
+  const names = mail[0].attachments.map((a) => a.filename);
+  assert.deepEqual(names, ['PowerSmart-Smoke-Alarm-Certificate-J1008.pdf', 'Battery Operated Alarm Manual.pdf', 'PowerSmart-Alarm-Care-Notice-J1008.pdf']);
+  assert.equal(mail[0].attachments[2].content.subarray(0, 5).toString(), '%PDF-');
+  assert.match(mail[0].text, /battery alarm manual is attached too\. Your Alarm Care Notice, which explains how we look after your alarms if anything ever goes wrong, is attached as well\./);
+  assert.match(mail[0].html, /Your Alarm Care Notice, which explains/);
+  assert.deepEqual(archived[0], names, 'the same documents go to the job Documents folder');
+});
+test('a customer who ticked the notice gets their Acknowledgement (as they accepted it) with the certificate instead, under the same file name the job archive uses', async () => {
+  const { mail } = await certificateRun({ accepted: true });
+  assert.deepEqual(mail[0].attachments.map((a) => a.filename), ['PowerSmart-Smoke-Alarm-Certificate-J1008.pdf', 'Battery Operated Alarm Manual.pdf', 'PowerSmart-Alarm-Care-Acknowledgement-J1008.pdf']);
+});
+test('the certificate email is never held up by the care notice, and warranty visits do not get one', async () => {
+  let r = await certificateRun({ commentsFail: true });
+  assert.equal(r.result.status, 'sent'); assert.deepEqual(r.mail[0].attachments.map((a) => a.filename), ['PowerSmart-Smoke-Alarm-Certificate-J1008.pdf', 'Battery Operated Alarm Manual.pdf']);
+  assert.doesNotMatch(r.mail[0].text, /Alarm Care Notice/);
+  r = await certificateRun({ workType: 'warranty' });
+  assert.ok(!r.mail[0].attachments.some((a) => /Care/.test(a.filename)));
+});
+test('the plain notice has no acknowledgement claim, and the acknowledged copy still does', async () => {
+  const { PDFDocument } = require('pdf-lib');
+  const plain = await CN.renderCareNoticePdf({ name: 'Raj', address: 'x', jobNo: 1008, issuedAt: '2026-11-18T01:00:00Z' });
+  const ack = await CN.renderCareNoticePdf({ name: 'Raj', address: 'x', ref: 'PSQ-1', acceptedAt: '2026-11-17T05:41:00.000Z' });
+  assert.match((await PDFDocument.load(plain)).getTitle(), /^Alarm Care Notice - J1008$/); assert.match((await PDFDocument.load(ack)).getTitle(), /^Alarm Care Notice and Acknowledgement - PSQ-1$/);
+  assert.equal((await PDFDocument.load(plain)).getPageCount(), 1);
+  const found = await CN.careNoticeForJob({ job_no: 7, customer_name: 'No Lead', work_type: 'install' });
+  assert.equal(found.kind, 'notice'); assert.equal(found.filename, 'PowerSmart-Alarm-Care-Notice-J7.pdf');
+  assert.equal(await CN.careNoticeForJob({ job_no: 7, work_type: 'warranty' }), null);
+});
