@@ -134,7 +134,9 @@
   .addr-suggest li{display:flex;flex-direction:column;gap:.1rem;padding:.5rem .6rem;border-radius:7px;cursor:pointer;font-size:.84rem}
   .addr-suggest li span{font-size:.74rem;color:var(--muted)}
   .addr-suggest li:hover,.addr-suggest li.on{background:var(--paper)}
-  #lm-addr-find{gap:.4rem}
+  [hidden]{display:none!important}   /* .field / .fgrid set display, which would otherwise override the hidden attribute */
+  #lm-addr-find{gap:.4rem;margin-top:.5rem}
+  .addr-card .chk{margin-top:.6rem;font-size:.84rem;font-weight:600;text-transform:none;letter-spacing:0;color:var(--body)}
   .addr-card{gap:.5rem}
   .addr-line{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.55rem .75rem;border:1.5px dashed var(--line);border-radius:9px;background:var(--paper);font-size:.86rem}
   .addr-summary{min-width:0;overflow-wrap:anywhere}
@@ -342,22 +344,19 @@
           <div class="field full" id="lm-send-row"><label>When you save</label>
             <label class="chk"><input type="checkbox" id="lm-send-sms" checked> Send the welcome SMS</label>
             <label class="chk"><input type="checkbox" id="lm-send-email" checked> Send the enquiry confirmation email</label></div>
-          <div class="section-label">Installation address</div>
-          <div class="field full" id="lm-addr-find"></div>
+          <div class="section-label">Address</div>
           <div class="field full addr-card">
-            <div class="addr-line"><span id="lm-addr-summary" class="addr-summary"></span><button type="button" class="addr-edit" id="lm-addr-edit" aria-expanded="false" aria-controls="lm-addr-manual">Edit address</button></div>
+            <div class="addr-line"><span id="lm-addr-summary" class="addr-summary"></span><button type="button" class="addr-edit" id="lm-addr-edit" aria-expanded="false" aria-controls="lm-addr-manual">Change</button></div>
+            <div class="field" id="lm-addr-find" hidden></div>
             <div class="fgrid addr-manual" id="lm-addr-manual" hidden>
-              <div class="field full"><label>Unit and street</label><input id="lm-address-line1" data-address-autofill data-address-compact data-address-anchor="lm-addr-find" data-address-suburb="lm-address-suburb" data-address-state="lm-address-state" data-address-postcode="lm-address-postcode" data-address-extra-postcode="lm-postcode" placeholder="e.g. 4/112 High Street"></div>
+              <div class="field full"><label>Unit and street</label><input id="lm-address-line1" data-address-autofill data-address-compact data-address-anchor="lm-addr-find" data-address-hint=" data-address-suburb="lm-address-suburb" data-address-state="lm-address-state" data-address-postcode="lm-address-postcode" data-address-extra-postcode="lm-postcode" placeholder="e.g. 4/112 High Street"></div>
               <div class="field"><label>Suburb</label><input id="lm-address-suburb"></div>
               <div class="field"><label>State</label><input id="lm-address-state" maxlength="20"></div>
               <div class="field"><label>Postcode</label><input id="lm-address-postcode" maxlength="12"></div>
             </div>
-          </div>
-          <div class="section-label">Billing address <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted)">(for the invoice)</span></div>
-          <div class="field full">
-            <label class="chk" style="margin-top:0"><input type="checkbox" id="lm-bill-same" checked> Same as the installation address</label>
-            <div class="fgrid" id="lm-bill-fields" hidden style="margin-top:.5rem">
-              <div class="field full"><label>Unit and street</label><input id="lm-billing-line1" data-address-autofill data-address-compact data-address-suburb="lm-billing-suburb" data-address-state="lm-billing-state" data-address-postcode="lm-billing-postcode" placeholder="e.g. PO Box 12 or 4/112 High Street"></div>
+            <label class="chk"><input type="checkbox" id="lm-bill-same" checked> Send the invoice to this address</label>
+            <div class="fgrid" id="lm-bill-fields" hidden style="margin-top:.2rem">
+              <div class="field full"><label>Billing address (unit and street)</label><input id="lm-billing-line1" data-address-autofill data-address-compact data-address-hint="" data-address-suburb="lm-billing-suburb" data-address-state="lm-billing-state" data-address-postcode="lm-billing-postcode" placeholder="e.g. PO Box 12 or 4/112 High Street"></div>
               <div class="field"><label>Suburb</label><input id="lm-billing-suburb"></div>
               <div class="field"><label>State</label><input id="lm-billing-state" maxlength="20"></div>
               <div class="field"><label>Postcode</label><input id="lm-billing-postcode" maxlength="12"></div>
@@ -663,8 +662,20 @@
     var el=$("lm-addr-summary"); el.textContent=line||"No address yet"; el.classList.toggle("empty",!line);
   }
   ["lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).addEventListener("input",renderAddrSummary); });
-  $("lm-addr-edit").addEventListener("click",function(){ var m=$("lm-addr-manual"); m.hidden=!m.hidden; this.setAttribute("aria-expanded",String(!m.hidden)); this.textContent=m.hidden?"Edit address":"Done"; });
-  function resetAddrEditor(){ $("lm-addr-manual").hidden=true; $("lm-addr-edit").textContent="Edit address"; $("lm-addr-edit").setAttribute("aria-expanded","false"); renderAddrSummary(); }
+  // The address card shows one line. Change opens the search box and the fields; with no address yet the search shows straight away.
+  var addrEditing=false;
+  function showAddrEditor(){
+    var has=!$("lm-addr-summary").classList.contains("empty");
+    $("lm-addr-find").hidden=!(addrEditing||!has);
+    $("lm-addr-manual").hidden=!addrEditing;
+    var b=$("lm-addr-edit"); b.textContent=addrEditing?"Done":has?"Change":"Enter manually"; b.setAttribute("aria-expanded",String(addrEditing));
+  }
+  $("lm-addr-edit").addEventListener("click",function(){
+    addrEditing=!addrEditing; renderAddrSummary(); showAddrEditor();
+    if(addrEditing){ var f=$("lm-addr-find").querySelector("input"); if(f) f.focus(); }
+  });
+  ["lm-address-line1","lm-address-suburb","lm-address-state","lm-address-postcode"].forEach(function(i){ $(i).addEventListener("input",function(){ if(!addrEditing) showAddrEditor(); }); });
+  function resetAddrEditor(){ addrEditing=false; renderAddrSummary(); showAddrEditor(); }
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); };
   var fmt$ = function(n){ return "$" + Number(n).toLocaleString("en-AU",{minimumFractionDigits:2,maximumFractionDigits:2}); };
 

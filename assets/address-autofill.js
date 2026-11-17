@@ -69,7 +69,9 @@
     var note = doc.createElement('div');
     note.style.cssText = 'font-size:12px;margin-top:5px;color:#52676c';
     note.setAttribute('aria-live', 'polite');
-    var hint = compact ? 'Pick a suggestion to fill the address and postcode. Use Edit address to add a unit number.' : 'Select a suggestion, then check the address and unit number below.';
+    // data-address-hint overrides the help text under the search box ("" = none).
+    var hint = input.dataset.addressHint !== undefined ? input.dataset.addressHint
+      : compact ? 'Pick a suggestion to fill the address and postcode. Use Edit address to add a unit number.' : 'Select a suggestion, then check the address and unit number below.';
     note.textContent = hint;
     if (compact) {
       var box = doc.createElement('div');
