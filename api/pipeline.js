@@ -11,6 +11,7 @@
 
 const { sb, configured } = require("./_supabase");
 const { welcomeLead, isRepeatCustomer } = require('./_welcome-sms');
+const { isOutOfArea, notifyOutOfArea } = require('./_out-of-area');
 
 // Passcode staff enter to open /tools/pipeline.
 const PORTAL_KEY = "2026";
@@ -120,7 +121,10 @@ module.exports = async (req, res) => {
     if (action === "create") {
       const name = clean(b.name, 120);
       if (!name) return res.status(400).json({ error: "Name is required" });
-      const stage = STAGES.includes(b.stage) ? b.stage : "new_lead";
+      let stage = STAGES.includes(b.stage) ? b.stage : "new_lead";
+      // A new lead from Regional QLD goes straight to Out of Area and is told we don't service them (instead of the welcome).
+      const ooaNew = stage === "new_lead" && b.skip_welcome !== true && isOutOfArea(clean(b.address_postcode, 12) || clean(b.postcode, 12));
+      if (ooaNew) stage = "out_of_area";
       // A returning customer (same mobile or email already on file) gets the "thanks for getting in touch again" wording.
       const repeat = b.send_sms !== false && b.skip_welcome !== true && isRepeatCustomer ? await isRepeatCustomer({ phone: clean(b.phone, 40), email: clean(b.email, 254) }) : false;
       const rows = await sb("leads", {
@@ -143,9 +147,13 @@ module.exports = async (req, res) => {
       const lead = rows && rows[0];
       // The staff form has tick boxes for each message; callers that don't send them keep the old behaviour (SMS yes, email no).
       const sendSms = b.skip_welcome !== true && b.send_sms !== false;
-      const welcomeSms = sendSms ? await welcomeLead(lead, new Date(), { repeat }) : { status: 'skipped' };
+      let welcomeSms = sendSms && !ooaNew ? await welcomeLead(lead, new Date(), { repeat }) : { status: 'skipped' };
       let confirmationEmail = { status: 'skipped' };
-      if (b.send_email === true && lead && lead.email) {
+      if (ooaNew && lead) {
+        await require("./_sms-outbound").logNote(lead.id, "System", `Postcode ${clean(b.address_postcode, 12) || clean(b.postcode, 12)} is in Regional QLD, outside our service area. Moved to Out of Area.`).catch(() => {});
+        const notice = await notifyOutOfArea(lead, { agent: clean(b.agent, 120) || "Team", sms: sendSms, email: b.send_email === true });
+        welcomeSms = notice.sms; confirmationEmail = notice.email;
+      } else if (b.send_email === true && lead && lead.email) {
         try {
           const { Resend } = require("./_transactional-mail"), S = require("./_senders"), { logEmail } = require("./_maillog");
           const mail = require("./_enquiry-confirmation").renderEnquiryConfirmation({ name: lead.name });
@@ -161,14 +169,20 @@ module.exports = async (req, res) => {
           confirmationEmail = { status: 'failed', error: e.message };
         }
       }
-      return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms, confirmation_email: confirmationEmail });
+      return res.status(200).json({ ok: true, lead, welcome_sms: welcomeSms, confirmation_email: confirmationEmail, ...(ooaNew ? { out_of_area: true } : {}) });
     }
 
     if (action === "move") {
       const id = clean(b.id, 40);
       if (!id || !STAGES.includes(b.stage)) return res.status(400).json({ error: "id and a valid stage are required" });
+      // Moving a card into Out of Area can also text and email the customer; only when the page asked (notify:true) after staff confirmed.
+      const prev = b.stage === "out_of_area" && b.notify === true
+        ? (await sb(`leads?id=eq.${encodeURIComponent(id)}&select=id,stage&limit=1`))[0] : null;
       const rows = await sb(`leads?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: { stage: b.stage } });
-      return res.status(200).json({ ok: true, lead: rows && rows[0] });
+      const lead = rows && rows[0];
+      let notice = null;
+      if (prev && prev.stage !== "out_of_area" && lead) notice = await notifyOutOfArea(lead, { agent: clean(b.agent, 120) || "Team" });
+      return res.status(200).json({ ok: true, lead, ...(notice ? { out_of_area_notice: notice } : {}) });
     }
 
     if (action === "update") {

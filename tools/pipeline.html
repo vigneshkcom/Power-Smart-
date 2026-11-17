@@ -583,6 +583,20 @@
     </div>
   </div>
 
+  <!-- confirm before notifying a customer that they are out of area -->
+  <div class="overlay" id="ooa-overlay" style="z-index:90" role="dialog" aria-modal="true" aria-labelledby="ooa-title">
+    <div class="modal" style="width:min(460px,100%)">
+      <div class="modal-head"><h3 id="ooa-title">Move to Out of Area</h3></div>
+      <div class="modal-body"><p id="ooa-text" style="font-size:.88rem;line-height:1.6;color:var(--body)"></p></div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="ooa-cancel" type="button">Cancel</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="ooa-skip" type="button">Move without sending</button>
+        <button class="btn btn-primary" id="ooa-send" type="button">Send &amp; move</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script>
@@ -701,6 +715,43 @@
   function daysAgo(iso){
     var d = Math.floor((Date.now() - new Date(iso).getTime())/864e5);
     return d <= 0 ? "Today" : d === 1 ? "1 day" : d + " days";
+  }
+  /* ---------- out-of-area confirmation ---------- */
+  var ooaResolve = null;
+  function askOutOfArea(lead){
+    var parts = [];
+    if (lead.phone) parts.push("an SMS to " + esc(lead.phone));
+    if (lead.email) parts.push("an email to " + esc(lead.email));
+    $("ooa-text").innerHTML = "Move <strong>" + esc(lead.name) + "</strong> to Out of Area?" +
+      (parts.length ? " You can also send them " + parts.join(" and ") + " saying we don't service their area." : " There is no mobile or email on file to notify.");
+    $("ooa-send").style.display = parts.length ? "" : "none";
+    $("ooa-overlay").classList.add("show");
+    return new Promise(function(resolve){ ooaResolve = resolve; });
+  }
+  function answerOutOfArea(choice){
+    $("ooa-overlay").classList.remove("show");
+    var r = ooaResolve; ooaResolve = null; if (r) r(choice);
+  }
+  $("ooa-send").addEventListener("click", function(){ answerOutOfArea("send"); });
+  $("ooa-skip").addEventListener("click", function(){ answerOutOfArea("skip"); });
+  $("ooa-cancel").addEventListener("click", function(){ answerOutOfArea("cancel"); });
+  $("ooa-overlay").addEventListener("click", function(e){ if (e.target === this) answerOutOfArea("cancel"); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape" && $("ooa-overlay").classList.contains("show")) answerOutOfArea("cancel"); });
+  // n = { sms:{status,error,duplicate,paused}, email:{status,error,duplicate} } from the server.
+  function ooaNoticeText(n){
+    var out = [];
+    if (n && n.sms){
+      if (n.sms.status === "submitted") out.push("SMS sent.");
+      else if (n.sms.duplicate) out.push("SMS already sent.");
+      else if (n.sms.paused) out.push("SMS is paused.");
+      else if (n.sms.error) out.push("SMS issue: " + n.sms.error);
+    }
+    if (n && n.email){
+      if (n.email.status === "sent") out.push("Email sent.");
+      else if (n.email.duplicate) out.push("Email already sent.");
+      else if (n.email.status === "failed") out.push("Email failed: " + n.email.error);
+    }
+    return out.length ? " " + out.join(" ") : "";
   }
   function isStale(iso){ return (Date.now() - new Date(iso).getTime())/864e5 >= 7; }
 
@@ -842,11 +893,17 @@
         var lead = leads.find(function(x){ return x.id === id; });
         if (!lead || lead.stage === st.id) return;
         var prev = lead.stage;
-        lead.stage = st.id; lead.updated_at = new Date().toISOString();
-        renderBoard(); // optimistic
-        api("POST", { action:"move", id:id, stage:st.id }).catch(function(err){
-          lead.stage = prev; renderBoard(); toast("Move failed: " + err.message);
-        });
+        var doMove = function(notify){
+          lead.stage = st.id; lead.updated_at = new Date().toISOString();
+          renderBoard(); // optimistic
+          api("POST", { action:"move", id:id, stage:st.id, notify:notify, agent:currentAgent() }).then(function(d){
+            if (d && d.out_of_area_notice) toast("Moved to Out of Area." + ooaNoticeText(d.out_of_area_notice));
+          }).catch(function(err){
+            lead.stage = prev; renderBoard(); toast("Move failed: " + err.message);
+          });
+        };
+        if (st.id === "out_of_area") askOutOfArea(lead).then(function(choice){ if (choice !== "cancel") doMove(choice === "send"); });
+        else doMove(false);
       });
 
       board.appendChild(col);
@@ -1053,7 +1110,15 @@
   document.addEventListener("keydown", function(e){ if (e.key === "Escape"){ closeModal(); if ($("email-overlay")) $("email-overlay").classList.remove("show"); if ($("quote-overlay")) $("quote-overlay").classList.remove("show"); if ($("thread-overlay")) $("thread-overlay").classList.remove("show"); if ($("sms-overlay")) $("sms-overlay").classList.remove("show"); } });
 
   $("lm-save").addEventListener("click", function(){
-    var btn = this; btn.disabled = true;
+    var btn = this;
+    var cur = currentId && leads.find(function(x){ return x.id === currentId; });
+    var ooaChoice = btn._ooaChoice; btn._ooaChoice = null;
+    if (cur && !ooaChoice && stageSel.value === "out_of_area" && cur.stage !== "out_of_area"){
+      btn.disabled = true;
+      askOutOfArea(cur).then(function(choice){ btn.disabled = false; if (choice !== "cancel"){ btn._ooaChoice = choice; btn.click(); } });
+      return;
+    }
+    btn.disabled = true;
     var fields = {
       name: $("lm-name").value.trim(),
       phone: $("lm-phone").value.trim(),
@@ -1079,7 +1144,7 @@
       var stage = stageSel.value;
       p = api("POST", Object.assign({ action:"update", id:currentId }, fields)).then(function(){
         var l = leads.find(function(x){ return x.id === currentId; });
-        if (l && l.stage !== stage) return api("POST", { action:"move", id:currentId, stage:stage });
+        if (l && l.stage !== stage) return api("POST", { action:"move", id:currentId, stage:stage, notify:ooaChoice === "send", agent:currentAgent() });
       });
     } else {
       var extra = { send_sms: $("lm-send-sms").checked && !anotherAddressOf, send_email: $("lm-send-email").checked && !anotherAddressOf };
@@ -1090,12 +1155,14 @@
     }
     var wasExisting = Boolean(currentId), welcomeNotice = "";
     p.then(function(d){
-      if(d && d.welcome_sms){
+      if(d && d.out_of_area_notice) welcomeNotice = " Moved to Out of Area." + ooaNoticeText(d.out_of_area_notice);
+      if(d && d.out_of_area) welcomeNotice = " Moved to Out of Area (Regional QLD)." + ooaNoticeText({ sms:d.welcome_sms, email:d.confirmation_email });
+      else if(d && d.welcome_sms){
         if(d.welcome_sms.warning || d.welcome_sms.error)welcomeNotice=" Welcome SMS issue: "+(d.welcome_sms.warning || d.welcome_sms.error);
         else if(d.welcome_sms.status === "submitted")welcomeNotice=" Welcome SMS submitted.";
         else if(d.welcome_sms.duplicate)welcomeNotice=" Welcome SMS was already submitted recently.";
       }
-      if(d && d.confirmation_email){
+      if(d && !d.out_of_area && d.confirmation_email){
         if(d.confirmation_email.status === "sent")welcomeNotice+=" Confirmation email sent.";
         else if(d.confirmation_email.status === "failed")welcomeNotice+=" Confirmation email failed: "+d.confirmation_email.error;
       }

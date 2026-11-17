@@ -5,7 +5,7 @@ function load({ welcome, process: proc }) {
   const SB = { configured: () => true, sb: async (q, o = {}) => (q === 'leads' && o.method === 'POST' ? [{ id: 'l1', stage: 'new_lead', ...o.body }] : []) };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
     module, process: proc || { env: {} }, console: { error() {} }, URL, Buffer,
-    require: (k) => (k === './_supabase' ? SB : k === './_welcome-sms' ? { welcomeLead: welcome } : require(k)),
+    require: (k) => (k === './_supabase' ? SB : k === './_out-of-area' ? require('../api/_out-of-area') : k === './_welcome-sms' ? { welcomeLead: welcome } : require(k)),
   }, { filename: 'pipeline.js' });
   return module.exports;
 }
@@ -42,7 +42,7 @@ test('billing address is only written when the form sends it, and can be cleared
   const module = { exports: {} };
   const SB = { configured: () => true, sb: async (q, o = {}) => { if (o.method) writes.push({ q, body: o.body }); return q === 'leads' && o.method === 'POST' ? [{ id: 'l1', ...o.body }] : (o.method === 'PATCH' ? [{ id: 'l1', ...o.body }] : []); } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), { module, process: { env: {} }, console: { error() {} }, URL, Buffer,
-    require: (k) => (k === './_supabase' ? SB : k === './_welcome-sms' ? { welcomeLead: async () => ({ status: 'skipped' }) } : require(k)) }, { filename: 'pipeline.js' });
+    require: (k) => (k === './_supabase' ? SB : k === './_out-of-area' ? require('../api/_out-of-area') : k === './_welcome-sms' ? { welcomeLead: async () => ({ status: 'skipped' }) } : require(k)) }, { filename: 'pipeline.js' });
   const h = module.exports;
   const post = (body) => { const r = res(); return h({ method: 'POST', headers: KEY, url: '/api/pipeline', body }, r).then(() => r); };
   await post({ action: 'create', name: 'Kath', send_sms: false });

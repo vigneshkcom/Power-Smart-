@@ -121,7 +121,7 @@ test('the pipeline function serves job requests (keeps Vercel at 12 functions)',
   const SB = { configured: () => true, async sb() { return []; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
     module, console: { error() {} }, URL, process: { env: {} },
-    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_jobs': fakeJobs }[k] || require(k)),
+    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area'), './_jobs': fakeJobs }[k] || require(k)),
   }, { filename: 'pipeline.js' });
   let r = res();
   await module.exports({ method: 'GET', headers: KEY, url: '/api/pipeline?resource=jobs&from=a&to=b' }, r);
@@ -254,7 +254,7 @@ test('the board shows what each customer has paid and how', async () => {
   const SB = { configured: () => true, async sb(q) { const k = Object.keys(data).find((p) => q.startsWith(p)); return k ? data[k] : []; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api/pipeline.js'), 'utf8'), {
     module, console: { error() {} }, URL, process: { env: {} },
-    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} } }[k] || require(k)),
+    require: (k) => ({ './_supabase': SB, './_welcome-sms': { welcomeLead: async () => {} }, './_out-of-area': require('../api/_out-of-area') }[k] || require(k)),
   }, { filename: 'pipeline.js' });
   const r = res();
   await module.exports({ method: 'GET', headers: KEY, url: '/api/pipeline' }, r);

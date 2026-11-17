@@ -13,6 +13,7 @@ const { logEmail } = require("./_maillog");
 const Sms = require("./_sms-outbound");
 const { isBlocked } = require("./_blocked-numbers");
 const { latestSentQuote, repeatQuoteMessages } = require("./_repeat-quote");
+const { isOutOfArea, notifyOutOfArea, PROTECTED_STAGES } = require("./_out-of-area");
 
 async function parseRawBody(req) {
   const chunks = [];
@@ -100,6 +101,9 @@ async function handleLead(req, res, source = "Website") {
 
   // Drop the enquiry into the sales pipeline (non-fatal if Supabase is down/unconfigured).
   let savedLead = null, repeat = false, existingLead = null, existingQuote = null;
+  // Regional QLD enquiries are moved to Out of Area and told we don't service them (instead of the welcome SMS and email).
+  const ooaPostcode = isOutOfArea(postcode);
+  let ooa = false;
   if (source === "Instant Form" && !SB.configured()) return res.status(503).json({ error: "Sales pipeline is unavailable" });
   if (SB.configured()) {
     try {
@@ -116,14 +120,16 @@ async function handleLead(req, res, source = "Website") {
         if (existing.source !== source) patch.source = source;
         const reopened = ["not_interested", "not_reachable"].includes(existing.stage);
         if (reopened && !existingQuote) patch.stage = "new_lead";
+        if (ooaPostcode && !existingQuote && !PROTECTED_STAGES.includes(existing.stage)) { patch.stage = "out_of_area"; ooa = true; }
         await SB.sb(`leads?id=eq.${encodeURIComponent(existing.id)}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
-        await Sms.logNote(existing.id, "System", `Repeat ${leadLabel} enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened ? "; moved back to New Lead" : ""}.`).catch(() => {});
+        await Sms.logNote(existing.id, "System", `Repeat ${leadLabel} enquiry from ${name} (${phone}${email ? ", " + email : ""}${postcode ? ", " + postcode : ""}). Existing lead updated instead of creating a duplicate${reopened && !ooa ? "; moved back to New Lead" : ""}.`).catch(() => {});
       } else {
       const inserted = await SB.sb("leads", {
         method: "POST",
-        body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source, stage: "new_lead" },
+        body: { name, phone: phone || null, email: email.toLowerCase() || null, postcode: postcode || null, source, stage: ooaPostcode ? "out_of_area" : "new_lead" },
       });
       savedLead = inserted && inserted[0];
+      ooa = ooaPostcode && Boolean(savedLead);
       }
     } catch (e) {
       console.error("lead → pipeline insert failed:", e.message);
@@ -132,7 +138,11 @@ async function handleLead(req, res, source = "Website") {
   }
 
   let welcomeSms;
-  if (existingLead && existingQuote) {
+  if (ooa && savedLead) {
+    await Sms.logNote(savedLead.id, "System", `Postcode ${postcode} is in Regional QLD, outside our service area. Moved to Out of Area.`).catch(() => {});
+    const notice = await notifyOutOfArea({ id: savedLead.id, name: savedLead.name || name, phone, email: email || savedLead.email }, { agent: "System" });
+    welcomeSms = notice.sms;
+  } else if (existingLead && existingQuote) {
     const followup = repeatQuoteMessages(existingLead.name || name, existingQuote);
     const originalPhone = String(existingLead.phone || '').trim();
     const samePhone = Sms.cleanPhone(originalPhone) === Sms.cleanPhone(phone);
@@ -190,7 +200,7 @@ async function handleLead(req, res, source = "Website") {
     }
 
     // Standard response for leads without a valid saved quote.
-    if (!existingQuote && email && (!repeat || welcomeSms.paused)) {
+    if (!ooa && !existingQuote && email && (!repeat || welcomeSms.paused)) {
       try {
         const mail = renderEnquiryConfirmation({ name });
         const { error: custError } = await resend.emails.send({
@@ -210,7 +220,7 @@ async function handleLead(req, res, source = "Website") {
       from: `PowerSmart Leads <${SUPPORT_EMAIL}>`,
       to: process.env.NOTIFY_EMAIL || SUPPORT_EMAIL,
       replyTo: email || (process.env.RESEND_REPLY_TO || SUPPORT_EMAIL),
-      subject: `${repeat ? "Repeat enquiry" : "New lead"}: ${name}${postcode ? " (" + postcode + ")" : ""}`,
+      subject: `${ooa ? "Out of area enquiry" : repeat ? "Repeat enquiry" : "New lead"}: ${name}${postcode ? " (" + postcode + ")" : ""}`,
       html,
       text,
     });

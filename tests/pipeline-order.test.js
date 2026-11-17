@@ -22,7 +22,7 @@ function fixture() {
   }};
   const module = {exports:{}};
   vm.runInNewContext(fs.readFileSync(require.resolve('../api/pipeline'),'utf8'),{
-    module,require:k=>k==='./_supabase'?db:k==='./_welcome-sms'?{welcomeLead:async()=>{throw Error('Edit must not send welcome SMS');}}:require(k),Date
+    module,require:k=>k==='./_supabase'?db:k==='./_out-of-area'?require('../api/_out-of-area'):k==='./_welcome-sms'?{welcomeLead:async()=>{throw Error('Edit must not send welcome SMS');}}:require(k),Date
   });
   async function call(body) {
     const res={status(code){this.code=code;return this;},json(data){this.data=data;return this;}};
