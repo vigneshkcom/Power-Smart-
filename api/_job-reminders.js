@@ -88,6 +88,8 @@ function jobAddress(job) {
 
 // Sends one job's reminder. `claimed` is the job_reminders row this run owns.
 async function sendOne(job, now) {
+  // Warranty jobs carry the office's Email / SMS ticks; other jobs have both on.
+  const allowEmail = job.notify_email !== false, allowSms = job.notify_sms !== false;
   const address = jobAddress(job);
   // Warranty visits get their own wording ("warranty visit", no charge).
   const m = job.work_type === "warranty"
@@ -95,7 +97,7 @@ async function sendOne(job, now) {
     : reminderMessages(job, address);
   const result = { job_no: job.job_no, email: "skipped", sms: "skipped" };
   const toEmail = String(job.email || "").trim().toLowerCase();
-  if (toEmail) {
+  if (toEmail && allowEmail) {
     try {
       const { Resend } = require('./_transactional-mail');
       const sender = S.resolveSender("customer_service");
@@ -109,7 +111,7 @@ async function sendOne(job, now) {
       try { await logEmail({ id: randomUUID(), kind: "email", sender: sender.key, agent: "System", to_email: toEmail, to_name: job.customer_name, subject: m.subject, body_html: m.html, body_text: m.text, lead_id: job.lead_id || null, provider_id: data && data.id }); } catch (_) { /* log is best effort */ }
     } catch (e) { result.email = "failed"; result.error = e.message; }
   }
-  if (job.phone && Sms.smsEnabled()) {
+  if (job.phone && allowSms && Sms.smsEnabled()) {
     try {
       const r = await Sms.sendLeadSms({ lead: { id: job.lead_id || undefined, phone: job.phone }, message: m.sms, key: `job-reminder-${job.id}-${job.scheduled_start}`, author: "System" });
       result.sms = r.status === "submitted" ? "sent" : r.status;
@@ -130,12 +132,12 @@ async function work({ now = new Date(), dryRun = false } = {}) {
   const query = (c) => SB.sb(`jobs?status=eq.scheduled&scheduled_start=gte.${enc(from)}&scheduled_start=lt.${enc(to)}&select=${c}&order=scheduled_start.asc&limit=200`);
   // notify_customer comes with supabase/warranty-jobs.sql; until it is run every job is reminded as before.
   let jobs;
-  try { jobs = await query(cols + ",notify_customer") || []; }
-  catch (e) { if (!/notify_customer/.test(String(e.message))) throw e; jobs = await query(cols) || []; }
+  try { jobs = await query(cols + ",notify_customer,notify_email,notify_sms") || []; }
+  catch (e) { if (!/notify_/.test(String(e.message))) throw e; jobs = await query(cols) || []; }
   const out = { window: { from, to }, found: jobs.length, sent: 0, skipped: 0, failed: 0, results: [] };
   for (const job of jobs) {
-    if (job.notify_customer === false) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "Office chose not to message this customer" }); continue; }
-    if (!job.phone && !job.email) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "No phone or email saved" }); continue; }
+    if (job.notify_customer === false || (job.notify_email === false && job.notify_sms === false)) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "Office chose not to message this customer" }); continue; }
+    if (!(job.phone && job.notify_sms !== false) && !(job.email && job.notify_email !== false)) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "No phone or email saved" }); continue; }
     if (dryRun) { out.results.push({ job_no: job.job_no, would_send: true }); continue; }
     // Claim first: the unique (job_id, scheduled_start) key means only one run can ever message this job at this time.
     try {

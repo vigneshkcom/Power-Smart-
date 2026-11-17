@@ -398,7 +398,9 @@
             <small id="jm-confirm-hint" class="hint"></small>
           </div>
           <div class="field full confirm-box" id="jm-wnotify-wrap" style="display:none">
-            <label class="confirm-main"><input type="checkbox" id="jm-wnotify"> Send emails and texts to the customer for this warranty job</label>
+            <span class="confirm-main" style="font-size:.84rem">Send to the customer for this warranty job</span>
+            <label><input type="checkbox" id="jm-wnotify-email"> Email <span id="jm-wnotify-email-to" class="confirm-to"></span></label>
+            <label><input type="checkbox" id="jm-wnotify-sms"> SMS <span id="jm-wnotify-sms-to" class="confirm-to"></span></label>
             <small id="jm-wnotify-hint" class="hint"></small>
           </div>
           <div class="field full" id="jm-photos-wrap" style="display:none"><label>Job photos</label><div id="jm-photos"></div></div>
@@ -1074,13 +1076,18 @@
     $("jm-wnotify-wrap").style.display = w ? "" : "none";
     $("jm-notes-label").textContent = w ? "What the customer reported (shown to the electrician)" : "Notes for the electrician";
     $("jm-notes").placeholder = w ? "e.g. Hallway alarm keeps chirping; bedroom alarm went off with no smoke" : "Access, parking, gate codes, existing hardwired alarms…";
-    $("jm-wnotify-hint").textContent = $("jm-wnotify").checked
-      ? "The customer gets a booking confirmation when you save (once the job has an electrician and a date), a reminder the day before, and an email when the work is done."
+    var email = $("jm-email").value.trim(), phone = $("jm-phone").value.trim();
+    $("jm-wnotify-email-to").textContent = email ? "(" + email + ")" : "(no email saved)";
+    $("jm-wnotify-sms-to").textContent = phone ? "(" + phone + ")" : "(no mobile saved)";
+    var byEmail = $("jm-wnotify-email").checked, bySms = $("jm-wnotify-sms").checked;
+    var how = [byEmail && "email", bySms && "SMS"].filter(Boolean).join(" and ");
+    $("jm-wnotify-hint").textContent = how
+      ? "By " + how + ": a booking confirmation when you save (once the job has an electrician and a date) and a reminder the day before." + (byEmail ? " The completion email goes when the work is done." : "")
       : "Nothing is sent to the customer about this warranty job.";
     updateConfirmUi();
   }
-  $("jm-type").addEventListener("change", updateWarrantyUi);
-  $("jm-wnotify").addEventListener("change", updateWarrantyUi);
+  ["jm-type","jm-wnotify-email","jm-wnotify-sms","jm-email","jm-phone"].forEach(function(id){ $(id).addEventListener("change", updateWarrantyUi); });
+  ["jm-email","jm-phone"].forEach(function(id){ $(id).addEventListener("input", updateWarrantyUi); });
   function updateConfirmUi(){
     var show = Boolean(!isWarrantyForm() && $("jm-tech").value && $("jm-date").value && $("jm-status").value === "scheduled");
     $("jm-confirm-wrap").style.display = show ? "" : "none";
@@ -1104,7 +1111,7 @@
     $("jm-confirm").checked = true; $("jm-confirm-email").checked = true; $("jm-confirm-sms").checked = true;
     if (!opts.start){ $("jm-date").value = ""; setTime(""); }
     techOptions(opts.techId || "");
-    $("jm-wnotify").checked = false;
+    $("jm-wnotify-email").checked = false; $("jm-wnotify-sms").checked = false;
     if (opts.warranty){ $("jm-type").value = "warranty"; $("jm-title").textContent = "New warranty job"; }
     updateWarrantyUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
@@ -1330,7 +1337,8 @@
     techOptions(j.electrician_id || "");
     // Already-booked jobs default to no message; jobs being scheduled for the first time default to sending.
     $("jm-confirm").checked = !j.scheduled_start; $("jm-confirm-email").checked = true; $("jm-confirm-sms").checked = true;
-    $("jm-wnotify").checked = j.work_type === "warranty" && j.notify_customer !== false;
+    var wj = j.work_type === "warranty" && j.notify_customer !== false;
+    $("jm-wnotify-email").checked = wj && j.notify_email !== false; $("jm-wnotify-sms").checked = wj && j.notify_sms !== false;
     updateWarrantyUi();
     $("jm-lead-wrap").style.display = "none";
     var lead = j.lead_id ? (state.leads || []).find(function(l){ return l.id === j.lead_id; }) : null;
@@ -1390,12 +1398,16 @@
         wantSms = confirmSend && $("jm-confirm-sms").checked && !$("jm-confirm-sms").disabled;
     if (payload.work_type === "warranty"){
       // Send the warranty booking confirmation only when the box is ticked and the booking is new or has changed.
-      payload.notify_customer = $("jm-wnotify").checked;
+      payload.notify_email = $("jm-wnotify-email").checked; payload.notify_sms = $("jm-wnotify-sms").checked;
       var booked = Boolean(techId && start && payload.status === "scheduled");
-      var changed = !editing || editing.work_type !== "warranty" || editing.notify_customer === false || editing.electrician_id !== techId ||
+      var moved = !editing || editing.work_type !== "warranty" || editing.electrician_id !== techId ||
         Date.parse(editing.scheduled_start || "") !== Date.parse(payload.scheduled_start || "");
-      confirmSend = payload.notify_customer && booked && changed && Boolean(payload.email || payload.phone);
-      wantEmail = confirmSend && Boolean(payload.email); wantSms = confirmSend && Boolean(payload.phone);
+      // A channel ticked now that was off before also gets the confirmation.
+      var wasEmail = editing && editing.work_type === "warranty" && editing.notify_customer !== false && editing.notify_email !== false;
+      var wasSms = editing && editing.work_type === "warranty" && editing.notify_customer !== false && editing.notify_sms !== false;
+      wantEmail = booked && payload.notify_email && Boolean(payload.email) && (moved || !wasEmail);
+      wantSms = booked && payload.notify_sms && Boolean(payload.phone) && (moved || !wasSms);
+      confirmSend = wantEmail || wantSms;
     }
     if (confirmSend && !wantEmail && !wantSms){ toast("Tick Email, SMS or both for the booking confirmation, or untick it"); return; }
     var note = "";

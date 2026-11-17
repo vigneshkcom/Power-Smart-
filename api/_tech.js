@@ -360,7 +360,7 @@ async function handler(req, res) {
       const w = W.warrantyCounts(job);
       // Customer email only when the office ticked "send to the customer" for this warranty job.
       let email = { status: "skipped", reason: "The office chose not to message the customer." };
-      if (job.notify_customer !== false) email = await sendWarrantyCompletion(job, units, tech.name);
+      if (job.notify_customer !== false && job.notify_email !== false) email = await sendWarrantyCompletion(job, units, tech.name);
       if (job.lead_id) {
         const notes = job.tech_notes ? ` Notes: ${job.tech_notes}` : "";
         const back = w.battery + w.hardwired ? ` Faulty alarms returned: ${[w.battery && w.battery + " battery", w.hardwired && w.hardwired + " hardwired"].filter(Boolean).join(", ")}.` : "";

@@ -122,6 +122,10 @@ test('electrician app: completing a warranty job charges nothing, notes the lead
   r = await t.call({ action: 'complete', signoff_name: 'Dillon', signature: SIG });
   assert.equal(r.code, 200); assert.equal(r.body.email.status, 'skipped'); assert.equal(t.mail.length, 0, 'office chose not to message the customer');
 
+  t = techApp({ ...baseJob(), alarm_units: units, notify_email: false, notify_sms: true });
+  r = await t.call({ action: 'complete', signoff_name: 'Dillon', signature: SIG });
+  assert.equal(r.body.email.status, 'skipped'); assert.equal(t.mail.length, 0, 'SMS only: no completion email');
+
   t = techApp(baseJob());
   r = await t.call({ action: 'complete', signoff_name: 'Dillon', signature: SIG });
   assert.equal(r.code, 409); assert.match(r.body.error, /alarms you checked/);
@@ -157,6 +161,19 @@ test('reminders: warranty jobs get warranty wording, and nothing goes to a custo
   assert.match(sent[0].subject, /warranty visit is tomorrow/); assert.match(sms[0], /warranty visit/);
   assert.match(sent[1].subject, /install is tomorrow/);
   assert.ok(!sent.some((m) => m.to === 't@example.com'));
+});
+
+test('reminders: a warranty job sends only the channels the office ticked', async () => {
+  const now = new Date('2026-11-17T07:00:00Z'), at = tomorrow(now);
+  const jobs = [
+    { id: 'a', job_no: 1, customer_name: 'Gail', email: 'g@example.com', phone: '0434612597', scheduled_start: at, work_type: 'warranty', notify_customer: true, notify_email: false, notify_sms: true },
+    { id: 'b', job_no: 2, customer_name: 'Tom', email: 't@example.com', phone: '0411111111', scheduled_start: at, work_type: 'warranty', notify_customer: true, notify_email: true, notify_sms: false },
+    { id: 'c', job_no: 3, customer_name: 'Ann', email: '', phone: '0422222222', scheduled_start: at, work_type: 'warranty', notify_customer: true, notify_email: true, notify_sms: false },
+  ];
+  const { R, sent, sms } = reminders(jobs);
+  const out = await R.work({ now });
+  assert.equal(out.sent, 2); assert.equal(out.skipped, 1, 'email ticked but no email saved, SMS not ticked');
+  assert.deepEqual(sent.map((m) => m.to), ['t@example.com']); assert.equal(sms.length, 1); assert.match(sms[0], /^PowerSmart: Hi Gail/);
 });
 
 test('reminders still work before warranty-jobs.sql is run', async () => {

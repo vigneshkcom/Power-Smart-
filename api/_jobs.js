@@ -69,8 +69,11 @@ function pickJob(b) {
     if (!TYPES.includes(b.work_type)) throw bad("Invalid work type");
     f.work_type = b.work_type;
   }
-  // Only sent for warranty jobs (needs supabase/warranty-jobs.sql): false = never message the customer about this job.
-  if (b.notify_customer !== undefined) f.notify_customer = b.notify_customer === true;
+  // Only sent for warranty jobs (needs supabase/warranty-jobs.sql): which channels may message the customer about this job.
+  if (b.notify_email !== undefined || b.notify_sms !== undefined) {
+    f.notify_email = b.notify_email === true; f.notify_sms = b.notify_sms === true;
+    f.notify_customer = f.notify_email || f.notify_sms;
+  } else if (b.notify_customer !== undefined) f.notify_customer = b.notify_customer === true;
   return f;
 }
 
@@ -600,7 +603,7 @@ module.exports = async (req, res) => {
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
-    if (/jobs_work_type_check|notify_customer/.test(String(err.message))) {
+    if (/jobs_work_type_check|notify_customer|notify_email|notify_sms/.test(String(err.message))) {
       return res.status(500).json({ error: "Setup needed for warranty jobs: run supabase/warranty-jobs.sql in Supabase, then try again." });
     }
     return res.status(err.status || 500).json({ error: err.message || "Jobs error" });

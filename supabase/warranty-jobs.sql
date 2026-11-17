@@ -7,10 +7,13 @@ alter table public.jobs drop constraint if exists jobs_work_type_check;
 alter table public.jobs add constraint jobs_work_type_check
   check (work_type in ('install','inspection','service','warranty'));
 
--- 2. Whether booking confirmations, day-before reminders and the completion email may go to the customer.
---    Existing jobs keep today's behaviour (true). Warranty jobs store the office's choice.
+-- 2. Whether booking confirmations, day-before reminders and the completion email may go to the customer,
+--    and by which channel. Existing jobs keep today's behaviour (true). Warranty jobs store the office's ticks.
+--    notify_customer = notify_email or notify_sms.
 alter table public.jobs
-  add column if not exists notify_customer boolean not null default true;
+  add column if not exists notify_customer boolean not null default true,
+  add column if not exists notify_email    boolean not null default true,
+  add column if not exists notify_sms      boolean not null default true;
 
 -- 3. Faulty alarms in the stock tracker. Each alarm replaced on a warranty job puts one faulty alarm in that
 --    electrician's van (worked out from the job). The office records taking faulty alarms back here, as
