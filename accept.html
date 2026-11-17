@@ -68,6 +68,37 @@
   .actions{display:grid;gap:10px}
   .btn.secondary{background:#fff;border:1px solid var(--teal-dark);color:var(--teal-deep);box-shadow:none}
   .btn.secondary:hover{background:var(--teal-soft)}
+  .btn:disabled.need{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+  /* "Before you accept" pop-up: how faulty alarms are looked after. */
+  .notice-overlay{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(11,27,31,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .notice-overlay.show{display:flex}
+  .notice{width:min(520px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 34px 80px -24px rgba(11,27,31,.55)}
+  .notice-head{background:linear-gradient(145deg,#0B1B1F 0%,#123039 100%);color:#fff;padding:22px 26px 20px}
+  .notice-head .eyebrow{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-bright);margin-bottom:6px}
+  .notice-head h2{font-size:1.28rem;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+  .notice-head p{font-size:.84rem;color:#B7CBCE;margin-top:6px;line-height:1.5}
+  .notice-body{padding:18px 26px 6px;overflow-y:auto}
+  .nsteps{list-style:none;display:grid;gap:14px;margin-bottom:14px}
+  .nsteps li{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start}
+  .nsteps .n{width:30px;height:30px;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);font-weight:800;font-size:.86rem;display:flex;align-items:center;justify-content:center}
+  .nsteps b{display:block;font-size:.92rem;color:var(--ink);line-height:1.35}
+  .nsteps span{display:block;font-size:.84rem;color:var(--body);line-height:1.55;margin-top:2px}
+  .nsteps a{color:var(--teal-deep);font-weight:700}
+  .nhelp{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--body);line-height:1.55;margin-bottom:12px}
+  .nhelp strong{color:var(--ink)}
+  .nlaw{font-size:.74rem;color:var(--muted);line-height:1.5;margin-bottom:6px}
+  .notice-foot{padding:12px 26px 22px;border-top:1px solid var(--line);display:grid;gap:12px;background:#fff}
+  .nick{display:flex;gap:11px;align-items:flex-start;cursor:pointer;font-size:.88rem;font-weight:600;color:var(--ink);line-height:1.45}
+  .nick input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--teal-dark);cursor:pointer}
+  .nick.locked{opacity:.5;cursor:not-allowed}
+  .nick.locked input{cursor:not-allowed}
+  .nscroll{display:none;font-size:.76rem;font-weight:600;color:var(--teal-deep);text-align:center;margin-top:-4px}
+  .nscroll.show{display:block}
+  .nick.shake{animation:nshake .35s}
+  @keyframes nshake{20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+  .nbtns{display:grid;gap:8px}
+  .nback{background:none;border:0;font:inherit;font-size:.84rem;font-weight:600;color:var(--muted);cursor:pointer;padding:4px;text-decoration:underline}
+  @media(max-width:480px){.notice-head{padding:18px 20px 16px}.notice-body{padding:16px 20px 4px}.notice-foot{padding:12px 20px 18px}}
   .subnote{text-align:center;font-size:.78rem;color:var(--muted);margin-top:14px;line-height:1.5}
   .subnote a{color:var(--teal-deep);font-weight:600;text-decoration:none}
   .err{display:none;background:#FDECEC;color:#8A2B2B;border-radius:10px;padding:11px 14px;font-size:.85rem;margin-top:14px}
@@ -164,6 +195,34 @@
         <h2 id="doneTitle">Taking you to secure payment...</h2>
         <p id="doneText">If Stripe doesn't open automatically, tap the button below.</p>
         <a class="btn" id="payLink" href="#" target="_blank" rel="noopener" style="text-decoration:none">Continue to payment</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shown when the customer taps either accept button: how faulty alarms are looked after, with a required tick. -->
+  <div class="notice-overlay" id="noticeOverlay" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+    <div class="notice">
+      <div class="notice-head">
+        <div class="eyebrow">Before you accept</div>
+        <h2 id="noticeTitle">If an alarm ever stops working, we've got you</h2>
+        <p>Your alarms come with a 10-year manufacturer warranty. Here's how we look after you.</p>
+      </div>
+      <div class="notice-body">
+        <ol class="nsteps">
+          <li><div class="n">1</div><div><b>Get in touch</b><span>Call <a href="tel:+61475184984">0475&nbsp;184&nbsp;984</a> or reply to your quote email. Tell us which alarm and, if you can, send a photo.</span></div></li>
+          <li><div class="n">2</div><div><b>We post you a replacement, free</b><span>If an alarm is faulty, we send a replacement to you at no cost. Postage is on us.</span></div></li>
+          <li><div class="n">3</div><div><b>Swap it and pair it</b><span>Swap the alarm over. For hardwired alarms our electrician has already wired the base plate, so you only change the alarm itself and never touch the wiring. Our <a href="/pairing" target="_blank" rel="noopener">step-by-step pairing guide</a> shows how to connect it to your other alarms.</span></div></li>
+        </ol>
+        <div class="nhelp"><strong>Not comfortable, or something doesn't look right?</strong> If the base plate looks damaged, you can see exposed wires, or you'd simply rather not do it yourself, leave it alone and call us. We'll arrange a licensed electrician. If the problem is with our installation work, we always fix it.</div>
+        <p class="nlaw">This doesn't limit your rights under the Australian Consumer Law.</p>
+      </div>
+      <div class="notice-foot">
+        <div class="nscroll" id="noticeScrollHint">Scroll down to read everything, then tick the box</div>
+        <label class="nick" id="noticeTickRow"><input type="checkbox" id="noticeTick"> <span>I've read and understand how faulty alarms are handled.</span></label>
+        <div class="nbtns">
+          <button class="btn need" id="noticeGo" type="button" disabled>Accept quote</button>
+          <button class="nback" id="noticeBack" type="button">Go back</button>
+        </div>
       </div>
     </div>
   </div>
@@ -281,8 +340,38 @@
     document.getElementById("done").classList.add("show");
   }
 
-  btn.addEventListener("click", function(){
+  // Both accept buttons: check the address, show the faulty-alarm notice, and only continue once it is ticked.
+  var noticeOverlay = document.getElementById("noticeOverlay"), noticeTick = document.getElementById("noticeTick"), noticeGo = document.getElementById("noticeGo"), pending = null;
+  function askNotice(goLabel, action){
     if(!validateAddress()) return;
+    pending = action; noticeTick.checked = false; noticeGo.disabled = true; noticeGo.textContent = goLabel;
+    noticeOverlay.classList.add("show"); document.body.style.overflow = "hidden";
+    document.querySelector(".notice-body").scrollTop = 0; checkNoticeRead();
+  }
+  // On a small screen the notice scrolls: the tick only unlocks once the whole notice has been scrolled into view.
+  function checkNoticeRead(){
+    var body = document.querySelector(".notice-body"), read = body.scrollHeight - body.scrollTop - body.clientHeight < 6;
+    noticeTick.disabled = !read; document.getElementById("noticeTickRow").classList.toggle("locked", !read);
+    document.getElementById("noticeScrollHint").classList.toggle("show", !read);
+    if(read && !noticeTick.checked) noticeTick.focus({ preventScroll:true });
+  }
+  document.querySelector(".notice-body").addEventListener("scroll", checkNoticeRead);
+  window.addEventListener("resize", function(){ if(noticeOverlay.classList.contains("show")) checkNoticeRead(); });
+  function closeNotice(){ noticeOverlay.classList.remove("show"); document.body.style.overflow = ""; pending = null; }
+  document.getElementById("noticeTickRow").addEventListener("click", function(){ if(noticeTick.disabled) document.querySelector(".notice-body").scrollTo({ top: 1e5, behavior:"smooth" }); });
+  noticeTick.addEventListener("change", function(){ noticeGo.disabled = !noticeTick.checked; });
+  noticeGo.addEventListener("click", function(){
+    if(!noticeTick.checked){ var row = document.getElementById("noticeTickRow"); row.classList.remove("shake"); void row.offsetWidth; row.classList.add("shake"); return; }
+    var run = pending; closeNotice(); if(run) run();
+  });
+  document.getElementById("noticeBack").addEventListener("click", closeNotice);
+  noticeOverlay.addEventListener("click", function(e){ if(e.target === noticeOverlay) closeNotice(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && noticeOverlay.classList.contains("show")) closeNotice(); });
+
+  btn.addEventListener("click", function(){ askNotice("Accept quote and pay online", acceptAndPay); });
+  phoneBtn.addEventListener("click", function(){ askNotice("Accept quote and request a call", acceptWithCall); });
+
+  function acceptAndPay(){
     setBusy(true);
     document.getElementById("btnLabel").textContent = "One moment...";
     errBox.classList.remove("show");
@@ -294,10 +383,9 @@
         errBox.textContent = error.message || "We could not save your address. Please call 0475 184 984.";
         errBox.classList.add("show");
       });
-  });
+  }
 
-  phoneBtn.addEventListener("click", function(){
-    if(!validateAddress()) return;
+  function acceptWithCall(){
     setBusy(true);
     phoneBtn.textContent = "One moment...";
     errBox.classList.remove("show");
@@ -307,7 +395,7 @@
       errBox.textContent = error.message || "We could not record your acceptance. Please call 0475 184 984.";
       errBox.classList.add("show");
     });
-  });
+  }
 })();
 </script>
 <script src="/assets/address-autofill.js" defer></script>
