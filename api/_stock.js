@@ -1,10 +1,14 @@
 // Stock tracker, served through /api/pipeline?resource=jobs (actions stock_summary / stock_move).
 // Stock on hand = what the electrician was given (stock_movements, see supabase/stock.sql)
-//               - what they installed on completed jobs since their first stock entry.
+//               - what they installed on completed jobs since their first stock entry
+//               - alarms they replaced on warranty jobs (supabase/warranty-jobs.sql).
+// Faulty alarms with the electrician = alarms replaced on warranty jobs - faulty alarms the office took back
+//               (stock_movements with condition 'faulty').
 const { sb } = require("./_supabase");
 
 const PRODUCTS = ["hardwired", "battery", "controller"];
 const KIND = { issue: 1, return: -1, adjust: 0 };   // adjust keeps the sign the user typed
+const ALARMS = ["battery", "hardwired"];             // the only products that can be faulty
 const BNE_MS = 10 * 3600e3;                          // Brisbane is UTC+10, no daylight saving
 
 function bad(msg) { const e = new Error(msg); e.status = 400; return e; }
@@ -18,10 +22,12 @@ function trackingStart(iso) {
 // installedCounts is passed in from _jobs.js to avoid a circular require.
 function buildSummary(techs, moves, jobs, installedCounts) {
   const blank = () => ({ hardwired: 0, battery: 0, controller: 0 });
-  const rows = new Map(techs.map((t) => [t.id, { electrician_id: t.id, code: t.code || "", name: t.name, active: t.active !== false, since: null, given: blank(), installed: blank(), on_hand: blank(), unclassified: 0 }]));
+  const rows = new Map(techs.map((t) => [t.id, { electrician_id: t.id, code: t.code || "", name: t.name, active: t.active !== false, since: null, given: blank(), installed: blank(), warranty_used: blank(), on_hand: blank(), unclassified: 0,
+    faulty_collected: blank(), faulty_taken_back: blank(), faulty_held: blank() }]));
   for (const m of moves) {
     const r = rows.get(m.electrician_id); if (!r || !PRODUCTS.includes(m.product)) continue;
-    r.given[m.product] += m.qty;
+    if (m.condition === "faulty") r.faulty_taken_back[m.product] -= m.qty;   // stored negative: taken off the electrician
+    else r.given[m.product] += m.qty;
     if (!r.since || m.created_at < r.since) r.since = m.created_at;
   }
   for (const r of rows.values()) if (r.since) r.since = trackingStart(r.since);
@@ -29,10 +35,15 @@ function buildSummary(techs, moves, jobs, installedCounts) {
     const r = rows.get(j.electrician_id);
     if (!r || !r.since || (j.completed_at || "") < r.since) continue;
     const c = installedCounts(j);
-    r.installed.hardwired += c.hardwired; r.installed.battery += c.battery; r.installed.controller += c.controllers;
+    r.installed.hardwired += c.hardwired + (c.warranty_hardwired || 0); r.installed.battery += c.battery + (c.warranty_battery || 0); r.installed.controller += c.controllers;
+    r.warranty_used.hardwired += c.warranty_hardwired || 0; r.warranty_used.battery += c.warranty_battery || 0;
+    r.faulty_collected.hardwired += c.warranty_hardwired || 0; r.faulty_collected.battery += c.warranty_battery || 0;
     r.unclassified += c.untyped;
   }
-  for (const r of rows.values()) for (const p of PRODUCTS) r.on_hand[p] = r.given[p] - r.installed[p];
+  for (const r of rows.values()) for (const p of PRODUCTS) {
+    r.on_hand[p] = r.given[p] - r.installed[p];
+    r.faulty_held[p] = r.faulty_collected[p] - r.faulty_taken_back[p];
+  }
   return [...rows.values()].filter((r) => r.since || r.active);
 }
 
@@ -45,19 +56,30 @@ async function load(installedCounts) {
   let jobs = [];
   if (list.length) {
     const first = list.reduce((a, m) => (m.created_at < a ? m.created_at : a), list[0].created_at);
-    jobs = await sb(`jobs?status=eq.completed&electrician_id=not.is.null&completed_at=gte.${encodeURIComponent(trackingStart(first))}&select=id,job_no,electrician_id,completed_at,invoice_items,alarm_type,alarms,customer_name,address,suburb&order=completed_at.asc&limit=5000`) || [];
+    jobs = await sb(`jobs?status=eq.completed&electrician_id=not.is.null&completed_at=gte.${encodeURIComponent(trackingStart(first))}&select=id,job_no,electrician_id,completed_at,invoice_items,alarm_type,alarms,work_type,alarm_units,customer_name,address,suburb&order=completed_at.asc&limit=5000`) || [];
   }
   const names = Object.fromEntries((techs || []).map((t) => [t.id, t.name]));
+  // Every alarm replaced on a completed warranty job, newest first: the faulty alarm register.
+  let warrantyJobs = [];
+  try {
+    warrantyJobs = await sb("jobs?work_type=eq.warranty&status=eq.completed&select=id,job_no,electrician_id,completed_at,customer_name,suburb,alarm_units&order=completed_at.desc&limit=200") || [];
+  } catch (_) { /* warranty jobs not set up yet */ }
+  const faulty = [];
+  for (const j of warrantyJobs) for (const u of Array.isArray(j.alarm_units) ? j.alarm_units : []) {
+    if (!u || u.outcome !== "replaced") continue;
+    faulty.push({ completed_at: j.completed_at, job_no: j.job_no, electrician: names[j.electrician_id] || "", customer: j.customer_name || "", suburb: j.suburb || "",
+      location: u.location || "", type: u.type === "hardwired" ? "hardwired" : "battery", fault: u.fault || "" });
+  }
   return {
-    jobs, all: list, names,
+    jobs, all: list, names, faulty,
     electricians: buildSummary(techs || [], list, jobs, installedCounts),
-    movements: list.slice(0, 60).map((m) => ({ id: m.id, created_at: m.created_at, electrician: names[m.electrician_id] || "", product: m.product, qty: m.qty, kind: m.kind, note: m.note || "", created_by: m.created_by || "" })),
+    movements: list.slice(0, 60).map((m) => ({ id: m.id, created_at: m.created_at, electrician: names[m.electrician_id] || "", product: m.product, qty: m.qty, kind: m.kind, condition: m.condition || "good", note: m.note || "", created_by: m.created_by || "" })),
   };
 }
 
 async function summary(installedCounts) {
-  const { electricians, movements } = await load(installedCounts);
-  return { electricians, movements };
+  const { electricians, movements, faulty } = await load(installedCounts);
+  return { electricians, movements, faulty: faulty.slice(0, 100) };
 }
 
 const LABEL = { hardwired: "Hardwired smoke alarm", battery: "Battery smoke alarm", controller: "Controller" };
@@ -79,13 +101,14 @@ async function workbook(data, installedCounts, techId) {
   const sCols = [["Electrician", 24], ["Code", 9], ["Counting installs from", 22]];
   PRODUCTS.forEach((p) => ["given", "installed", "should have"].forEach((k) => sCols.push([`${LABEL[p]} ${k}`, 20])));
   sCols.push(["Alarms of unknown type (not counted)", 30]);
+  ALARMS.forEach((p) => sCols.push([`Faulty ${p} alarms with electrician`, 22]));
   const s1 = wb.addWorksheet("Stock summary", { views: [{ state: "frozen", ySplit: 4 }] });
   banner(s1, "PowerSmart - stock by electrician", sCols.length);
   s1.columns = sCols.map(([, width]) => ({ width }));
   s1.addTable({ name: "StockSummary", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: sCols.map(([name]) => ({ name, filterButton: false })),
-    rows: techs.length ? techs.map((t) => [xText(t.name), xText(t.code), bneDate(t.since), ...PRODUCTS.flatMap((p) => [t.given[p], t.installed[p], t.on_hand[p]]), t.unclassified])
-      : [["No stock recorded yet", "", "", ...PRODUCTS.flatMap(() => [0, 0, 0]), 0]] });
+    rows: techs.length ? techs.map((t) => [xText(t.name), xText(t.code), bneDate(t.since), ...PRODUCTS.flatMap((p) => [t.given[p], t.installed[p], t.on_hand[p]]), t.unclassified, ...ALARMS.map((p) => t.faulty_held[p])])
+      : [["No stock recorded yet", "", "", ...PRODUCTS.flatMap(() => [0, 0, 0]), 0, 0, 0]] });
 
   const jCols = [["Completed", 18], ["Job", 9], ["Electrician", 22], ["Customer", 24], ["Address", 40], ["Hardwired alarms", 17], ["Battery alarms", 15], ["Controllers", 13], ["Type not recorded", 18]];
   const s2 = wb.addWorksheet("Installed", { views: [{ state: "frozen", ySplit: 4 }] });
@@ -105,6 +128,14 @@ async function workbook(data, installedCounts, techId) {
   const mv = data.all.filter((m) => !techId || m.electrician_id === techId).map((m) => [new Date(m.created_at).toLocaleString("en-AU", { timeZone: "Australia/Brisbane" }), xText(data.names[m.electrician_id]), LABEL[m.product] || m.product, m.qty, m.kind, xText(m.note), xText(m.created_by)]);
   s3.addTable({ name: "StockEntries", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: mCols.map(([name]) => ({ name, filterButton: true })), rows: mv.length ? mv : [["", "", "No entries", 0, "", "", ""]] });
+  const fCols = [["Completed", 18], ["Job", 9], ["Electrician", 22], ["Customer", 24], ["Suburb", 18], ["Location", 16], ["Type", 12], ["Fault", 26]];
+  const s4 = wb.addWorksheet("Faulty alarms", { views: [{ state: "frozen", ySplit: 4 }] });
+  banner(s4, "PowerSmart - faulty alarms replaced under warranty", fCols.length);
+  s4.columns = fCols.map(([, width]) => ({ width }));
+  const fr = (data.faulty || []).filter((f) => !techId || f.electrician === data.names[techId])
+    .map((f) => [bneDate(f.completed_at), "J" + f.job_no, xText(f.electrician), xText(f.customer), xText(f.suburb), xText(f.location), f.type, xText(f.fault)]);
+  s4.addTable({ name: "FaultyAlarms", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
+    columns: fCols.map(([name]) => ({ name, filterButton: true })), rows: fr.length ? fr : [["", "", "No faulty alarms yet", "", "", "", "", ""]] });
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
@@ -125,8 +156,9 @@ async function sendCount(data, techId, { sendAs, agent }) {
 <p>Hi ${esc(first)},</p><p>Here is your PowerSmart stock count as of ${esc(date)}. Please check it against what is in your van and let us know if anything is out.</p>
 <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-size:13px;"><tr style="background:#F4F9FA;color:#0B1B1F;font-weight:bold;"><td style="${cell}">Product</td><td align="right" style="${cell}">Given</td><td align="right" style="${cell}">Installed</td><td align="right" style="${cell}">You should have</td></tr>
 ${PRODUCTS.map((p) => `<tr><td style="${cell}">${LABEL[p]}</td><td align="right" style="${cell}">${t.given[p]}</td><td align="right" style="${cell}">${t.installed[p]}</td><td align="right" style="${cell}font-weight:bold;color:#0B1B1F;">${t.on_hand[p]}</td></tr>`).join("")}</table>
+${ALARMS.some((p) => t.faulty_held[p] > 0) ? `<p><strong style="color:#0B1B1F;">Faulty alarms to hand back to the office:</strong> ${ALARMS.map((p) => `${t.faulty_held[p]} ${p}`).join(", ")}.</p>` : ""}
 ${t.unclassified ? `<p style="font-size:12px;">Note: ${t.unclassified} alarm${t.unclassified === 1 ? "" : "s"} on completed jobs had no type recorded and are not counted above.</p>` : ""}</div>`;
-  const text = `Hi ${first},\n\nYour PowerSmart stock count as of ${date}:\n\n${PRODUCTS.map((p) => `${LABEL[p]}: given ${t.given[p]}, installed ${t.installed[p]}, you should have ${t.on_hand[p]}`).join("\n")}\n${t.unclassified ? `\nNote: ${t.unclassified} alarm(s) had no type recorded and are not counted.\n` : ""}\nPlease check this against what is in your van.`;
+  const text = `Hi ${first},\n\nYour PowerSmart stock count as of ${date}:\n\n${PRODUCTS.map((p) => `${LABEL[p]}: given ${t.given[p]}, installed ${t.installed[p]}, you should have ${t.on_hand[p]}`).join("\n")}\n${ALARMS.some((p) => t.faulty_held[p] > 0) ? `\nFaulty alarms to hand back to the office: ${ALARMS.map((p) => `${t.faulty_held[p]} ${p}`).join(", ")}.\n` : ""}${t.unclassified ? `\nNote: ${t.unclassified} alarm(s) had no type recorded and are not counted.\n` : ""}\nPlease check this against what is in your van.`;
   const subject = `Your PowerSmart stock count - ${new Date().toLocaleDateString("en-AU", { timeZone: "Australia/Brisbane", day: "numeric", month: "short" })}`;
   const sender = S.resolveSender(sendAs);
   const { Resend } = require("resend");
@@ -137,17 +169,29 @@ ${t.unclassified ? `<p style="font-size:12px;">Note: ${t.unclassified} alarm${t.
   return { ok: true, to, cc };
 }
 
+// kind "faulty_return": the office took faulty alarms back from the electrician (stored as a return of faulty stock).
 async function move(b, actor, clean) {
-  const electrician_id = clean(b.electrician_id, 40), product = clean(b.product, 20), kind = clean(b.kind, 10) || "issue";
+  const electrician_id = clean(b.electrician_id, 40), product = clean(b.product, 20);
+  let kind = clean(b.kind, 20) || "issue";
+  const faulty = kind === "faulty_return";
+  if (faulty) kind = "return";
   if (!electrician_id) throw bad("Choose an electrician");
   if (!PRODUCTS.includes(product)) throw bad("Choose a product");
-  if (!(kind in KIND)) throw bad("Choose Give, Take back or Correction");
+  if (faulty && !ALARMS.includes(product)) throw bad("Only battery or hardwired alarms can be faulty");
+  if (!(kind in KIND)) throw bad("Choose Give, Take back, Take back faulty or Correction");
   let qty = parseInt(b.qty, 10);
   if (!qty || isNaN(qty)) throw bad("Enter a quantity");
   qty = kind === "adjust" ? qty : Math.abs(qty) * KIND[kind];
   if (Math.abs(qty) > 100000) throw bad("Quantity is too large");
-  const rows = await sb("stock_movements", { method: "POST", body: { electrician_id, product, qty, kind, note: clean(b.note, 300) || null, created_by: actor } });
-  return rows && rows[0];
+  const body = { electrician_id, product, qty, kind, note: clean(b.note, 300) || null, created_by: actor };
+  if (faulty) body.condition = "faulty";
+  try {
+    const rows = await sb("stock_movements", { method: "POST", body });
+    return rows && rows[0];
+  } catch (e) {
+    if (faulty && /condition/.test(String(e.message))) throw bad("Setup needed for faulty alarms: run supabase/warranty-jobs.sql in Supabase, then try again.");
+    throw e;
+  }
 }
 
 module.exports = { summary, load, workbook, sendCount, move, buildSummary, trackingStart, PRODUCTS };

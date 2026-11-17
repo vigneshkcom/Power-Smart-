@@ -319,7 +319,7 @@
     return (Array.isArray(j.alarm_units) && j.alarm_units.length) || (Array.isArray(j.invoice_items) && j.invoice_items.length) ? "partial" : j.status;
   }
   var STATUS = { partial:"Partial", scheduled:"Scheduled", en_route:"On the way", on_site:"On site", completed:"Completed", cancelled:"Cancelled" };
-  var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
+  var TYPES = { install:"Install", inspection:"Inspection", service:"Service", warranty:"Warranty" };
 
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]; }); }
   function pad(n){ return (n < 10 ? "0" : "") + n; }
@@ -662,6 +662,11 @@
   // Back arrow: if there is unsynchronised work, ask what to do with it instead of just leaving.
   function unfinishedAreas(){
     var out = [], j = cur.job;
+    if (cur.warranty){
+      if (!unitList().length) out.push({ name: "Alarms checked", sec: "alarms" });
+      if (!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))) out.push({ name: "Work sign off", sec: "signoff" });
+      return out;
+    }
     var hasItems = (cur.items || []).length > 0 || unitList().length > 0, approved = !!j.approved_at;
     if (!completeState.alarms) out.push({ name: "Smoke alarms", sec: "alarms" });
     if (!hasItems) out.push({ name: "Invoice", sec: "invoice" });
@@ -822,15 +827,44 @@
     if (c >= due) return "That is the full amount. Choose Yes if the customer paid in full.";
     return c > 0 ? money(c) + " collected, " + money(due - c) + " still owing." : "Enter 0 if no cash was collected.";
   }
+  // Warranty jobs: alarms the electrician checked (stored in alarm_units with fault + outcome). No invoice lines.
+  function setUnits(list){
+    if (cur.warranty){ cur.job.alarm_units = list; markDirty(); keepScroll(renderJob); }
+    else syncAlarmItems(list);
+  }
+  function warrantyAlarmsCard(){
+    var units = unitList(), rep = units.filter(function(u){ return u.outcome === "replaced"; });
+    var bat = rep.filter(function(u){ return u.type !== "hardwired"; }).length, hw = rep.length - bat;
+    var out = '<div class="card" id="sec-alarms"><h2><span class="n' + (units.length ? " ok" : "") + '">' + (units.length ? "✓" : "1") + '</span>Alarms checked</h2>' +
+      '<div class="booked">Warranty visit: no charge to the customer.</div>' +
+      '<p class="muted" style="margin:6px 0 10px">Add each alarm you check: what was wrong, and whether you replaced it or fixed it.</p>';
+    units.forEach(function(u, i){
+      var th = u.photoKey ? localThumb(u.photoKey) : thumbFor(u.photo);
+      out += '<div class="item unit"><div class="uthumb">' + (th ? '<img src="' + esc(th) + '" alt="Faulty alarm photo">' : (u.photo ? "Photo" : "–")) + '</div>' +
+        '<div class="lab">Alarm ' + (i + 1) + ' · ' + (u.outcome === "replaced" ? "Replaced" : "Fixed") + '<small>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + (u.fault ? ' · ' + esc(u.fault) : '') + (u.photoKey ? " · photo waiting to sync" : "") + '</small></div>' +
+        '<button class="del" data-unit-del="' + i + '">Delete</button></div>';
+    });
+    out += draft ? draftForm() : '<button class="btn btn-ghost" id="u-add" style="margin-top:10px">＋ Add alarm checked</button>';
+    out += '<div class="tot"><div><span>Alarms checked</span><b id="n-alarms">' + units.length + '</b></div>' +
+      (units.length ? '<div class="muted"><span>' + rep.length + ' replaced (' + bat + ' battery · ' + hw + ' hardwired) · ' + (units.length - rep.length) + ' fixed</span></div>' : '') +
+      (rep.length ? '<div class="muted"><span>Bring back ' + rep.length + ' faulty alarm' + (rep.length === 1 ? "" : "s") + ' to the office</span></div>' : '') + '</div>' +
+      '<div class="field" style="margin:14px 0 0"><label for="j-notes">Notes (optional)</label>' +
+      '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(cur.job.tech_notes || "") + '</textarea></div></div>';
+    return out;
+  }
   function draftForm(){
     var d = draft;
     return '<div class="draft"><div class="field"><label for="d-loc">Where is this alarm?</label><select id="d-loc">' +
       LOCATIONS.map(function(l){ return '<option' + (d.location === l ? " selected" : "") + '>' + l + '</option>'; }).join("") + '</select></div>' +
       (d.location === "Other" ? '<div class="field"><input type="text" id="d-other" maxlength="40" placeholder="e.g. Rumpus room" value="' + esc(d.other) + '"></div>' : "") +
       '<div class="field"><label for="d-type">Alarm type</label><select id="d-type"><option value=""' + (d.type ? "" : " selected") + '>Choose type…</option><option value="battery"' + (d.type === "battery" ? " selected" : "") + '>Battery</option><option value="hardwired"' + (d.type === "hardwired" ? " selected" : "") + '>Hardwired</option></select></div>' +
+      (cur.warranty ? '<div class="field"><label for="d-fault">What was wrong?</label><select id="d-fault"><option value="">Choose…</option>' +
+        (cur.faults || []).map(function(f){ return '<option' + (d.fault === f ? " selected" : "") + '>' + esc(f) + '</option>'; }).join("") + '</select></div>' +
+        '<div class="q">What did you do?</div><div class="seg" data-seg="outcome"><button data-v="replaced" class="' + (d.outcome === "replaced" ? "on" : "") + '">Replaced it</button><button data-v="fixed" class="' + (d.outcome === "fixed" ? "on" : "") + '">Fixed, no replacement</button></div>' +
+        '<p class="muted" style="margin:6px 0 10px">Replaced: a new alarm comes out of your stock and the faulty one comes back with you.</p>' : '') +
       '<div class="shot">' + (d.thumb ? '<img src="' + esc(d.thumb) + '" alt="Alarm photo">' : "") +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : "Take photo") + '<input id="d-file" type="file" accept="image/*" capture="environment" hidden' + (d.busy ? " disabled" : "") + '></label></div></div>' +
+        '<label class="btn btn-ghost" style="min-height:46px;margin:0">' + (d.busy ? "Uploading…" : d.photo ? "Retake photo" : cur.warranty ? "Take photo of the faulty alarm" : "Take photo") + '<input id="d-file" type="file" accept="image/*" capture="environment" hidden' + (d.busy ? " disabled" : "") + '></label></div></div>' +
       '<div class="row"><button class="btn btn-primary" id="d-save"' + (d.busy ? " disabled" : "") + '>Save alarm</button><button class="btn btn-ghost" id="d-cancel">Cancel</button></div></div>';
   }
   // Alarm invoice lines always follow the alarms recorded one by one.
@@ -892,12 +926,14 @@
   function renderSteps(){
     var box = $("j-steps"); if (!box || !cur) return;
     var finished = cur.job.status === "completed";
+    var signed = !!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true));
     var flags = finished ? [true, true, true, true] : [
-      !!(completeState && completeState.alarms), (cur.items || []).length > 0 || unitList().length > 0, !!cur.job.approved_at, !!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))
+      !!(completeState && completeState.alarms), (cur.items || []).length > 0 || unitList().length > 0, !!cur.job.approved_at, signed
     ];
+    var keys = ["alarms", "invoice", "approval", "signoff"], names = ["Alarms", "Invoice", "Approval", "Sign off"];
+    if (cur.warranty){ flags = [flags[0], finished || signed]; keys = ["alarms", "signoff"]; names = ["Alarms", "Sign off"]; }
     var now = flags.indexOf(false);
-    var keys = ["alarms", "invoice", "approval", "signoff"];
-    box.innerHTML = ["Alarms", "Invoice", "Approval", "Sign off"].map(function(n, i){
+    box.innerHTML = names.map(function(n, i){
       return '<button type="button" class="jstep' + (flags[i] ? " done" : i === now ? " now" : "") + '" data-sec="' + keys[i] + '" aria-label="Go to ' + n + '"><i></i>' + n + '</button>';
     }).join("");
   }
@@ -1011,7 +1047,9 @@
 
     if (done){
       html += '<div class="card"><div class="ok-banner">Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
-        '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>' +
+        (cur.warranty
+          ? '<div class="muted">Warranty visit · no charge</div><div class="tot">' + unitList().map(function(u){ return '<div><span>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + (u.fault ? ' · ' + esc(u.fault) : '') + '</span><span>' + (u.outcome === "replaced" ? "Replaced" : "Fixed") + '</span></div>'; }).join("") + '</div>'
+          : '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>') +
         (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
         (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
         '<button class="btn btn-ghost" id="reopen">Edit job</button>';
@@ -1022,8 +1060,9 @@
 
     // (no status buttons: the job moves to Partial when synchronised and Completed at sign-off)
 
-    // 1. smoke alarms, added one at a time with a photo
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
+    if (cur.warranty){ html += warrantyAlarmsCard(); approved = true; due = 0; } else {
+    // 1. smoke alarms, added one at a time with a photo
     var units = unitList();
     var nBat = units.filter(function(u){ return u.type === "battery"; }).length, nHw = units.length - nBat;
     var bookedParts = [];
@@ -1115,10 +1154,11 @@
     }
     html += '</div>';
 
-    // 4. work sign off
+    }
+    // 4. work sign off (2 on a warranty job)
     var haveRc = !!(pay.receiptKey || j.pay_receipt), cashOk = pay.method === "cash" && ((pay.full === true && haveRc) || (pay.full === false && cashCents() >= 0 && cashCents() < due && (cashCents() === 0 || haveRc)));
     var payReady = due <= 0 || paid || cashOk || pay.method === "bank_transfer";
-    html += '<div class="card" id="sec-signoff"><h2><span class="n">4</span>Work sign off</h2>' +
+    html += '<div class="card" id="sec-signoff"><h2><span class="n">' + (cur.warranty ? 2 : 4) + '</span>Work sign off</h2>' +
       '<div id="so-lock" hidden><p class="muted">Work sign off opens once this job is synchronised.</p>' +
         '<button class="btn btn-primary" id="so-open" style="margin-top:10px">' + (syncing ? "Synchronising…" : "Open work sign off") + '</button></div>' +
       '<div id="so-form">' +
@@ -1128,10 +1168,10 @@
         ? '<button type="button" class="signbox done" id="so-sign" aria-label="Signature captured. Tap to sign again"><img src="' + esc(sigData) + '" alt="Signature"></button>' +
           '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button>'
         : '<button type="button" class="signbox" id="so-sign"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4zM13.5 6.5l4 4"/></svg>Tap to sign</button>') + '</div>' +
-      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> I confirm that the installed smoke alarms are compliant and the work is complete.</label>' +
+      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> ' + (cur.warranty ? "I confirm the smoke alarms have been checked and are working." : "I confirm that the installed smoke alarms are compliant and the work is complete.") + '</label>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronise</button>' : '') + '</div>' +
       '</div></div>' +
-      '<div class="stickybar"><button class="btn btn-green" id="complete" disabled>Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice") + '</button>' +
+      '<div class="stickybar"><button class="btn btn-green" id="complete" disabled>' + (cur.warranty ? "Complete warranty job" : 'Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice")) + '</button>' +
       '<p class="nexthint" id="so-hint"></p></div>';
     completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
 
@@ -1178,24 +1218,29 @@
         .catch(function(err){ t.disabled = false; toast(err.message); });
       return;
     }
-    if (t.id === "u-add"){ draft = { location: "Hallway", other: "", type: "", photoKey: "", thumb: "", busy: false }; keepScroll(renderJob); return; }
+    if (t.id === "u-add"){ draft = { location: "Hallway", other: "", type: "", fault: "", outcome: "", photoKey: "", thumb: "", busy: false }; keepScroll(renderJob); return; }
     if (t.id === "d-cancel"){ if (draft && draft.photoKey) dropPhoto(draft.photoKey); draft = null; keepScroll(renderJob); return; }
     if (t.id === "d-save"){
       if (!draft.type){ toast("Choose battery or hardwired"); return; }
+      if (cur.warranty && !draft.fault){ toast("Choose what was wrong with the alarm"); return; }
+      if (cur.warranty && !draft.outcome){ toast("Choose Replaced it or Fixed"); return; }
       if (storageOn() && !draft.photoKey){ toast("Take a photo of the alarm first"); return; }
       var loc = draft.location === "Other" ? (draft.other.trim() || "Other") : draft.location;
       var unitId = "u" + Date.now().toString(36), key = draft.photoKey;
-      var next = unitList().concat([{ id: unitId, location: loc, type: draft.type, photo: "", photoKey: key }]);
+      var unit = { id: unitId, location: loc, type: draft.type, photo: "", photoKey: key };
+      if (cur.warranty){ unit.fault = draft.fault; unit.outcome = draft.outcome; }
+      var next = unitList().concat([unit]);
       draft = null;
       var rec = key && localRecs.find(function(r){ return r.key === key; });
       if (rec){ rec.unitId = unitId; idbPut(rec).catch(function(){}); }
-      syncAlarmItems(next); return;
+      setUnits(next); return;
     }
     var ud = t.closest("[data-unit-del]");
-    if (ud){ if (!confirm("Delete this smoke alarm?")) return; var list = unitList().slice(), gone = list.splice(Number(ud.dataset.unitDel), 1)[0]; if (gone && gone.photoKey) dropPhoto(gone.photoKey); syncAlarmItems(list); return; }
+    if (ud){ if (!confirm("Delete this smoke alarm?")) return; var list = unitList().slice(), gone = list.splice(Number(ud.dataset.unitDel), 1)[0]; if (gone && gone.photoKey) dropPhoto(gone.photoKey); setUnits(list); return; }
     var sg = t.closest("[data-seg] button");
     if (sg){
       var kind = sg.parentNode.dataset.seg, v = sg.dataset.v;
+      if (kind === "outcome"){ if (draft) draft.outcome = v; keepScroll(renderJob); return; }
       if (kind === "full") pay.full = v === "yes";
       else if (kind === "method"){ if (pay.method !== v) pay.full = null; pay.method = v; }
       persistDraft(); keepScroll(renderJob); return;
@@ -1209,7 +1254,7 @@
     if (t.closest("#so-sign")){ openSign(); return; }
     if (t.closest("[data-sync]")){ syncJob().catch(function(){}); return; }
     if (t.id === "complete"){
-      if (!confirm(pay.method === "bank_transfer" ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + " with the bank transfer details?" : pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
+      if (!confirm(cur.warranty ? "Complete this warranty job? Alarms you replaced come out of your stock, and the faulty ones are recorded as coming back with you." : pay.method === "bank_transfer" ? "Complete the job and email a pending invoice for " + money(cur.totals.due) + " with the bank transfer details?" : pay.method === "cash" && pay.full === false ? "Complete the job and email a pending invoice for " + money(Math.max(0, cur.totals.due - cashCents())) + (cashCents() > 0 ? " (after " + money(cashCents()) + " cash collected)" : "") + "?" : "Complete the job and email the invoice to the customer?")) return;
       t.disabled = true; t.textContent = "Completing…";
       var rec = {
         jobId: cur.job.id, jobNo: cur.job.job_no, name: cur.job.customer_name, tech: me && me.code, at: Date.now(),
@@ -1222,6 +1267,11 @@
       Promise.resolve().then(function(){ return runQueued(rec); }).then(function(d){
         qDel(rec.jobId);
         if (d && d.alreadyCompleted){ $("done-msg").textContent = "J" + rec.jobNo + " · " + rec.name + " · already completed and sent."; }
+        else if (d && d.warranty){
+          var em = d.email || {};
+          $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · warranty job completed. Bring the faulty alarms back to the office." +
+            (em.status === "sent" ? " Completion email sent to the customer." : em.status === "failed" ? " Completion email NOT sent (" + em.error + "). Tell the office." : "");
+        }
         else {
           var inv = d.invoice || {};
           $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
@@ -1240,7 +1290,7 @@
           dirty = false; show("v-done"); renderQueueNote(); return;
         }
         qDel(rec.jobId); keepProgressInDraft(rec);
-        t.disabled = false; t.innerHTML = "Complete job &amp; send invoice"; toast(err.message);
+        t.disabled = false; t.innerHTML = cur.warranty ? "Complete warranty job" : "Complete job &amp; send invoice"; toast(err.message);
       });
     }
   });
@@ -1263,6 +1313,7 @@
     if (id === "j-notes") keepScroll(renderJob);
     if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
     if (id === "d-type"){ draft.type = e.target.value; }
+    if (id === "d-fault"){ draft.fault = e.target.value; }
     if (id === "so-ok"){ soOk = e.target.checked; persistDraft(); updateComplete(); }
     if (id === "rc-file" && e.target.files.length){
       var rf = e.target.files[0], oldKey = pay.receiptKey;

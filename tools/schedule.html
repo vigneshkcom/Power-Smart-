@@ -371,9 +371,9 @@
 
           <div class="section-label">Job</div>
           <div class="field"><label for="jm-type">Work type</label>
-            <select id="jm-type"><option value="install">Install</option><option value="inspection">Inspection</option><option value="service">Service</option></select>
+            <select id="jm-type"><option value="install">Install</option><option value="inspection">Inspection</option><option value="service">Service</option><option value="warranty">Warranty</option></select>
           </div>
-          <div class="field"><label for="jm-alarms">Alarms to install</label><input id="jm-alarms" type="number" min="0" max="99"><small id="jm-quote-hint" class="hint"></small></div>
+          <div class="field" id="jm-alarms-wrap"><label for="jm-alarms">Alarms to install</label><input id="jm-alarms" type="number" min="0" max="99"><small id="jm-quote-hint" class="hint"></small></div>
           <div class="field"><label for="jm-tech">Electrician</label><select id="jm-tech"></select></div>
           <div class="field"><label for="jm-status">Status</label>
             <select id="jm-status">
@@ -397,8 +397,12 @@
             </div>
             <small id="jm-confirm-hint" class="hint"></small>
           </div>
+          <div class="field full confirm-box" id="jm-wnotify-wrap" style="display:none">
+            <label class="confirm-main"><input type="checkbox" id="jm-wnotify"> Send emails and texts to the customer for this warranty job</label>
+            <small id="jm-wnotify-hint" class="hint"></small>
+          </div>
           <div class="field full" id="jm-photos-wrap" style="display:none"><label>Job photos</label><div id="jm-photos"></div></div>
-          <div class="field full"><label for="jm-notes">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
+          <div class="field full"><label for="jm-notes" id="jm-notes-label">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
         </div>
       </div>
       <div class="modal-foot">
@@ -430,7 +434,7 @@
         <div class="section-label">Record stock</div>
         <div class="rp-bar">
           <label>Electrician <select id="st-tech"></select></label>
-          <label>Action <select id="st-kind"><option value="issue">Give</option><option value="return">Take back</option><option value="adjust">Correction (+/-)</option></select></label>
+          <label>Action <select id="st-kind"><option value="issue">Give</option><option value="return">Take back</option><option value="faulty_return">Take back faulty</option><option value="adjust">Correction (+/-)</option></select></label>
           <label>Product <select id="st-product"><option value="hardwired">Hardwired smoke alarm</option><option value="battery">Battery smoke alarm</option><option value="controller">Controller</option></select></label>
           <label>Qty <input type="number" id="st-qty" step="1" style="width:5rem"></label>
           <label>Note <input type="text" id="st-note" maxlength="300" placeholder="optional" style="width:12rem"></label>
@@ -438,8 +442,10 @@
         </div>
         <div class="section-label" style="margin-top:1rem">Recent stock entries</div>
         <div class="rp-scroll"><table class="rp-table" id="st-log"></table></div>
+        <div class="section-label" style="margin-top:1rem">Faulty alarms replaced under warranty</div>
+        <div class="rp-scroll"><table class="rp-table" id="st-faulty"></table></div>
       </div>
-      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded.</span><span class="spacer"></span>
+      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded, including alarms replaced on warranty jobs. Each replaced alarm also puts one faulty alarm with the electrician until you record Take back faulty.</span><span class="spacer"></span>
         <button class="btn btn-primary" id="st-download">⬇ Download Excel</button></div>
     </div>
   </div>
@@ -545,7 +551,7 @@
     var synced = (Array.isArray(j.alarm_units) && j.alarm_units.length) || (Array.isArray(j.invoice_items) && j.invoice_items.length);
     return synced ? "partial" : j.status;
   }
-  var TYPES = { install:"Install", inspection:"Inspection", service:"Service" };
+  var TYPES = { install:"Install", inspection:"Inspection", service:"Service", warranty:"Warranty" };
   var BLOCK_H = 80, GAP = 6, ROW_MIN = 96;
   var MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   var DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
@@ -1059,8 +1065,24 @@
     var day = start.toLocaleDateString("en-AU", { weekday:"long", day:"numeric", month:"long" });
     return day + ", " + (start.getHours() < 12 ? "AM slot (8am-12pm)" : "PM slot (12pm-5pm)");
   }
+  // Warranty jobs: one saved choice (jobs.notify_customer) covers the booking confirmation, the day-before reminder
+  // and the completion email. Unticked by default, so nothing reaches the customer unless the office asks.
+  function isWarrantyForm(){ return $("jm-type").value === "warranty"; }
+  function updateWarrantyUi(){
+    var w = isWarrantyForm();
+    $("jm-alarms-wrap").style.display = w ? "none" : "";
+    $("jm-wnotify-wrap").style.display = w ? "" : "none";
+    $("jm-notes-label").textContent = w ? "What the customer reported (shown to the electrician)" : "Notes for the electrician";
+    $("jm-notes").placeholder = w ? "e.g. Hallway alarm keeps chirping; bedroom alarm went off with no smoke" : "Access, parking, gate codes, existing hardwired alarms…";
+    $("jm-wnotify-hint").textContent = $("jm-wnotify").checked
+      ? "The customer gets a booking confirmation when you save (once the job has an electrician and a date), a reminder the day before, and an email when the work is done."
+      : "Nothing is sent to the customer about this warranty job.";
+    updateConfirmUi();
+  }
+  $("jm-type").addEventListener("change", updateWarrantyUi);
+  $("jm-wnotify").addEventListener("change", updateWarrantyUi);
   function updateConfirmUi(){
-    var show = Boolean($("jm-tech").value && $("jm-date").value && $("jm-status").value === "scheduled");
+    var show = Boolean(!isWarrantyForm() && $("jm-tech").value && $("jm-date").value && $("jm-status").value === "scheduled");
     $("jm-confirm-wrap").style.display = show ? "" : "none";
     if (!show) return;
     var email = $("jm-email").value.trim(), phone = $("jm-phone").value.trim();
@@ -1082,7 +1104,9 @@
     $("jm-confirm").checked = true; $("jm-confirm-email").checked = true; $("jm-confirm-sms").checked = true;
     if (!opts.start){ $("jm-date").value = ""; setTime(""); }
     techOptions(opts.techId || "");
-    updateConfirmUi();
+    $("jm-wnotify").checked = false;
+    if (opts.warranty){ $("jm-type").value = "warranty"; $("jm-title").textContent = "New warranty job"; }
+    updateWarrantyUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
@@ -1306,7 +1330,8 @@
     techOptions(j.electrician_id || "");
     // Already-booked jobs default to no message; jobs being scheduled for the first time default to sending.
     $("jm-confirm").checked = !j.scheduled_start; $("jm-confirm-email").checked = true; $("jm-confirm-sms").checked = true;
-    updateConfirmUi();
+    $("jm-wnotify").checked = j.work_type === "warranty" && j.notify_customer !== false;
+    updateWarrantyUi();
     $("jm-lead-wrap").style.display = "none";
     var lead = j.lead_id ? (state.leads || []).find(function(l){ return l.id === j.lead_id; }) : null;
     $("jm-lead-chip").style.display = j.lead_id ? "" : "none";
@@ -1363,6 +1388,15 @@
     var confirmSend = $("jm-confirm-wrap").style.display !== "none" && $("jm-confirm").checked,
         wantEmail = confirmSend && $("jm-confirm-email").checked && !$("jm-confirm-email").disabled,
         wantSms = confirmSend && $("jm-confirm-sms").checked && !$("jm-confirm-sms").disabled;
+    if (payload.work_type === "warranty"){
+      // Send the warranty booking confirmation only when the box is ticked and the booking is new or has changed.
+      payload.notify_customer = $("jm-wnotify").checked;
+      var booked = Boolean(techId && start && payload.status === "scheduled");
+      var changed = !editing || editing.work_type !== "warranty" || editing.notify_customer === false || editing.electrician_id !== techId ||
+        Date.parse(editing.scheduled_start || "") !== Date.parse(payload.scheduled_start || "");
+      confirmSend = payload.notify_customer && booked && changed && Boolean(payload.email || payload.phone);
+      wantEmail = confirmSend && Boolean(payload.email); wantSms = confirmSend && Boolean(payload.phone);
+    }
     if (confirmSend && !wantEmail && !wantSms){ toast("Tick Email, SMS or both for the booking confirmation, or untick it"); return; }
     var note = "";
     if (wantEmail){ note = prompt("Optional: add a personal note to the booking confirmation email (leave blank for none). Cancel to stop saving.", ""); if (note === null) return; }
@@ -1551,18 +1585,33 @@
   /* ---------- stock tracker ---------- */
   var STOCK_LABEL = { hardwired:"Hardwired alarm", battery:"Battery alarm", controller:"Controller" };
   function renderStock(d){
+    renderFaulty(d.faulty);
     var P = ["hardwired","battery","controller"];
-    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Given / used</th><th></th></tr></thead><tbody>' +
+    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Faulty to<br>hand back</th><th>Given / used</th><th></th></tr></thead><tbody>' +
       (d.electricians.length ? d.electricians.map(function(t){
         return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
           P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
+          '<td>' + faultyText(t) + '</td>' +
           '<td>' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
             (t.unclassified ? ' · <span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td>' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
-      }).join("") : '<tr><td class="empty" colspan="6">No electricians yet</td></tr>') + '</tbody>';
+      }).join("") : '<tr><td class="empty" colspan="7">No electricians yet</td></tr>') + '</tbody>';
     $("st-log").innerHTML = '<thead><tr><th>When</th><th>Electrician</th><th>Product</th><th class="n">Qty</th><th>Note</th><th>By</th></tr></thead><tbody>' +
       (d.movements.length ? d.movements.map(function(m){
-        return '<tr><td>' + esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</td><td>' + esc(m.electrician) + '</td><td>' + esc(STOCK_LABEL[m.product] || m.product) + '</td><td class="n">' + (m.qty > 0 ? "+" : "") + m.qty + '</td><td>' + esc(m.note) + '</td><td>' + esc(m.created_by) + '</td></tr>';
+        return '<tr><td>' + esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</td><td>' + esc(m.electrician) + '</td><td>' + esc((STOCK_LABEL[m.product] || m.product) + (m.condition === "faulty" ? " (faulty)" : "")) + '</td><td class="n">' + (m.qty > 0 ? "+" : "") + m.qty + '</td><td>' + esc(m.note) + '</td><td>' + esc(m.created_by) + '</td></tr>';
       }).join("") : '<tr><td class="empty" colspan="6">Nothing recorded yet</td></tr>') + '</tbody>';
+  }
+  function faultyText(t){
+    var f = t.faulty_held || {}, parts = [];
+    if (f.battery) parts.push(f.battery + " battery"); if (f.hardwired) parts.push(f.hardwired + " hardwired");
+    return parts.length ? '<b style="color:#A63A32">' + esc(parts.join(" · ")) + '</b>' : '<span class="hint">None</span>';
+  }
+  function renderFaulty(list){
+    list = list || [];
+    $("st-faulty").innerHTML = '<thead><tr><th>Completed</th><th>Job</th><th>Electrician</th><th>Customer</th><th>Where</th><th>Type</th><th>Fault</th></tr></thead><tbody>' +
+      (list.length ? list.map(function(f){
+        return '<tr><td>' + esc(new Date(f.completed_at).toLocaleDateString("en-AU", { day:"numeric", month:"short", year:"numeric", timeZone:"Australia/Brisbane" })) + '</td><td>J' + esc(f.job_no) + '</td><td>' + esc(f.electrician) +
+          '</td><td>' + esc(f.customer + (f.suburb ? " · " + f.suburb : "")) + '</td><td>' + esc(f.location) + '</td><td>' + esc(f.type === "hardwired" ? "Hardwired" : "Battery") + '</td><td>' + esc(f.fault) + '</td></tr>';
+      }).join("") : '<tr><td class="empty" colspan="7">No faulty alarms yet</td></tr>') + '</tbody>';
   }
   function loadStock(){ return jobsApi({ action:"stock_summary" }).then(renderStock).catch(function(err){ toast(err.message); }); }
   $("stock-btn").addEventListener("click", function(){
@@ -1659,7 +1708,7 @@
     var qs = new URLSearchParams(location.search), leadId = qs.get("lead"), jobId = qs.get("job");
     if (leadId){
       history.replaceState(null, "", location.pathname);
-      openNewJob({ leadId: leadId });
+      openNewJob({ leadId: leadId, warranty: qs.get("warranty") === "1" });
     } else if (jobId){
       history.replaceState(null, "", location.pathname);
       var j = findJob(jobId);

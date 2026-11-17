@@ -17,6 +17,7 @@ const Stripe = require("./_stripe");
 const { checkoutUrl } = require("./_payments");
 const { PRICE_ALARM, PRICE_CTRL, FEE_INSPECT } = require("./_quote");
 const J = require("./_jobs");
+const W = require("./_warranty");
 
 const PORTAL = "https://portal.powersmartco.com.au";
 
@@ -116,14 +117,23 @@ function defaultItems(job, quote) {
 
 const UNIT_TYPES = ["battery", "hardwired"];
 // One record per alarm installed: where it went, which kind, and its photo (a Dropbox path).
-function cleanUnits(input) {
+// On a warranty job each record is an alarm the electrician checked: what was wrong (fault) and whether it was
+// replaced from their stock or fixed (outcome). The photo is of the faulty alarm.
+function cleanUnits(input, warranty = false) {
   if (!Array.isArray(input) || input.length > 60) throw fail(400, "Too many alarms in one job.");
   return input.map((u, n) => {
     const type = clean(u && u.type, 20).toLowerCase();
     if (!UNIT_TYPES.includes(type)) throw fail(400, "Choose battery or hardwired for each alarm.");
     const photo = clean(u && u.photo, 500);
     if (photo && (!photo.startsWith("/PowerSmart Jobs/") || photo.includes(".."))) throw fail(400, "Invalid alarm photo.");
-    return { id: clean(u && u.id, 30) || `u${n + 1}`, location: clean(u && u.location, 40) || "Other", type, photo };
+    const unit = { id: clean(u && u.id, 30) || `u${n + 1}`, location: clean(u && u.location, 40) || "Other", type, photo };
+    if (warranty) {
+      const outcome = clean(u && u.outcome, 20).toLowerCase();
+      if (!W.OUTCOMES.includes(outcome)) throw fail(400, "Choose Replaced or Fixed for each alarm.");
+      unit.fault = clean(u && u.fault, 60) || "Other";
+      unit.outcome = outcome;
+    }
+    return unit;
   });
 }
 
@@ -201,6 +211,7 @@ async function jobDetail(job) {
   return {
     job, quote, credits, items, booking_fee_cents: bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
     alarm_codes: ALARM_CODES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
+    warranty: W.isWarranty(job), faults: W.FAULTS,
   };
 }
 
@@ -274,8 +285,14 @@ async function handler(req, res) {
     }
 
     if (b.action === "save") {
-      const f = {};
+      const f = {}, warranty = W.isWarranty(job);
       if (b.notes !== undefined) f.tech_notes = clean(b.notes, 2000) || null;
+      if (warranty) {
+        // Warranty work is free: never an invoice, approval or payment.
+        if (b.alarm_units !== undefined) f.alarm_units = cleanUnits(b.alarm_units, true);
+        const updated = Object.keys(f).length ? await patchJob(job.id, f) : job;
+        return res.status(200).json(await jobDetail(updated));
+      }
       if (b.items !== undefined) {
         const items = priceItems(b.items);
         const changed = itemsKey(items) !== itemsKey(job.invoice_items);
@@ -302,6 +319,7 @@ async function handler(req, res) {
     }
 
     if (b.action === "pay" || b.action === "pay_check") {
+      if (W.isWarranty(job)) throw fail(409, "Warranty jobs are free. There is nothing to pay.");
       if (!Stripe.configured()) throw fail(503, "Card payments are not set up (missing STRIPE_SECRET_KEY).");
       let current = await refreshPayment(job);
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
@@ -328,6 +346,28 @@ async function handler(req, res) {
       });
       await patchJob(current.id, { pay_session_id: session.id, pay_status: "pending", amount_due_cents: t.due });
       return res.status(200).json({ url: checkoutUrl(session.url), amount_cents: t.due });
+    }
+
+    if (b.action === "complete" && W.isWarranty(job)) {
+      const units = Array.isArray(job.alarm_units) ? job.alarm_units : [];
+      if (!units.length) throw fail(409, "Add the alarms you checked first.");
+      const signoffName = clean(b.signoff_name, 80), signature = String(b.signature || "");
+      if (!signoffName) throw fail(400, "Type your name to sign off the work.");
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length > 300000) throw fail(400, "Please sign in the signature box.");
+      const now = new Date().toISOString();
+      const done = await patchJob(job.id, { status: "completed", completed_at: now, pay_status: "none", amount_due_cents: 0,
+        signoff_name: signoffName, signoff_signature: signature, signoff_at: now });
+      const w = W.warrantyCounts(job);
+      // Customer email only when the office ticked "send to the customer" for this warranty job.
+      let email = { status: "skipped", reason: "The office chose not to message the customer." };
+      if (job.notify_customer !== false) email = await sendWarrantyCompletion(job, units, tech.name);
+      if (job.lead_id) {
+        const notes = job.tech_notes ? ` Notes: ${job.tech_notes}` : "";
+        const back = w.battery + w.hardwired ? ` Faulty alarms returned: ${[w.battery && w.battery + " battery", w.hardwired && w.hardwired + " hardwired"].filter(Boolean).join(", ")}.` : "";
+        const mail = email.status === "sent" ? ` Completion email sent to ${email.to}.` : email.status === "failed" ? ` Completion email NOT sent (${email.error}).` : "";
+        await J.leadNote(job.lead_id, tech.name, `🛡 Warranty job J${job.job_no} completed and signed off by ${signoffName}. ${W.unitsSummary(units)}${back}${mail}${notes}`);
+      }
+      return res.status(200).json({ ok: true, job: done, warranty: true, email });
     }
 
     if (b.action === "complete") {
@@ -402,6 +442,22 @@ async function handler(req, res) {
     if (!err.status || err.status >= 500) console.error("tech app error:", err.message);
     return res.status(err.status && err.status < 600 ? err.status : 500).json({ error: err.message || "Electrician app error" });
   }
+}
+
+// "Your warranty visit is complete" email. Never throws.
+async function sendWarrantyCompletion(job, units, agent) {
+  const to = String(job.email || "").trim().toLowerCase();
+  if (!to) return { status: "skipped", reason: "No email address saved." };
+  try {
+    const S = require("./_senders"), Q = require("./_quote"), msg = W.completionMessages({ name: job.customer_name, jobNo: job.job_no, units });
+    const { Resend } = require("./_transactional-mail");
+    const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
+      from: S.fromHeader("customer_service"), to, replyTo: Q.SUPPORT_EMAIL, subject: msg.subject, html: msg.html, text: msg.text });
+    if (error) throw new Error(error.message || "Email provider rejected the request");
+    await require("./_maillog").logEmail({ kind: "email", sender: "customer_service", agent, to_email: to, to_name: job.customer_name, subject: msg.subject,
+      body_html: msg.html, body_text: msg.text, lead_id: job.lead_id || null, provider_id: data && data.id });
+    return { status: "sent", to };
+  } catch (e) { return { status: "failed", error: e.message }; }
 }
 
 module.exports = handler;

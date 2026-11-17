@@ -89,7 +89,10 @@ function jobAddress(job) {
 // Sends one job's reminder. `claimed` is the job_reminders row this run owns.
 async function sendOne(job, now) {
   const address = jobAddress(job);
-  const m = reminderMessages(job, address);
+  // Warranty visits get their own wording ("warranty visit", no charge).
+  const m = job.work_type === "warranty"
+    ? require("./_warranty").bookingMessages({ name: job.customer_name, jobNo: job.job_no, slot: bookingSlot(job.scheduled_start), address, tomorrow: true })
+    : reminderMessages(job, address);
   const result = { job_no: job.job_no, email: "skipped", sms: "skipped" };
   const toEmail = String(job.email || "").trim().toLowerCase();
   if (toEmail) {
@@ -123,10 +126,15 @@ async function sendOne(job, now) {
 // Finds tomorrow's booked jobs that have no reminder yet and sends them. `dryRun` only reports who would be messaged.
 async function work({ now = new Date(), dryRun = false } = {}) {
   const { from, to } = tomorrowWindow(now);
-  const cols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode";
-  const jobs = await SB.sb(`jobs?status=eq.scheduled&scheduled_start=gte.${enc(from)}&scheduled_start=lt.${enc(to)}&select=${cols}&order=scheduled_start.asc&limit=200`) || [];
+  const cols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode,work_type";
+  const query = (c) => SB.sb(`jobs?status=eq.scheduled&scheduled_start=gte.${enc(from)}&scheduled_start=lt.${enc(to)}&select=${c}&order=scheduled_start.asc&limit=200`);
+  // notify_customer comes with supabase/warranty-jobs.sql; until it is run every job is reminded as before.
+  let jobs;
+  try { jobs = await query(cols + ",notify_customer") || []; }
+  catch (e) { if (!/notify_customer/.test(String(e.message))) throw e; jobs = await query(cols) || []; }
   const out = { window: { from, to }, found: jobs.length, sent: 0, skipped: 0, failed: 0, results: [] };
   for (const job of jobs) {
+    if (job.notify_customer === false) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "Office chose not to message this customer" }); continue; }
     if (!job.phone && !job.email) { out.skipped++; out.results.push({ job_no: job.job_no, skipped: "No phone or email saved" }); continue; }
     if (dryRun) { out.results.push({ job_no: job.job_no, would_send: true }); continue; }
     // Claim first: the unique (job_id, scheduled_start) key means only one run can ever message this job at this time.

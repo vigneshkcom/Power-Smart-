@@ -110,7 +110,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   // SMS is paused: anything that would have gone by SMS goes by email instead.
   const smsPaused = !Sms.smsEnabled();
   if (smsPaused && sms) { email = true; sms = false; }
-  const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode";
+  const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode,work_type";
   let job;
   if (jobId) {
     job = (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&status=in.(scheduled,en_route,on_site)&select=${jobCols}&limit=1`))?.[0];
@@ -154,12 +154,14 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
 
   const result = { ok: true, date: slot.date, slot: slot.slot, email: { status: "skipped" }, sms: { status: "skipped" } };
   const sender = S.resolveSender(sendAs);
+  // Warranty visit: no quote, balance or call-out fee, just the visit details.
+  const warranty = job.work_type === "warranty" ? require("./_warranty").bookingMessages({ name, jobNo: job.job_no, slot, address, note }) : null;
 
   if (email) {
     if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
     else {
-      const { html, text } = renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note });
-      const subject = `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
+      const { html, text } = warranty || renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note });
+      const subject = warranty ? warranty.subject : `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
         const { Resend } = require('./_transactional-mail');
         const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
@@ -180,7 +182,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
       try {
         const first = String(name || "there").trim().split(/\s+/)[0] || "there";
         const balance = quoteTotal != null ? Math.max(0, quoteTotal - feePaid) : null;
-        const message = `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY} or reply to this SMS.`;
+        const message = warranty ? warranty.sms : `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY} or reply to this SMS.`;
         result.sms = await Sms.sendLeadSms({ lead: { id: leadId || undefined, phone }, message, key: `booking-${job.id}-${job.scheduled_start}`, author: agent });
       } catch (e) { result.sms = { status: "failed", error: e.message }; }
     }
@@ -190,7 +192,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   if (!sent.length) throw fail(400, [result.email.error && "Email: " + result.email.error, result.sms.error && "SMS: " + result.sms.error].filter(Boolean).join(" ") || "Nothing was sent");
   if (leadId) {
     try {
-      await SB.sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: agent || "System", kind: "email", body: `Booking confirmation sent by ${sent.join(" and ")}: ${slot.date}, ${slot.slot} slot.` }, prefer: "return=minimal" });
+      await SB.sb("lead_comments", { method: "POST", body: { lead_id: leadId, author: agent || "System", kind: "email", body: `${warranty ? "Warranty visit confirmation" : "Booking confirmation"} sent by ${sent.join(" and ")}: ${slot.date}, ${slot.slot} slot.` }, prefer: "return=minimal" });
     } catch (e) { console.error("booking confirmation note failed:", e.message); }
   }
   result.to = result.email.to || "";

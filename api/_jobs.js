@@ -16,7 +16,7 @@ const PaymentSummary = require('./_payment-summary');
 const PORTAL_KEY = "2026";
 
 const STATUSES = ["scheduled", "en_route", "on_site", "completed", "cancelled"];
-const TYPES = ["install", "inspection", "service"];
+const TYPES = ["install", "inspection", "service", "warranty"];
 const STATUS_LABEL = { scheduled: "Scheduled", en_route: "En route", on_site: "On site", completed: "Completed", cancelled: "Cancelled" };
 
 function clean(s, max) { return String(s == null ? "" : s).slice(0, max).trim(); }
@@ -69,6 +69,8 @@ function pickJob(b) {
     if (!TYPES.includes(b.work_type)) throw bad("Invalid work type");
     f.work_type = b.work_type;
   }
+  // Only sent for warranty jobs (needs supabase/warranty-jobs.sql): false = never message the customer about this job.
+  if (b.notify_customer !== undefined) f.notify_customer = b.notify_customer === true;
   return f;
 }
 
@@ -186,8 +188,16 @@ async function codeTaken(code, exceptId) {
 // What went in on a job, from the electrician's invoice lines. Older saves used one
 // "alarm" line + alarm_type; jobs completed in the office without an invoice only
 // have the booked alarm count (type not recorded).
+// Warranty jobs have no invoice: the alarms they replaced come from alarm_units (warranty_battery / warranty_hardwired)
+// and are kept apart from installs, so they count as stock used but not as paid installs in the report.
 function installedCounts(job) {
-  const c = { battery: 0, hardwired: 0, untyped: 0, controllers: 0, inspections: 0, other: [] };
+  const c = { battery: 0, hardwired: 0, untyped: 0, controllers: 0, inspections: 0, other: [], warranty_battery: 0, warranty_hardwired: 0 };
+  if (job && job.work_type === "warranty") {
+    const W = require("./_warranty"), w = W.warrantyCounts(job);
+    c.warranty_battery = w.battery; c.warranty_hardwired = w.hardwired;
+    c.other.push("Warranty: " + W.unitsSummary(job.alarm_units));
+    return c;
+  }
   const items = Array.isArray(job.invoice_items) ? job.invoice_items : [];
   for (const i of items) {
     const qty = Number(i.qty) || 0;
@@ -590,6 +600,9 @@ module.exports = async (req, res) => {
 
     return res.status(400).json({ error: "Unknown action" });
   } catch (err) {
+    if (/jobs_work_type_check|notify_customer/.test(String(err.message))) {
+      return res.status(500).json({ error: "Setup needed for warranty jobs: run supabase/warranty-jobs.sql in Supabase, then try again." });
+    }
     return res.status(err.status || 500).json({ error: err.message || "Jobs error" });
   }
 };
