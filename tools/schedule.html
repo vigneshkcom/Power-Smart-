@@ -192,6 +192,8 @@
   .cust-card .muted{color:var(--muted)}
   .cust-card button{flex:none;color:var(--teal-deep);font-weight:700;font-size:.78rem;background:none;border:0;cursor:pointer;padding:.15rem 0}
   .cust-card button:hover{text-decoration:underline}
+  .cust-card button.cust-add{display:inline;margin-left:.2rem;padding:.1rem .6rem;border:1px solid var(--teal-dark);border-radius:999px;background:#fff;font-size:.74rem}
+  .cust-card button.cust-add:hover{background:var(--teal-soft);text-decoration:none}
   .paybox{background:#F1F8F6;border:1px solid #CEE3DC;border-radius:12px;padding:.7rem .9rem;font-size:.8rem;color:var(--body);gap:.15rem!important}
   .paybox .pay-hd{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
   .paybox .pay-hd b{color:var(--ink);font-size:.86rem}
@@ -1165,15 +1167,20 @@
   function renderCustCard(){
     var name = $("jm-name").value.trim(), phone = $("jm-phone").value.trim(), email = $("jm-email").value.trim();
     var addr = [$("jm-address").value.trim(), [$("jm-suburb").value.trim(), $("jm-postcode").value.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-    var show = custBrief && Boolean(name);
+    var street = $("jm-address").value.trim(), show = custBrief && Boolean(name);
     $("jm-cust-card").hidden = !show;
     $("jm-cust-edit-target").classList.toggle("cust-brief", show);
     if (show) $("jm-cust-card").innerHTML = '<div><b>' + esc(name) + '</b>' +
       '<span' + (phone || email ? '' : ' class="muted"') + '>' + esc([phone, email].filter(Boolean).join(" · ") || "No phone or email") + '</span><br>' +
-      '<span' + (addr ? '' : ' class="muted"') + '>' + esc(addr || "No address") + '</span></div><button type="button" id="jm-cust-edit">Edit details</button>';
+      (street ? '<span>' + esc(addr) + '</span>'
+        : '<span class="muted">' + (addr ? esc(addr) + ' · ' : '') + 'No street address</span> <button type="button" class="cust-add" id="jm-cust-addaddr">Add address</button>') +
+      '</div><button type="button" id="jm-cust-edit">Edit details</button>';
   }
   function setCustBrief(on){ custBrief = on; renderCustCard(); }
   $("jm-cust-card").addEventListener("click", function(e){
+    if (e.target.closest("#jm-cust-addaddr")){   // straight to the address search
+      setCustBrief(false); var f = $("jm-address-search") || $("jm-address"); f.scrollIntoView({ block:"center" }); f.focus(); return;
+    }
     if (!e.target.closest("#jm-cust-edit")) return;
     setCustBrief(false); $("jm-name").focus();
   });
