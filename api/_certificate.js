@@ -172,7 +172,9 @@ async function issueCertificate(jobId, { agent, force } = {}) {
       if (error) throw new Error(error.message || "Email provider rejected the request");
       await logEmail({ id: randomUUID(), kind: "email", sender: "customer_service", agent, to_email: to, to_name: job.customer_name, subject, body_html: html, body_text: text, lead_id: job.lead_id || null, provider_id: data && data.id });
       await note(job, `📄 Compliance certificate for J${job.job_no} emailed to ${to}.`);
-      const dropbox = await require("./_job-documents").saveCustomerDocuments(job, attachments);
+      // The manuals go to the customer by email only: Dropbox keeps the job's own documents (certificate and care notice), not copies of the manuals.
+      const manualFiles = new Set(manuals.map((manual) => manual.filename));
+      const dropbox = await require("./_job-documents").saveCustomerDocuments(job, attachments.filter((a) => !manualFiles.has(a.filename)));
       return { status: "sent", to, dropbox };
     } catch (e) {
       await SB.sb(`jobs?id=eq.${encodeURIComponent(job.id)}`, { method: "PATCH", body: { certificate_sent_at: null } }).catch(() => {});

@@ -210,7 +210,7 @@ function certificateRun({ accepted = false, commentsFail = false, items = [{ cod
   const C = require('../api/_certificate');
   return C.issueCertificate('j1').then((result) => ({ result, mail, archived, notes }));
 }
-test('a customer who did not tick the notice still gets the Alarm Care Notice with their certificate and manuals, and it is filed with them', async () => {
+test('a customer who did not tick the notice still gets the Alarm Care Notice with their certificate and manuals; the certificate and notice (not the manuals) are filed', async () => {
   const { result, mail, archived } = await certificateRun();
   assert.equal(result.status, 'sent'); assert.equal(mail.length, 1);
   const names = mail[0].attachments.map((a) => a.filename);
@@ -218,7 +218,7 @@ test('a customer who did not tick the notice still gets the Alarm Care Notice wi
   assert.equal(mail[0].attachments[2].content.subarray(0, 5).toString(), '%PDF-');
   assert.match(mail[0].text, /battery alarm manual is attached too\. Your Alarm Care Notice, which explains how we look after your alarms if anything ever goes wrong, is attached as well\./);
   assert.match(mail[0].html, /Your Alarm Care Notice, which explains/);
-  assert.deepEqual(archived[0], names, 'the same documents go to the job Documents folder');
+  assert.deepEqual(archived[0], ['PowerSmart-Smoke-Alarm-Certificate-J1008.pdf', 'PowerSmart-Alarm-Care-Notice-J1008.pdf'], 'the job Documents folder gets the certificate and care notice, not the manuals');
 });
 test('a customer who ticked the notice gets their Acknowledgement (as they accepted it) with the certificate instead, under the same file name the job archive uses', async () => {
   const { mail } = await certificateRun({ accepted: true });
