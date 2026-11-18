@@ -440,6 +440,7 @@
         <button class="del" id="jm-delete">Delete job</button>
         <span class="spacer"></span>
         <button class="btn btn-ghost" id="jm-invoice" style="display:none" title="Open the invoice the electrician sent this customer">View invoice</button>
+        <button class="btn btn-ghost" id="jm-resend-invoice" style="display:none" title="Email this job's invoice to the customer">Resend invoice</button>
         <button class="btn btn-ghost" id="jm-recordpay" style="display:none" title="Record a payment received so far (a part payment keeps the rest pending)">Record payment</button>
         <button class="btn btn-ghost" id="jm-markpaid" style="display:none" title="Record that the balance owing on this completed job has been received. This sends the compliance certificate.">Mark paid in full</button>
         <button class="btn btn-ghost" id="jm-sendcert" style="display:none">Send certificate</button>
@@ -1404,6 +1405,7 @@
     $("jm-delete").style.display = "";
     $("jm-revert").style.display = j.status === "cancelled" ? "none" : "";
     $("jm-invoice").style.display = j.status === "completed" ? "" : "none";
+    $("jm-resend-invoice").style.display = j.status === "completed" && j.work_type !== "warranty" && Array.isArray(j.invoice_items) && j.invoice_items.length ? "" : "none";
     $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     $("jm-recordpay").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none") && j.work_type !== "warranty";   // no certificate for a warranty visit
@@ -1533,6 +1535,18 @@
       toast(c.status === "sent" ? "Marked paid. Tax invoice and certificate emailed." : "Marked paid. Certificate not sent: " + (c.reason || "see the lead notes"));
       return reload();
     }).catch(function(err){ toast(err.message); });
+  });
+  $("jm-resend-invoice").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    var paid = j.pay_status === "paid" || j.pay_status === "none";
+    var invoiceLabel = paid ? "paid tax invoice" : "invoice";
+    if (!confirm("Email the " + invoiceLabel + " for J" + j.job_no + " to " + (j.email || "the customer") + "?")) return;
+    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    jobsApi({ action:"job_resend_invoice", id: j.id }).then(function(r){
+      toast((r.paid ? "Paid invoice" : "Invoice") + " emailed to " + r.to);
+      loadSentDocs(j);
+    }).catch(function(err){ toast(err.message); })
+      .then(function(){ btn.disabled = false; btn.textContent = "Resend invoice"; });
   });
   $("jm-sendcert").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
