@@ -1210,10 +1210,13 @@
   }
   // What the electrician recorded in the phone app (/tech).
   // Payments received on this job: the ledger (jobs.payments) plus any earlier money only stored as totals on the job.
-  // Separate call-out fee already paid (not credited inside the invoice): quote total covers invoice + fee.
+  // Separate call-out fees are shown as a charge and a payment, even when the on-site items differ from the quote.
   function calloutFee(j, qs){
-    var total = j.invoice_total_cents || 0;
-    return (qs && qs.booking_paid_cents > 0 && total > 0 && qs.total_cents >= total + qs.booking_paid_cents) ? qs.booking_paid_cents : 0;
+    if (!j.invoice_total_cents || !qs) return 0;
+    var booking = (qs.payments || []).filter(function(p){ return p.type === "booking_fee"; });
+    if (booking.some(function(p){ return /deposit/i.test(p.description || ""); })) return 0;
+    var fee = booking[0] && booking[0].amount_cents;
+    return [3500, 5000].includes(fee) ? fee : 0;
   }
   function renderPayments(j, qs){
     var box = $("jm-payments"); if (!box) return;

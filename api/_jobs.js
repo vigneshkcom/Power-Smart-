@@ -158,7 +158,7 @@ async function leadNote(leadId, author, body, kind = "status") {
 
 // Latest successfully sent quote for a lead (falls back to the customer's email).
 // Quantities are read from the saved quote text, same as api/quote-tracker.js.
-async function latestQuote(leadId, email, ref) {
+async function latestQuote(leadId, email, ref, { required = false } = {}) {
   const cols = "id,lead_id,quote_ref,quote_total,body_text,created_at";
   const reference = ref ? `&quote_ref=eq.${encodeURIComponent(ref)}` : '';
   try {
@@ -167,16 +167,21 @@ async function latestQuote(leadId, email, ref) {
     const q = rows && rows[0];
     if (!q) return null;
     const text = q.body_text || "";
+    const discount = text.match(/^- Discount \(1 x .*\):\s*-\$([\d,]+)\.(\d{2})\s*$/im);
     return {
       id: q.id, lead_id: q.lead_id || null,
       ref: q.quote_ref || "",
       total: Number(q.quote_total || 0),
+      discount_cents: discount ? Number(discount[1].replace(/,/g, "")) * 100 + Number(discount[2]) : 0,
       service: /compliance inspection/i.test(text) ? "inspection" : "install",
       alarm_qty: quantityFromText(text, /smoke alarms[^\n]*\((\d+)\s*x\s*\$/i),
       controller_qty: quantityFromText(text, /remote controller[^\n]*\((\d+)\s*x\s*\$/i),
       sent_at: q.created_at,
     };
-  } catch (_) { return null; }   // no quote log yet — the dispatcher can type the count
+  } catch (error) {
+    if (required) throw error;
+    return null;   // no quote log yet — the dispatcher can type the count
+  }
 }
 
 // An electrician's code is also their sign-in for the phone app, so codes must be unique.
@@ -208,7 +213,7 @@ function installedCounts(job) {
     else if (i.code === "alarm_hardwired" || i.code === "alarm") c.hardwired += qty;
     else if (i.code === "controller") c.controllers += qty;
     else if (i.code === "inspection") c.inspections += qty;
-    else c.other.push(`${qty} × ${i.label || "item"}`);
+    else if (i.code !== "quote_discount") c.other.push(`${qty} × ${i.label || "item"}`);
   }
   if (!items.length && job.alarms) c.untyped = job.alarms;
   return c;

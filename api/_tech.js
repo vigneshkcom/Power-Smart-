@@ -24,6 +24,7 @@ const PORTAL = "https://portal.powersmartco.com.au";
 // What the electrician records on site: how many alarms of each kind went in
 // (a job can be a mix). Each kind is its own invoice line.
 const ALARM_CODES = ["alarm_battery", "alarm_hardwired"];
+const QUOTE_DISCOUNT = "quote_discount";
 
 const CATALOGUE = {
   alarm_battery: { label: "Photoelectric smoke alarm (10-year battery) – supplied & installed", short: "battery smoke alarm", cents: PRICE_ALARM * 100 },
@@ -54,7 +55,7 @@ function priceItems(raw, legacyType) {
   const items = [];
   for (const it of raw) {
     const qty = J.intIn(it && it.qty, 0, 50, 0);
-    if (!qty) continue;
+    if (!qty || it.code === QUOTE_DISCOUNT) continue;
     if (it.code === "other") {
       const label = clean(it.label, 120);
       if (!label) throw fail(400, "Describe the extra item");
@@ -70,6 +71,29 @@ function priceItems(raw, legacyType) {
   }
   return items;
 }
+function withQuoteDiscount(items, discountCents) {
+  const work = (items || []).filter(i => i.code !== QUOTE_DISCOUNT);
+  const subtotal = work.reduce((sum, item) => sum + item.amount_cents, 0);
+  const off = Math.min(discountCents, subtotal);
+  return off > 0 ? [...work, { code: QUOTE_DISCOUNT, label: "Quote discount", qty: 1, unit_cents: -off, amount_cents: -off }] : work;
+}
+
+async function invoiceQuote(job) {
+  return J.latestQuote(job.lead_id, job.email, job.quote_ref, { required: !!job.quote_ref && job.work_type === "install" });
+}
+
+function quoteDiscount(job, quote) {
+  return job.work_type === "install" && job.quote_ref && quote?.ref === job.quote_ref ? quote.discount_cents : 0;
+}
+
+async function checkInvoiceDiscount(job) {
+  if (job.pay_status === "paid" || job.work_type !== "install" || !job.quote_ref) return;
+  const items = job.invoice_items || [];
+  if (itemsKey(withQuoteDiscount(items, quoteDiscount(job, await invoiceQuote(job)))) !== itemsKey(items)) {
+    throw fail(409, "The quote discount changed. Refresh the job, review the invoice and approve it again.");
+  }
+}
+
 const alarmQty = (items, code) => (items || []).filter((i) => (code ? i.code === code : ALARM_CODES.includes(i.code))).reduce((n, i) => n + i.qty, 0);
 // Summary type for the job row: battery / hardwired, or null when mixed or none.
 function alarmType(items) {
@@ -78,7 +102,7 @@ function alarmType(items) {
 }
 const itemsKey = (items) => (items || []).map((i) => [i.code, i.label, i.qty, i.unit_cents].join("|")).join(";");
 function itemsSummary(items) {
-  return (items || []).map((i) => `${i.qty} × ${i.code === "other" ? i.label : CATALOGUE[i.code].short}`).join(", ");
+  return (items || []).map((i) => `${i.qty} × ${CATALOGUE[i.code]?.short || i.label}`).join(", ");
 }
 
 // Payments the customer already made in advance (inspection fee, balances…).
@@ -157,6 +181,7 @@ async function ownJob(tech, id) {
 function withTypedItems(job) {
   if (!(job.invoice_items || []).some((i) => i.code === "alarm")) return job;
   const items = priceItems(job.invoice_items.map((i) => ({ ...i, price: (i.unit_cents / 100).toFixed(2) })), job.alarm_type);
+  items.push(...job.invoice_items.filter(i => i.code === QUOTE_DISCOUNT));
   return { ...job, invoice_items: items };
 }
 async function patchJob(id, body) {
@@ -202,14 +227,22 @@ async function bookingFeePaid(leadId) {
 
 async function jobDetail(job) {
   job = withTypedItems(job);
-  const [quote, credits, bookingFee] = await Promise.all([J.latestQuote(job.lead_id, job.email, job.quote_ref), prepaid(job.lead_id).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
+  const [quote, credits, bookingFee] = await Promise.all([invoiceQuote(job), prepaid(job.lead_id).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
   // The invoice starts empty and only holds what the electrician records. Alarm lines follow the alarms
   // added one by one, so counts left over from the old counter are not shown on an unfinished job.
   const hasUnits = Array.isArray(job.alarm_units) && job.alarm_units.length > 0;
   let items = job.invoice_items || [];
   if (job.status !== "completed" && !hasUnits) items = items.filter((i) => !ALARM_CODES.includes(i.code));
+  const editable = job.status !== "completed" && job.pay_status !== "paid";
+  const discount = editable ? quoteDiscount(job, quote) : -(items.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0);
+  if (editable) {
+    const preview = withQuoteDiscount(items, discount);
+    const savedDiscount = job.invoice_items?.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0;
+    if ((preview.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0) !== savedDiscount) job = { ...job, approved_at: null };
+    items = preview;
+  }
   return {
-    job, quote, credits, items, booking_fee_cents: bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
+    job, quote, credits, items, quote_discount_cents: discount, booking_fee_cents: bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
     alarm_codes: ALARM_CODES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
     warranty: W.isWarranty(job), faults: W.FAULTS,
   };
@@ -293,8 +326,15 @@ async function handler(req, res) {
         const updated = Object.keys(f).length ? await patchJob(job.id, f) : job;
         return res.status(200).json(await jobDetail(updated));
       }
-      if (b.items !== undefined) {
-        const items = priceItems(b.items);
+      if (b.items !== undefined || b.approve) {
+        const work = b.items === undefined ? job.invoice_items || [] : priceItems(b.items);
+        const discount = job.pay_status === "paid"
+          ? -(job.invoice_items?.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0)
+          : quoteDiscount(job, await invoiceQuote(job));
+        const items = withQuoteDiscount(work, discount);
+        if (b.approve && job.pay_status !== "paid" && (discount || b.quote_discount_cents) && b.quote_discount_cents !== discount) {
+          throw fail(409, "The quote discount changed. Refresh the job and review the invoice before approving.");
+        }
         const changed = itemsKey(items) !== itemsKey(job.invoice_items);
         if (changed && job.pay_status === "paid") throw fail(409, "The invoice has been paid — it can't be changed.");
         f.invoice_items = items;
@@ -325,6 +365,7 @@ async function handler(req, res) {
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
 
       if (!current.invoice_items || !current.invoice_items.length || !current.approved_at) throw fail(409, "Get the customer to approve the invoice first.");
+      await checkInvoiceDiscount(current);
       const t = totals(current.invoice_items, [...(await prepaid(current.lead_id)), ...priorCredit(current)]);
       if (t.due <= 0) throw fail(409, "Nothing to pay — this invoice is already covered.");
 
@@ -374,6 +415,7 @@ async function handler(req, res) {
       let current = await refreshPayment(job);
       const items = current.invoice_items || [];
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
+      await checkInvoiceDiscount(current);
       const credits = [...(await prepaid(current.lead_id)), ...priorCredit(current)];
       let t = totals(items, credits);
 

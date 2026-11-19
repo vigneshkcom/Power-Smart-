@@ -380,3 +380,32 @@ test('a reset job still marked paid is healed when the electrician opens it: pay
   assert.equal(opened.data.job.pay_status, 'unpaid', 'the app is no longer locked');
   assert.equal(opened.data.credits.length, 1);
 });
+
+
+test('linked quote discount survives fitting, approval, and card pricing without deducting the separate booking fee twice', async () => {
+  const t = setup();
+  const job = t.job('j1');
+  job.quote_ref = 'Q7012';
+  const quote = t.db.tables.sent_emails[0];
+  quote.body_text += '\n- Discount (1 x -$50.00): -$50.00';
+  const items = [{ code: 'alarm_battery', qty: 4 }, { code: 'alarm_hardwired', qty: 2 }, { code: 'controller', qty: 1 }];
+  const detail = await t.call({ action: 'job', id: job.id });
+  assert.equal(detail.data.quote_discount_cents, 5000);
+  assert.equal(detail.data.items.length, 0);
+  const stale = await t.call({ action: 'save', id: job.id, items, approve: true, quote_discount_cents: 0 });
+  assert.equal(stale.code, 409);
+  const units = Array.from({ length: 6 }, (_, i) => ({ type: i < 4 ? 'battery' : 'hardwired' }));
+  const approved = await t.call({ action: 'save', id: job.id, items: [...items, { code: 'quote_discount', qty: 99 }], alarm_units: units, approve: true, quote_discount_cents: 5000 });
+  assert.equal(approved.code, 200);
+  assert.equal(approved.data.totals.due, 45900);
+  assert.equal(approved.data.booking_fee_cents, 3500);
+  assert.equal(job.invoice_items.filter(i => i.code === 'quote_discount').length, 1);
+  assert.equal(job.invoice_items.find(i => i.code === 'quote_discount').amount_cents, -5000);
+  assert.equal((await t.call({ action: 'pay', id: job.id })).data.amount_cents, 45900);
+
+  quote.body_text = quote.body_text.replaceAll('-$50.00', '-$60.00');
+  assert.equal((await t.call({ action: 'pay', id: job.id })).code, 409);
+  const revised = await t.call({ action: 'job', id: job.id });
+  assert.equal(revised.data.job.approved_at, null);
+  assert.equal(revised.data.totals.due, 44900);
+});

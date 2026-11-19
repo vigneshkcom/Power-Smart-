@@ -426,7 +426,7 @@
       }, Promise.resolve());
     }).then(function(){
       if (rec.saved) return null;
-      return withRetry(function(){ return call("save", { id: id, items: rec.items, alarm_units: rec.units, notes: rec.notes, approve: rec.approve, pay_receipt: rec.receiptPath || undefined }); }, 3)
+      return withRetry(function(){ return call("save", { id: id, items: rec.items, alarm_units: rec.units, notes: rec.notes, approve: rec.approve, quote_discount_cents: rec.quote_discount_cents, pay_receipt: rec.receiptPath || undefined }); }, 3)
         .then(function(){ rec.saved = true; qSet(rec); });
     }).then(function(){
       return withRetry(function(){ return call("complete", rec.complete); }, 2);
@@ -717,7 +717,7 @@
   function persistDraft(){
     if (!cur) return;
     try {
-      localStorage.setItem(draftKey(), JSON.stringify({ dirty: dirty, units: unitList(), items: wireItems(), notes: cur.job.tech_notes || "", approved_at: cur.job.approved_at || null,
+      localStorage.setItem(draftKey(), JSON.stringify({ dirty: dirty, units: unitList(), items: wireItems(), notes: cur.job.tech_notes || "", approved_at: cur.job.approved_at || null, quote_discount_cents: cur.quote_discount_cents,
         pay: pay, soName: soName, soOk: soOk, sigData: sigData, resetAt: cur.job.work_reset_at || null, at: Date.now() }));
     } catch(e){ toast("This phone is out of storage space. Synchronise now."); }
   }
@@ -733,7 +733,7 @@
     }
     pay = d.pay || pay; soName = d.soName || ""; soOk = !!d.soOk; sigData = d.sigData || null;
     if (!d.dirty) return false;
-    cur.job.alarm_units = d.units || []; cur.job.tech_notes = d.notes || ""; cur.job.approved_at = d.approved_at || null;
+    cur.job.alarm_units = d.units || []; cur.job.tech_notes = d.notes || ""; cur.job.approved_at = (d.quote_discount_cents || 0) === (cur.quote_discount_cents || 0) ? d.approved_at || null : null;
     applyItems((d.items || []).map(function(i){ return i; }));
     dirty = true; return true;
   }
@@ -797,7 +797,7 @@
         });
       }, Promise.resolve());
     }).then(function(){
-      return call("save", { id: id, items: wireItems(), alarm_units: unitList(), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, pay_receipt: receiptPath || undefined });
+      return call("save", { id: id, items: wireItems(), alarm_units: unitList(), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, quote_discount_cents: cur.quote_discount_cents, pay_receipt: receiptPath || undefined });
     }).then(function(d){
       cur = d; dirty = false; if (receiptPath) delete pay.receiptKey; persistDraft();
       try { localStorage.setItem(CACHE_PREFIX + id, JSON.stringify(d)); } catch(e){}
@@ -1088,7 +1088,7 @@
     var short = function(l){ return String(l).replace(/\s*[\u2013-]\s*supplied (&|and) installed/i, ""); };
     var line = function(desc, qtyCell, amount, extra){ return '<div class="inv-row"><div class="d">' + desc + (extra || "") + '</div><div class="q">' + qtyCell + '</div><div class="a">' + money(amount) + '</div></div>'; };
     var rowsHtml = cur.items.map(function(it, i){
-      if (isAlarm(it.code)) return line(esc(short(it.label)), it.qty, it.amount_cents);
+      if (isAlarm(it.code) || it.code === "quote_discount") return line(esc(short(it.label)), it.qty, it.amount_cents);
       if (it.code === "other") return line(esc(it.label), it.qty, it.amount_cents, paid ? "" : '<button class="del" data-del="' + i + '">Remove</button>');
       return line(esc(short(it.label)), stepper(it.code, it.qty, paid), it.amount_cents);
     }).join("");
@@ -1258,7 +1258,7 @@
       t.disabled = true; t.textContent = "Completing…";
       var rec = {
         jobId: cur.job.id, jobNo: cur.job.job_no, name: cur.job.customer_name, tech: me && me.code, at: Date.now(),
-        items: wireItems(), units: JSON.parse(JSON.stringify(unitList())), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, saved: false, error: null,
+        items: wireItems(), units: JSON.parse(JSON.stringify(unitList())), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, quote_discount_cents: cur.quote_discount_cents, saved: false, error: null,
         complete: { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method,
           cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }
       };
@@ -1332,12 +1332,12 @@
 
   function keepScroll(fn){ var a = scroller(), y = a.scrollTop; fn(); a.scrollTop = y; }
   function wireItems(){
-    return cur.items.map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
+    return cur.items.filter(function(i){ return i.code !== "quote_discount"; }).map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
   }
   // Prices items locally for an instant update; the server re-prices when the job is synchronised.
   function applyItems(items){
     var rank = function(i){ var n = cur.catalogue.map(function(c){ return c.code; }).indexOf(i.code); return n < 0 ? 99 : n; };
-    items = items.slice().sort(function(a, b){ return rank(a) - rank(b); });
+    items = items.filter(function(i){ return i.code !== "quote_discount"; }).sort(function(a, b){ return rank(a) - rank(b); });
     cur.items = items.map(function(i){
       var p = cur.catalogue.find(function(c){ return c.code === i.code; });
       var isA = cur.alarm_codes.indexOf(i.code) >= 0;
@@ -1346,6 +1346,11 @@
       return Object.assign({}, i, { label: label, unit_cents: unit, amount_cents: unit * i.qty });
     });
     var total = cur.items.reduce(function(s, i){ return s + i.amount_cents; }, 0);
+    var discount = Math.min(total, cur.quote_discount_cents || 0);
+    if (discount > 0) {
+      cur.items.push({ code: "quote_discount", label: "Quote discount", qty: 1, unit_cents: -discount, amount_cents: -discount });
+      total -= discount;
+    }
     var credit = Math.min(total, cur.credits.reduce(function(s, c){ return s + c.cents; }, 0));
     cur.totals = { total: total, credit: credit, due: total - credit };
   }
