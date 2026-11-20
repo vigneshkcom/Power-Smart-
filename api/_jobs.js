@@ -550,6 +550,14 @@ module.exports = async (req, res) => {
       return res.status(200).send(file);
     }
 
+    // Purchase order for one electrician's completed jobs in a period (see api/_po.js). Preview first, then send.
+    if (b.action === "po_preview" || b.action === "po_send") {
+      const Po = require("./_po");
+      const po = await Po.prepare(b, { sb, reportData, clean, isoOrNull });
+      if (b.action === "po_preview") return res.status(200).json({ po, intro: Po.defaultIntro(po) });
+      return res.status(200).json(await Po.send(po, { to: b.to_email, intro: b.intro, sendAs: clean(b.send_as, 40), agent: actor }));
+    }
+
     if (b.action === "stock_summary") return res.status(200).json(await require("./_stock").summary(installedCounts));
     if (b.action === "stock_report") {
       const St = require("./_stock"), data = await St.load(installedCounts);
