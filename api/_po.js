@@ -4,7 +4,7 @@
 // Underscore prefix => not a Vercel route.
 
 // What the electrician is paid, ex GST. Alarms with no recorded type are paid as battery for now.
-const RATES = { callout: 3000, hardwired: 1300, battery: 1000, controller: 1000 };
+const RATES = { callout: 3500, hardwired: 1300, battery: 1000, controller: 1000 };
 const GST_PCT = 10;
 const TZ = "Australia/Brisbane";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

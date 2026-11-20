@@ -12,7 +12,7 @@ test('an invoiced job: sales from the invoice, electrician paid per alarm type, 
   const e = ctx.jobEarnings({ status: 'completed', work_type: 'install', invoice_items: items(['alarm_hardwired', 2, 7900], ['alarm_battery', 1, 7900], ['controller', 1, 3500]) });
   assert.equal(e.sales, 3 * 7900 + 3500);                       // $272.00 inc GST
   assert.equal(e.gst, Math.round(27200 / 11));                  // 10% GST
-  assert.equal(e.elec, 3000 + 2 * 1300 + 1000 + 1000);          // call-out + 2 hardwired + 1 battery + controller
+  assert.equal(e.elec, 3500 + 2 * 1300 + 1000 + 1000);          // call-out + 2 hardwired + 1 battery + controller
   assert.equal(e.stripe, Math.round(27200 * 0.0165) + 30);
   assert.equal(e.profit, e.sales - e.gst - e.elec - e.stripe);
   assert.equal(e.alarms, 3); assert.equal(e.estimated, false);
@@ -21,7 +21,7 @@ test('an invoiced job: sales from the invoice, electrician paid per alarm type, 
 test('a job not invoiced yet is estimated from the booked alarm count and paid as battery alarms', () => {
   const e = ctx.jobEarnings({ status: 'scheduled', work_type: 'install', alarms: 4 });
   assert.equal(e.sales, 4 * 7900);
-  assert.equal(e.elec, 3000 + 4 * 1000);
+  assert.equal(e.elec, 3500 + 4 * 1000);
   assert.equal(e.estimated, true);
 });
 
@@ -34,5 +34,5 @@ test('totals skip cancelled jobs and count estimated ones; warranty visits cost 
   ]);
   assert.equal(t.jobs, 3); assert.equal(t.alarms, 5); assert.equal(t.estimated, 1);
   assert.equal(t.sales, 3 * 7900);
-  assert.equal(t.elec, 2 * 3000 + 2 * 1000 + 1000 + 3000 + 1000 + 1300);
+  assert.equal(t.elec, 2 * 3500 + 2 * 1000 + 1000 + 3500 + 1000 + 1300);
 });

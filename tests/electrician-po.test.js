@@ -9,14 +9,14 @@ const from = '2026-11-08T14:00:00.000Z', to = '2026-11-15T14:00:00.000Z';
 test('prices jobs at the contractor rates: call-out per job, battery, hardwired and remote', () => {
   const po = Po.buildPo({ tech, from, to, payDate: '2026-11-27', rows: [row({ battery: 3, hardwired: 2, controllers: 1 }), row({ job_no: 1012, battery: 4, hardwired: 1, controllers: 1 })] });
   const by = Object.fromEntries(po.lines.map((l) => [l.label, l]));
-  assert.equal(by['Call-out'].amount_cents, 2 * 3000);
+  assert.equal(by['Call-out'].amount_cents, 2 * 3500);
   assert.equal(by['Battery smoke alarm installed'].amount_cents, 7 * 1000);
   assert.equal(by['Hardwired smoke alarm installed'].amount_cents, 3 * 1300);
   assert.equal(by['Remote controller installed'].amount_cents, 2 * 1000);
-  assert.equal(po.subtotal_cents, 6000 + 7000 + 3900 + 2000);
-  assert.equal(po.gst_cents, 1890);
-  assert.equal(po.total_cents, 18900 + 1890);
-  assert.equal(po.jobs[0].amount_cents, 3000 + 3000 + 2600 + 1000);
+  assert.equal(po.subtotal_cents, 7000 + 7000 + 3900 + 2000);
+  assert.equal(po.gst_cents, 1990);
+  assert.equal(po.total_cents, 19900 + 1990);
+  assert.equal(po.jobs[0].amount_cents, 3500 + 3000 + 2600 + 1000);
   assert.equal(po.jobs.reduce((n, j) => n + j.amount_cents, 0), po.subtotal_cents);
   assert.equal(po.ref, 'PO-89128-20261115');
   assert.equal(po.title, 'Dillon PO Week ending 15 Nov 2026');
@@ -29,14 +29,14 @@ test('alarms with no recorded type are paid as battery; warranty visits are paid
   const po = Po.buildPo({ tech, from, to, rows: [row({ untyped: 2 }), row({ work_type: 'warranty', battery: 3, hardwired: 1 })] });
   assert.equal(po.jobs.length, 2);
   assert.equal(po.jobs[1].warranty, true);
-  assert.equal(po.subtotal_cents, 3000 + 2 * 1000 + 3000 + 3 * 1000 + 1300);
+  assert.equal(po.subtotal_cents, 3500 + 2 * 1000 + 3500 + 3 * 1000 + 1300);
 });
 
 test('extra lines add to the total, negative prices deduct, and bad input is refused', () => {
   const rows = [row({ battery: 1 })];
   const po = Po.buildPo({ tech, from, to, rows, extra: [{ label: 'Fuel allowance', qty: 2, price: '15.50' }, { label: 'Cash collected', qty: 1, price: '-100' }, { label: '', price: '' }] });
   assert.equal(po.lines.filter((l) => l.extra).length, 2);
-  assert.equal(po.subtotal_cents, 3000 + 1000 + 3100 - 10000);
+  assert.equal(po.subtotal_cents, 3500 + 1000 + 3100 - 10000);
   assert.throws(() => Po.cleanExtra([{ label: 'x', qty: 1, price: 'abc' }]), /Check the price/);
   assert.throws(() => Po.cleanExtra([{ label: '', qty: 1, price: '5' }]), /Describe/);
 });
@@ -55,7 +55,7 @@ test('the email shows the message, every line, GST and the total, signed off by 
   assert.doesNotMatch(m.html, /PO-89128/);   // no title or PO number heading in the body; they are in the subject and PDF
   assert.ok(m.text.startsWith('Hi Dillon,'));
   assert.doesNotMatch(m.html, /<b>mate<\/b>/);   // typed text is escaped
-  assert.match(m.text, /Total \(inc GST\): \$44\.00/);
+  assert.match(m.text, /Total \(inc GST\): \$49\.50/);
 });
 
 test('sending needs a valid address and something to pay for', async () => {

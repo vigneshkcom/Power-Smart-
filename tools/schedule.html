@@ -874,7 +874,7 @@
   // Prices customers pay come from the invoice lines (api/_quote.js: alarm $79, controller $35, inspection $120, GST included).
   // Electrician pay and Stripe's cut are ex-GST contractor / processor costs. All amounts are cents.
   var SELL = { alarm:7900, inspection:12000 };
-  var PAY = { callout:3000, hardwired:1300, battery:1000, controller:1000 };
+  var PAY = { callout:3500, hardwired:1300, battery:1000, controller:1000 };
   var STRIPE = { pct:1.65, fixed:30 };   // Australian domestic card rate, one payment per job
   var GST_PCT = 10;
   function jobEarnings(j){

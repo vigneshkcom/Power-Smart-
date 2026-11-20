@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 const fontkit = require("@pdf-lib/fontkit");
-const { COMPANY, GST_PCT, dollars } = require("./_po");
+const { COMPANY, GST_PCT, RATES, dollars } = require("./_po");
 
 const DIR = path.join(__dirname, "_cert-assets");
 const W = 595.28, H = 841.89, M = 42, R = W - M;
@@ -159,7 +159,7 @@ async function renderPoPdf(po) {
       page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.4, color: LINE });
     });
     y -= 8;
-    text(`Each job includes the ${dollars(3000)} call-out. Amounts per job exclude GST.`, M, y - 6, { size: 7.8, color: MUTED });
+    text(`Each job includes the ${dollars(RATES.callout)} call-out. Amounts per job exclude GST.`, M, y - 6, { size: 7.8, color: MUTED });
   }
 
   // ---- footer on every page
