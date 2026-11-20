@@ -1911,13 +1911,20 @@
     if (f.battery) parts.push(f.battery + " battery"); if (f.hardwired) parts.push(f.hardwired + " hardwired");
     return parts.length ? '<b style="color:#A63A32">' + esc(parts.join(" · ")) + '</b>' : '<span class="hint">None</span>';
   }
+  // One line per warranty job: what was replaced, e.g. "4 battery, 2 hardwired".
   function renderFaulty(list){
-    list = list || [];
-    $("st-faulty").innerHTML = '<thead><tr><th>Completed</th><th>Job</th><th>Electrician</th><th>Customer</th><th>Where</th><th>Type</th><th>Fault</th></tr></thead><tbody>' +
-      (list.length ? list.map(function(f){
+    var jobs = [], byJob = {};
+    (list || []).forEach(function(f){
+      var k = f.job_no, j = byJob[k];
+      if (!j){ j = byJob[k] = { f: f, battery: 0, hardwired: 0 }; jobs.push(j); }
+      j[f.type === "hardwired" ? "hardwired" : "battery"]++;
+    });
+    $("st-faulty").innerHTML = '<thead><tr><th>Completed</th><th>Job</th><th>Electrician</th><th>Customer</th><th>Replaced</th></tr></thead><tbody>' +
+      (jobs.length ? jobs.map(function(j){
+        var f = j.f, what = [j.battery ? j.battery + " battery" : "", j.hardwired ? j.hardwired + " hardwired" : ""].filter(Boolean).join(", ");
         return '<tr><td>' + esc(new Date(f.completed_at).toLocaleDateString("en-AU", { day:"numeric", month:"short", year:"numeric", timeZone:"Australia/Brisbane" })) + '</td><td>J' + esc(f.job_no) + '</td><td>' + esc(f.electrician) +
-          '</td><td>' + esc(f.customer + (f.suburb ? " · " + f.suburb : "")) + '</td><td>' + esc(f.location) + '</td><td>' + esc(f.type === "hardwired" ? "Hardwired" : "Battery") + '</td><td>' + esc(f.fault) + '</td></tr>';
-      }).join("") : '<tr><td class="empty" colspan="7">No faulty alarms yet</td></tr>') + '</tbody>';
+          '</td><td>' + esc(f.customer + (f.suburb ? " · " + f.suburb : "")) + '</td><td><b>' + esc(what) + '</b></td></tr>';
+      }).join("") : '<tr><td class="empty" colspan="5">No faulty alarms yet</td></tr>') + '</tbody>';
   }
   function loadStock(){ return jobsApi({ action:"stock_summary" }).then(renderStock).catch(function(err){ toast(err.message); }); }
   $("stock-btn").addEventListener("click", function(){
