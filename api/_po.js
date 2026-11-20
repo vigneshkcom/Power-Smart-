@@ -99,8 +99,6 @@ function renderPoEmail(po, intro) {
   const sumRow = (label, value, strong) => `<tr><td colspan="3" align="right" style="padding:6px 10px;${strong ? "font-weight:bold;color:#0B1B1F;background:#F4F9FA;" : ""}">${label}</td><td align="right" style="padding:6px 10px;${strong ? "font-weight:bold;color:#0B1B1F;background:#F4F9FA;" : ""}">${value}</td></tr>`;
   const para = String(intro || "").split(/\n{2,}/).map((p) => `<p style="margin:0 0 12px;">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#41585D;font-size:14px;line-height:1.6;">
-<div style="font-size:18px;font-weight:bold;color:#0B1B1F;margin-bottom:2px;">${esc(po.title)}</div>
-<div style="font-size:12px;color:#8AA0A5;margin-bottom:14px;">${esc(po.ref)} &middot; ${esc(po.period.label)}</div>
 ${para}
 <table cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
 ${head([["Item"], ["Qty", "right"], ["Rate ex GST", "right"], ["Amount ex GST", "right"]])}
@@ -109,7 +107,7 @@ ${sumRow("Subtotal (ex GST)", dollars(po.subtotal_cents))}${sumRow(`GST (${GST_P
 </table>
 <p style="font-size:12px;color:#8AA0A5;margin-top:12px;">Please see the attached PDF for a job-by-job breakdown. If anything doesn&#39;t look right, just reply to this email.</p>
 <p style="margin:18px 0 0;color:#0B1B1F;">Regards,<br><strong>Vignesh</strong><br>Power Smart Pty Ltd</p></div>`;
-  const text = `${po.title}\n${po.ref} - ${po.period.label}\n\n${intro}\n\n` +
+  const text = `${intro}\n\n` +
     po.lines.map((l) => `${l.label}: ${l.qty} x ${dollars(l.unit_cents)} = ${dollars(l.amount_cents)}`).join("\n") +
     `\n\nSubtotal (ex GST): ${dollars(po.subtotal_cents)}\nGST (${GST_PCT}%): ${dollars(po.gst_cents)}\nTotal (inc GST): ${dollars(po.total_cents)}\n\nPlease see the attached PDF for a job-by-job breakdown. If anything doesn't look right, just reply to this email.\n\nRegards,\nVignesh\nPower Smart Pty Ltd`;
   return { html, text, subject: po.title };

@@ -52,6 +52,8 @@ test('the email shows the message, every line, GST and the total, signed off by 
   assert.doesNotMatch(m.html, /support@powersmartco/);
   assert.match(m.html, /attached PDF for a job-by-job breakdown/);
   assert.doesNotMatch(m.html, /J1005/);   // jobs are listed in the PDF only
+  assert.doesNotMatch(m.html, /PO-89128/);   // no title or PO number heading in the body; they are in the subject and PDF
+  assert.ok(m.text.startsWith('Hi Dillon,'));
   assert.doesNotMatch(m.html, /<b>mate<\/b>/);   // typed text is escaped
   assert.match(m.text, /Total \(inc GST\): \$44\.00/);
 });
