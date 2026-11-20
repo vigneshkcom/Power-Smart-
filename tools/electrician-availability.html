@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Electrician Availability | Power Smart Co</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: light; --ink:#0b1b1f; --body:#41585d; --line:#d8e4e7; --teal:#1e5f6b; --accent:#a6e6ec; --paper:#edf3f4; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:1rem/1.5 Poppins,system-ui,sans-serif; }
+  header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding:1rem clamp(1rem,5vw,3rem); background:white; border-bottom:1px solid var(--line); }
+  header img { display:block; height:32px; max-width:100%; }
+  nav { display:flex; flex-wrap:wrap; gap:1rem; font-size:.9rem; }
+  a { color:var(--teal); font-weight:600; text-underline-offset:.18em; }
+  main { max-width:920px; padding:clamp(1.5rem,5vw,3rem) 1rem 3rem; margin:auto; }
+  h1 { margin:0; font-size:clamp(1.8rem,5vw,2.65rem); letter-spacing:-.05em; line-height:1.15; }
+  h2 { font-size:1.18rem; margin:0 0 .8rem; }
+  h3 { font-size:1rem; margin:0; }
+  p { margin:.35rem 0 0; }
+  .muted { color:var(--body); }
+  .panel,.card { background:white; border:1px solid var(--line); border-radius:16px; padding:clamp(1rem,3vw,1.4rem); }
+  .panel { margin-top:1.35rem; }
+  #unlock { max-width:430px; }
+  #search { display:grid; grid-template-columns:minmax(10rem,1fr) auto auto; gap:.8rem; align-items:end; }
+  label { display:block; font-size:.9rem; font-weight:600; margin-bottom:.3rem; }
+  input,select,button { font:inherit; border-radius:9px; padding:.55rem .75rem; min-height:44px; }
+  input,select { width:100%; border:1px solid #9eb4ba; background:white; color:var(--ink); }
+  button { border:1px solid transparent; background:var(--accent); color:var(--ink); font-weight:700; cursor:pointer; }
+  button:hover { background:#83d4dd; }
+  button:disabled { opacity:.6; cursor:wait; }
+  :focus-visible { outline:3px solid var(--teal); outline-offset:2px; }
+  #unlock button { margin-top:.75rem; }
+  #status,#unlock-error { min-height:1.5em; }
+  .error { color:#9b2429; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:.75rem; }
+  .card { overflow-wrap:anywhere; }
+  .card .time { color:var(--teal); font-weight:700; margin-top:.35rem; }
+  .card .detail { font-size:.88rem; }
+  .tag { color:var(--teal); background:#e7f4f6; font-size:.8rem; font-weight:700; border-radius:100px; padding:.18rem .6rem; display:inline-block; }
+  section { margin-top:1.5rem; }
+  .schedule-row { display:grid; grid-template-columns:8.6rem minmax(0,1fr) auto; align-items:start; gap:.75rem 1rem; padding:.8rem 0; border-top:1px solid var(--line); font-size:.9rem; }
+  .schedule-row:first-child { border-top:0; padding-top:0; }
+  .schedule-row:last-child { padding-bottom:0; }
+  .schedule-row p { margin:0; overflow-wrap:anywhere; }
+  [hidden] { display:none !important; }
+  @media (max-width:620px) {
+    #search,.schedule-row { grid-template-columns:1fr; gap:.5rem; }
+    .schedule-row .tag { justify-self:start; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" aria-label="Power Smart staff hub"><img src="/assets/logo/power-smart-logo-transparent.png" alt="Power Smart Co"></a>
+  <nav aria-label="Staff tools"><a href="/tools/pipeline">Sales Pipeline</a><a href="/tools/schedule">Job Schedule</a></nav>
+</header>
+<main>
+  <h1>Electrician availability</h1>
+  <form id="unlock" class="panel" hidden>
+    <label for="portal-key">Portal key</label>
+    <input id="portal-key" type="password" autocomplete="current-password" required>
+    <button>Unlock</button>
+    <p id="unlock-error" class="error" role="status"></p>
+  </form>
+
+  <div id="availability" hidden>
+    <p id="electrician" class="muted"></p>
+    <form id="search" class="panel">
+      <div>
+        <label for="area">Suburb or postcode</label>
+        <input id="area" type="search" placeholder="e.g. 4220 or Burleigh Heads" maxlength="100" autocomplete="off" required>
+      </div>
+      <div>
+        <label for="duration">Job length</label>
+        <select id="duration">
+          <option value="30">30 min</option><option value="45">45 min</option>
+          <option value="60" selected>60 min</option><option value="90">90 min</option><option value="120">120 min</option>
+        </select>
+      </div>
+      <button id="check">Check availability</button>
+    </form>
+
+    <section aria-labelledby="results-heading">
+      <h2 id="results-heading">Suggested times</h2>
+      <p id="status" class="muted" role="status"></p>
+      <div id="results" class="cards"></div>
+    </section>
+
+    <section id="schedule" aria-labelledby="schedule-heading" hidden>
+      <h2 id="schedule-heading">Upcoming work dates</h2>
+      <div id="days" class="panel"></div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  "use strict";
+
+  const keyName = "powersmart_portal_key";
+  const $ = id => document.getElementById(id);
+  const date = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", weekday: "short", day: "numeric", month: "short" });
+  const time = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", hour: "numeric", minute: "2-digit" });
+  const labels = {
+    same_area: "Same area", nearby: "Nearby booking", on_route: "On the route",
+    south_gold_coast: "Southern Gold Coast", route_pending: "Route to confirm",
+  };
+  let key = "";
+  try { key = localStorage.getItem(keyName) || ""; } catch (_) {}
+
+  const areaInput = $("area");
+  areaInput.value = (new URLSearchParams(location.search).get("area") || "").slice(0, 100);
+  const dayLabel = value => date.format(new Date(value + "T12:00:00+10:00"));
+  const clock = value => time.format(new Date(value));
+  const range = slot => clock(slot.start) + " – " + clock(slot.end);
+  const count = n => n + (n === 1 ? " booking" : " bookings");
+
+  function element(tag, value, style) {
+    const node = document.createElement(tag);
+    if (value) node.textContent = value;
+    if (style) node.className = style;
+    return node;
+  }
+
+  function scheduleLink(label, at, jobId) {
+    const link = element("a", label);
+    const params = new URLSearchParams({ at });
+    if (jobId) params.set("job", jobId);
+    link.href = "/tools/schedule?" + params;
+    return link;
+  }
+
+  function render(data, area) {
+    const name = data.electrician.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
+    $("electrician").textContent = name + " · Based in " + data.base + " · Queensland time";
+    $("days").replaceChildren(...data.days.map(day => {
+      const row = element("div", "", "schedule-row");
+      const route = element("div");
+      const booked = day.status === "booked_out";
+      const when = day.southGoldCoast && !booked ? " · Southern Gold Coast, " + range(day.window) : "";
+      route.append(element("p", count(day.jobCount) + when));
+      if (day.route.length) route.append(element("p", day.route.join(" · "), "muted"));
+      else if (!day.southGoldCoast && !booked) route.append(element("p", "Route to confirm", "muted"));
+      row.append(
+        scheduleLink(dayLabel(day.date), day.date + "T08:00:00+10:00"),
+        route,
+        element("span", booked ? "Booked out" : "Working", "tag"),
+      );
+      return row;
+    }));
+    $("schedule").hidden = data.days.length === 0;
+
+    const matches = data.days.filter(day => day.suggestion);
+    $("results").replaceChildren(...matches.map(day => {
+      const slot = day.suggestion;
+      const card = element("article", "", "card");
+      card.append(element("h3", dayLabel(day.date)), element("p", range(slot), "time"));
+      card.append(element("p", labels[slot.type], "detail muted"));
+      if (slot.booking) {
+        const job = slot.booking;
+        const line = element("p", "", "detail");
+        line.append(scheduleLink("J" + job.jobNo, job.start, job.id));
+        const suburb = [job.suburb, job.postcode].filter(Boolean).join(" ");
+        line.append(" · " + [suburb, clock(job.start)].filter(Boolean).join(" · "));
+        card.append(line);
+      } else if (day.southGoldCoast) {
+        card.append(element("p", "Shift " + range(day.window), "detail muted"));
+      }
+      return card;
+    }));
+
+    $("status").textContent = matches.length
+      ? "Times include estimated travel between bookings. Confirm the route before offering a time."
+      : data.days.length && area ? "No matching opening for " + area + " at this job length."
+      : data.days.length ? "Enter an installation suburb or postcode to check the route." : "No upcoming work dates are configured.";
+  }
+
+  async function load(area) {
+    $("unlock-error").textContent = "";
+    $("status").classList.remove("error");
+    $("status").textContent = "Checking live bookings…";
+    $("results").replaceChildren();
+    $("schedule").hidden = true;
+    $("check").disabled = true;
+    const unlockButton = $("unlock").querySelector("button");
+    unlockButton.disabled = true;
+    try {
+      const params = new URLSearchParams({ resource: "availability", area, duration: $("duration").value });
+      const response = await fetch("/api/pipeline?" + params, { headers: { "x-portal-key": key }, cache: "no-store" });
+      if (response.status === 401) {
+        key = "";
+        try { localStorage.removeItem(keyName); } catch (_) {}
+        $("availability").hidden = true;
+        $("unlock").hidden = false;
+        $("unlock-error").textContent = "The portal key was not accepted.";
+        $("portal-key").focus();
+        return;
+      }
+      const data = await response.json();
+      $("unlock").hidden = true;
+      $("availability").hidden = false;
+      if (!response.ok) throw new Error(data.error || "Could not check availability. Try again.");
+      render(data, area);
+    } catch (error) {
+      if ($("availability").hidden) {
+        $("unlock-error").textContent = error.message;
+      } else {
+        $("status").classList.add("error");
+        $("status").textContent = error.message;
+      }
+    } finally {
+      $("check").disabled = false;
+      unlockButton.disabled = false;
+    }
+  }
+
+  $("unlock").addEventListener("submit", event => {
+    event.preventDefault();
+    key = $("portal-key").value.trim();
+    try { localStorage.setItem(keyName, key); } catch (_) {}
+    load(areaInput.value.trim());
+  });
+  $("search").addEventListener("submit", event => {
+    event.preventDefault();
+    load(areaInput.value.trim());
+  });
+  if (key) {
+    $("availability").hidden = false;
+    load(areaInput.value.trim());
+  } else {
+    $("unlock").hidden = false;
+  }
+})();
+</script>
+</body>
+</html>

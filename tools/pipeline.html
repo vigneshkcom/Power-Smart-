@@ -285,6 +285,7 @@
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/quote-tracker">Quote Tracker</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/sms">SMS Inbox</a>
       <a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/schedule">Job Schedule</a>
+      <a class="btn btn-ghost" href="/tools/electrician-availability">Check availability</a>
       <button class="btn btn-ghost" id="refresh" title="Refresh">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Refresh
@@ -394,6 +395,7 @@
           <button class="btn btn-ghost" id="lm-sms" title="Open this customer's SMS conversation">Send SMS</button>
           <button class="btn btn-ghost" id="lm-addr2" title="Add a separate lead and quote for this customer at a different address (payments stay apart)">Add another address</button>
           <button class="btn btn-ghost" id="lm-job" title="Book this customer in with an electrician on the job schedule">Schedule job</button>
+          <button class="btn btn-ghost" type="button" id="lm-availability">Check availability</button>
           <button class="btn btn-ghost" id="lm-warranty" style="display:none" title="Book a free warranty visit for a faulty smoke alarm. Nothing is sent to the customer unless you tick it.">Create warranty</button>
           <details class="menu"><summary class="btn btn-ghost">Quote &amp; payment</summary><div class="menu-pop">
             <button class="btn btn-ghost" id="lm-booking-fee" title="Email a Stripe link for this customer's electrician call-out fee">Send call-out fee</button>
@@ -1488,6 +1490,11 @@
   $("lm-sms").addEventListener("click",function(){if(currentId){var id=currentId;closeModal();openSms(id);}});
   $("lm-addr2").addEventListener("click", function(){ if (currentId) openAnotherAddress(); });
   $("lm-job").addEventListener("click", function(){ if (currentId) window.location.href = "https://portal.powersmartco.com.au/tools/schedule?lead=" + encodeURIComponent(currentId); });
+  $("lm-availability").addEventListener("click", function(){
+    var postcode = ($("lm-address-postcode").value || $("lm-postcode").value).trim();
+    var url = "/tools/electrician-availability" + (postcode ? "?area=" + encodeURIComponent(postcode) : "");
+    window.open(url, "_blank", "noopener");
+  });
   $("lm-care-resend").addEventListener("click", function(){
     var l = leads.find(function(x){ return x.id === currentId; }); if (!l) return;
     if (!confirm("Email " + l.name + " another copy of the Alarm Care Notice and Acknowledgement?" + (l.email ? "\n\nIt goes to " + l.email + " with a copy to support@powersmartco.com.au." : ""))) return;

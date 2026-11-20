@@ -43,6 +43,7 @@ module.exports = async (req, res) => {
     return res.status(401).json({ error: "Invalid portal key" });
   }
   if (!configured()) return res.status(500).json({ error: "Supabase is not configured (missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" });
+  if (/[?&]resource=availability(&|$)/.test(req.url || "")) return require("./_availability").handler(req, res);
 
   try {
     if (req.method === "GET") {
