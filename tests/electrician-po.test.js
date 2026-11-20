@@ -25,10 +25,11 @@ test('prices jobs at the contractor rates: call-out per job, battery, hardwired 
   assert.match(po.pay_date_label, /Friday 27 November 2026/);
 });
 
-test('alarms with no recorded type are paid as battery; warranty jobs are left out', () => {
-  const po = Po.buildPo({ tech, from, to, rows: [row({ untyped: 2 }), row({ work_type: 'warranty', battery: 5 })] });
-  assert.equal(po.jobs.length, 1);
-  assert.equal(po.subtotal_cents, 3000 + 2 * 1000);
+test('alarms with no recorded type are paid as battery; warranty visits are paid like any job', () => {
+  const po = Po.buildPo({ tech, from, to, rows: [row({ untyped: 2 }), row({ work_type: 'warranty', battery: 3, hardwired: 1 })] });
+  assert.equal(po.jobs.length, 2);
+  assert.equal(po.jobs[1].warranty, true);
+  assert.equal(po.subtotal_cents, 3000 + 2 * 1000 + 3000 + 3 * 1000 + 1300);
 });
 
 test('extra lines add to the total, negative prices deduct, and bad input is refused', () => {

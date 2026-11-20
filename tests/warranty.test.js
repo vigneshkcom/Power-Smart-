@@ -203,3 +203,8 @@ test('booking confirmation for a warranty job uses the warranty wording and note
   assert.match(mail[0].subject, /warranty visit is booked/); assert.doesNotMatch(mail[0].text, /Balance|quote/i);
   assert.match(sms[0], /warranty visit is booked/); assert.match(notes[0], /^Warranty visit confirmation sent by email and SMS/);
 });
+
+test('report: warranty replacements count toward the alarms the electrician is paid for', async () => {
+  const src = require('node:fs').readFileSync(require.resolve('../api/_jobs'), 'utf8');
+  assert.match(src, /battery: c\.battery \+ c\.warranty_battery, hardwired: c\.hardwired \+ c\.warranty_hardwired/);
+});

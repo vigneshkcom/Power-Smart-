@@ -246,7 +246,10 @@ async function reportData(from, to, techId) {
       id: j.id, job_no: j.job_no, completed_at: j.completed_at || j.scheduled_start,
       electrician_id: j.electrician_id || null, electrician: tech.name || "Unassigned", electrician_code: tech.code || "",
       customer: j.customer_name || "", address: [j.address, j.suburb, j.postcode].filter(Boolean).join(", "), work_type: j.work_type,
-      battery: c.battery, hardwired: c.hardwired, untyped: c.untyped, alarms: c.battery + c.hardwired + c.untyped,
+      // Warranty replacements count like installs here: the electrician is paid the same (stock keeps them apart, see installedCounts).
+      warranty: j.work_type === "warranty",
+      battery: c.battery + c.warranty_battery, hardwired: c.hardwired + c.warranty_hardwired, untyped: c.untyped,
+      alarms: c.battery + c.hardwired + c.untyped + c.warranty_battery + c.warranty_hardwired,
       controllers: c.controllers, inspections: c.inspections, other: c.other.join(", "),
       invoice, payment: j.pay_status === "paid" ? `Paid by ${METHOD_WORD[j.pay_method || "card"] || j.pay_method}` : (PAY_LABEL[j.pay_status] || ""),
       paid_card: paidSplit(j).card, paid_cash: paidSplit(j).cash, paid_other: paidSplit(j).other, cash_receipt: Boolean(j.pay_receipt),

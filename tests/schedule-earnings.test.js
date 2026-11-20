@@ -25,14 +25,14 @@ test('a job not invoiced yet is estimated from the booked alarm count and paid a
   assert.equal(e.estimated, true);
 });
 
-test('totals skip cancelled and warranty jobs and count estimated ones', () => {
+test('totals skip cancelled jobs and count estimated ones; warranty visits cost pay but earn nothing', () => {
   const t = ctx.sumEarnings([
     { status: 'completed', work_type: 'install', invoice_items: items(['alarm_battery', 2, 7900]) },
     { status: 'scheduled', work_type: 'install', alarms: 1 },
     { status: 'cancelled', work_type: 'install', alarms: 9 },
-    { status: 'completed', work_type: 'warranty', alarms: 3 },
+    { status: 'completed', work_type: 'warranty', alarm_units: [{ outcome: 'replaced', type: 'battery' }, { outcome: 'replaced', type: 'hardwired' }, { outcome: 'fixed', type: 'battery' }] },
   ]);
-  assert.equal(t.jobs, 2); assert.equal(t.alarms, 3); assert.equal(t.estimated, 1);
+  assert.equal(t.jobs, 3); assert.equal(t.alarms, 5); assert.equal(t.estimated, 1);
   assert.equal(t.sales, 3 * 7900);
-  assert.equal(t.elec, 2 * 3000 + 2 * 1000 + 1000);
+  assert.equal(t.elec, 2 * 3000 + 2 * 1000 + 1000 + 3000 + 1000 + 1300);
 });

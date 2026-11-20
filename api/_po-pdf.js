@@ -134,7 +134,7 @@ async function renderPoPdf(po) {
       const d = new Date(j.completed_at);
       text(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", weekday: "short", day: "numeric", month: "short" }).format(d).replace(",", ""), jc.date, y - 12, { size: 8.5 });
       text("J" + j.job_no, jc.job, y - 12, { font: bold, size: 8.5, color: INK });
-      text(fit(j.address, reg, 8.5, jc.bat - jc.addr - 40), jc.addr, y - 12, { size: 8.5 });
+      text(fit((j.warranty ? "Warranty - " : "") + j.address, reg, 8.5, jc.bat - jc.addr - 40), jc.addr, y - 12, { size: 8.5 });
       text(String(j.battery), jc.bat, y - 12, { size: 8.5, align: "right" });
       text(String(j.hardwired), jc.hw, y - 12, { size: 8.5, align: "right" });
       text(String(j.controllers), jc.rem, y - 12, { size: 8.5, align: "right" });

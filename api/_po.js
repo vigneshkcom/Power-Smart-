@@ -58,9 +58,9 @@ function cleanExtra(list) {
   return out;
 }
 
-// rows: the electrician's completed jobs from reportData(). Warranty visits are not paid here.
+// rows: the electrician's completed jobs from reportData(). Warranty visits are paid like any job: call-out plus each alarm replaced.
 function buildPo({ tech, rows, from, to, extra, payDate, issued = new Date() }) {
-  const jobs = rows.filter((r) => r.work_type !== "warranty");
+  const jobs = rows;
   const sum = (k) => jobs.reduce((n, r) => n + (r[k] || 0), 0);
   const battery = sum("battery") + sum("untyped"), hardwired = sum("hardwired"), controllers = sum("controllers");
   const lines = [
@@ -82,7 +82,7 @@ function buildPo({ tech, rows, from, to, extra, payDate, issued = new Date() }) 
     period: { from, to, label: `${shortDate(first)} to ${shortDate(lastDay)} ${brisbane(lastDay, { year: "numeric" })}` },
     issued: dayMonthYear(issued),
     pay_date: payDate, pay_date_label: payDate ? longDate(new Date(payDate + "T00:00:00+10:00")) : "",
-    lines: all, jobs: jobs.map((r) => ({ completed_at: r.completed_at, job_no: r.job_no, address: r.address, battery: r.battery + r.untyped, hardwired: r.hardwired, controllers: r.controllers, amount_cents: jobPay(r) })),
+    lines: all, jobs: jobs.map((r) => ({ completed_at: r.completed_at, job_no: r.job_no, address: r.address, warranty: r.work_type === "warranty", battery: r.battery + r.untyped, hardwired: r.hardwired, controllers: r.controllers, amount_cents: jobPay(r) })),
     subtotal_cents: subtotal, gst_cents: gst, total_cents: subtotal + gst,
   };
 }

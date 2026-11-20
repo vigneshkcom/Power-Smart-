@@ -880,7 +880,13 @@
   function jobEarnings(j){
     var items = Array.isArray(j.invoice_items) ? j.invoice_items : [];
     var n = { hardwired:0, battery:0, untyped:0, controller:0 }, sales = 0, estimated = false;
-    if (items.length){
+    if (j.work_type === "warranty"){
+      // Warranty visit: the customer pays nothing, the electrician is paid the call-out plus each alarm replaced.
+      (Array.isArray(j.alarm_units) ? j.alarm_units : []).forEach(function(u){
+        if (u && u.outcome === "replaced"){ if (u.type === "hardwired") n.hardwired++; else n.battery++; }
+      });
+      if (!j.alarm_units || !j.alarm_units.length){ estimated = true; n.untyped = Number(j.alarms) || 0; }
+    } else if (items.length){
       items.forEach(function(i){
         sales += i.amount_cents || 0;
         var q = i.qty || 0;
@@ -903,7 +909,7 @@
   function sumEarnings(jobs){
     var t = { jobs:0, alarms:0, hardwired:0, battery:0, controller:0, sales:0, gst:0, rev:0, elec:0, stripe:0, profit:0, estimated:0 };
     jobs.forEach(function(j){
-      if (j.status === "cancelled" || j.work_type === "warranty") return;   // warranty visits earn nothing; cancelled jobs never happen
+      if (j.status === "cancelled") return;   // cancelled jobs never happen (warranty visits count: no sale, electrician still paid)
       var e = jobEarnings(j);
       t.jobs++; t.alarms += e.alarms; t.hardwired += e.n.hardwired; t.battery += e.n.battery + e.n.untyped; t.controller += e.n.controller;
       ["sales","gst","rev","elec","stripe","profit"].forEach(function(k){ t[k] += e[k]; });
@@ -930,7 +936,7 @@
       row(t.controller + (t.controller === 1 ? " remote × " : " remotes × ") + eMoney(PAY.controller), eMoney(t.controller * PAY.controller), "sub") +
       row("Stripe (" + t.jobs + " payments)", '<span class="minus">-' + eMoney(t.stripe) + '</span>') +
       row("Profit", eMoney(t.profit), "tot") + '</div>' +
-      '<div class="earn-note">Call-out fees ($35 / $50 paid when booking) are already in the bank, so they are not counted. Excludes cancelled and warranty jobs.' +
+      '<div class="earn-note">Call-out fees ($35 / $50 paid when booking) are already in the bank, so they are not counted. Excludes cancelled jobs. Warranty visits: the customer pays nothing and the electrician is paid as usual.' +
       (t.estimated ? ' ' + t.estimated + (t.estimated === 1 ? ' job is' : ' jobs are') + ' estimated from the booked alarm count (not invoiced yet, or alarm type not recorded; counted as battery).' : '') +
       ' Stripe is ' + STRIPE.pct + '% + $0.30 per payment; cash jobs have no fee.</div></div></aside>';
   }
