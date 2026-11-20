@@ -264,7 +264,29 @@
     .sc-left{width:150px}.lr-badges{display:none}
     .tech-row{grid-template-columns:1fr 1fr}
   }
+  /* earnings panel: sits in the empty space right of the 23:00 column on the day view, under the grid on 3 days / week */
+  .sched-wrap{display:flex;align-items:stretch}
+  .sched-wrap>.sched{flex:1;min-width:0}
+  .earn{flex:none;width:340px;border-left:1px solid var(--line);background:#fff;display:flex;flex-direction:column}
+  .earn-h{display:flex;align-items:flex-end;justify-content:space-between;gap:.5rem;padding:0 1rem .45rem;font-size:.7rem;font-weight:800;letter-spacing:.06em;color:var(--body);border-bottom:1px solid var(--line);background:#F7FAFB;text-transform:uppercase}
+  .earn-b{padding:.9rem 1rem 1rem;display:flex;flex-direction:column;gap:.7rem}
+  .earn-big{font-size:1.7rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+  .earn-big.pos{color:#17724A}.earn-big.neg{color:#B4443A}
+  .earn-sub{font-size:.7rem;color:var(--muted)}
+  .earn-kpis{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+  .earn-kpis div{background:#F7FAFB;border:1px solid var(--line);border-radius:10px;padding:.45rem .6rem}
+  .earn-kpis b{display:block;font-size:1.05rem;font-variant-numeric:tabular-nums}
+  .earn-kpis span{font-size:.64rem;color:var(--muted)}
+  .earn-row{display:flex;justify-content:space-between;gap:.6rem;padding:.32rem 0;border-bottom:1px solid var(--line);font-size:.76rem;font-variant-numeric:tabular-nums}
+  .earn-row span:first-child{color:var(--body)}
+  .earn-row.sub span:first-child{padding-left:.8rem;font-size:.7rem;color:var(--muted)}
+  .earn-row.tot{font-weight:800}.earn-row.tot span:first-child{color:var(--ink,#0B1B1F)}
+  .earn-row .minus{color:#B4443A}
+  .earn-note{font-size:.64rem;color:var(--muted);line-height:1.45}
+  .earn-below{width:auto;border-left:0;border-top:1px solid var(--line)}
+  @media (max-width:1100px){.sched-wrap{flex-direction:column}.earn{width:auto;border-left:0;border-top:1px solid var(--line)}}
   @media print{
+    .earn{display:none!important}
     body{background:#fff}
     .topbar,.filterbar,.daynav .btn,.daynav .seg,.card-head .btn,.waiting,.toast,.legend{display:none!important}
     .wrap{padding:0}.card{border:none}.sc-right{overflow:visible}
@@ -810,7 +832,73 @@
       }
     });
     if (!techs.length) html += '<div class="empty-board" style="grid-column:1/-1">No electricians match this filter.</div>';
-    $("board").innerHTML = html + '</div>';
+    $("board").innerHTML = html + '</div>' + earningsPanel(0, true);
+  }
+
+  /* ---------- earnings ---------- */
+  // earnings:start
+  // Prices customers pay come from the invoice lines (api/_quote.js: alarm $79, controller $35, inspection $120, GST included).
+  // Electrician pay and Stripe's cut are ex-GST contractor / processor costs. All amounts are cents.
+  var SELL = { alarm:7900, inspection:12000 };
+  var PAY = { callout:3000, hardwired:1300, battery:1000, controller:1000 };
+  var STRIPE = { pct:1.65, fixed:30 };   // Australian domestic card rate, one payment per job
+  var GST_PCT = 10;
+  function jobEarnings(j){
+    var items = Array.isArray(j.invoice_items) ? j.invoice_items : [];
+    var n = { hardwired:0, battery:0, untyped:0, controller:0 }, sales = 0, estimated = false;
+    if (items.length){
+      items.forEach(function(i){
+        sales += i.amount_cents || 0;
+        var q = i.qty || 0;
+        if (i.code === "alarm_hardwired") n.hardwired += q;
+        else if (i.code === "alarm_battery") n.battery += q;
+        else if (i.code === "alarm") n.untyped += q;
+        else if (i.code === "controller") n.controller += q;
+      });
+    } else {
+      estimated = true;   // not invoiced yet: price what was booked
+      if (j.work_type === "inspection") sales = SELL.inspection;
+      else { n.untyped = Number(j.alarms) || 0; sales = n.untyped * SELL.alarm; }
+    }
+    if (n.untyped) estimated = true;   // alarm type not recorded: pay at the higher hardwired rate so profit is not overstated
+    var elec = PAY.callout + (n.hardwired + n.untyped) * PAY.hardwired + n.battery * PAY.battery + n.controller * PAY.controller;
+    var gst = Math.round(sales * GST_PCT / (100 + GST_PCT));
+    var stripe = sales > 0 ? Math.round(sales * STRIPE.pct / 100) + STRIPE.fixed : 0;
+    return { n:n, alarms:n.hardwired + n.battery + n.untyped, sales:sales, gst:gst, rev:sales - gst, elec:elec, stripe:stripe, profit:sales - gst - elec - stripe, estimated:estimated };
+  }
+  function sumEarnings(jobs){
+    var t = { jobs:0, alarms:0, hardwired:0, battery:0, controller:0, sales:0, gst:0, rev:0, elec:0, stripe:0, profit:0, estimated:0 };
+    jobs.forEach(function(j){
+      if (j.status === "cancelled" || j.work_type === "warranty") return;   // warranty visits earn nothing; cancelled jobs never happen
+      var e = jobEarnings(j);
+      t.jobs++; t.alarms += e.alarms; t.hardwired += e.n.hardwired + e.n.untyped; t.battery += e.n.battery; t.controller += e.n.controller;
+      ["sales","gst","rev","elec","stripe","profit"].forEach(function(k){ t[k] += e[k]; });
+      if (e.estimated) t.estimated++;
+    });
+    return t;
+  }
+  // earnings:end
+  function eMoney(c){ return (c < 0 ? "-" : "") + "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+  function earningsPanel(headH, below){
+    var jobs = state.jobs.filter(function(j){ return typeOk(j) && (!state.techFilter || j.electrician_id === state.techFilter); });
+    var t = sumEarnings(jobs), c = cfg();
+    var row = function(label, val, cls){ return '<div class="earn-row ' + (cls || "") + '"><span>' + label + '</span><span>' + val + '</span></div>'; };
+    var calls = t.jobs * PAY.callout;
+    return '<aside class="earn' + (below ? ' earn-below' : '') + '" aria-label="Earnings"><div class="earn-h"' + (headH ? ' style="height:' + headH + 'px"' : '') + '><span>' + (c.days === 1 ? "Day" : c.days + "-day") + ' earnings</span></div>' +
+      '<div class="earn-b"><div><div class="earn-sub">What we keep</div><div class="earn-big ' + (t.profit < 0 ? "neg" : "pos") + '">' + eMoney(t.profit) + '</div>' +
+      '<div class="earn-sub">' + (t.rev ? (t.profit / t.rev * 100).toFixed(1) + '% of sales ex GST' : 'No sales yet') + '</div></div>' +
+      '<div class="earn-kpis"><div><b>' + t.jobs + '</b><span>Jobs</span></div><div><b>' + t.alarms + '</b><span>Smoke alarms</span></div></div>' +
+      '<div>' + row("Customers pay (inc GST)", eMoney(t.sales)) + row("GST", '<span class="minus">-' + eMoney(t.gst) + '</span>', "sub") + row("Sales ex GST", eMoney(t.rev), "tot") +
+      row("Electrician pay", '<span class="minus">-' + eMoney(t.elec) + '</span>') +
+      row(t.jobs + " call-outs × " + eMoney(PAY.callout), eMoney(calls), "sub") +
+      row(t.hardwired + " hardwired × " + eMoney(PAY.hardwired), eMoney(t.hardwired * PAY.hardwired), "sub") +
+      row(t.battery + " battery × " + eMoney(PAY.battery), eMoney(t.battery * PAY.battery), "sub") +
+      row(t.controller + (t.controller === 1 ? " remote × " : " remotes × ") + eMoney(PAY.controller), eMoney(t.controller * PAY.controller), "sub") +
+      row("Stripe (" + t.jobs + " payments)", '<span class="minus">-' + eMoney(t.stripe) + '</span>') +
+      row("Profit", eMoney(t.profit), "tot") + '</div>' +
+      '<div class="earn-note">Call-out fees ($35 / $50 paid when booking) are already in the bank, so they are not counted. Excludes cancelled and warranty jobs.' +
+      (t.estimated ? ' ' + t.estimated + (t.estimated === 1 ? ' job is' : ' jobs are') + ' estimated from the booked alarm count (not invoiced yet, or alarm type not recorded).' : '') +
+      ' Stripe is ' + STRIPE.pct + '% + $0.30 per payment; cash jobs have no fee.</div></div></aside>';
   }
 
   function renderBoard(){
@@ -868,9 +956,9 @@
     }
     var noRows = techs.length ? '' : '<div class="empty-board">No electricians match this filter.</div>';
 
-    $("board").innerHTML = '<div class="sched">' + left +
+    $("board").innerHTML = '<div class="sched-wrap"><div class="sched">' + left +
       '<div class="sc-right" id="sc-right"><div class="sc-canvas" style="width:' + W + 'px">' + head +
-      '<div style="position:relative">' + lanes + seps + nowLine + '</div>' + noRows + '</div></div></div>';
+      '<div style="position:relative">' + lanes + seps + nowLine + '</div>' + noRows + '</div></div></div>' + earningsPanel(headH, false) + '</div>';
 
     // keep the current time in view on today's day view
     if (c.days === 1 && nowLine){
