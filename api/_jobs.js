@@ -550,11 +550,17 @@ module.exports = async (req, res) => {
       return res.status(200).send(file);
     }
 
-    // Purchase order for one electrician's completed jobs in a period (see api/_po.js). Preview first, then send.
-    if (b.action === "po_preview" || b.action === "po_send") {
+    // Purchase order for one electrician's completed jobs in a period (see api/_po.js, api/_po-pdf.js). Preview, PDF, send.
+    if (b.action === "po_preview" || b.action === "po_pdf" || b.action === "po_send") {
       const Po = require("./_po");
       const po = await Po.prepare(b, { sb, reportData, clean, isoOrNull });
       if (b.action === "po_preview") return res.status(200).json({ po, intro: Po.defaultIntro(po) });
+      if (b.action === "po_pdf") {
+        const pdf = await require("./_po-pdf").renderPoPdf(po);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `inline; filename="${Po.pdfName(po).replace(/"/g, "")}"`);
+        return res.status(200).send(Buffer.from(pdf));
+      }
       return res.status(200).json(await Po.send(po, { to: b.to_email, intro: b.intro, sendAs: clean(b.send_as, 40), agent: actor }));
     }
 

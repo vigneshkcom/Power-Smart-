@@ -271,6 +271,7 @@
   .po-f input,.po-f select,.po-f textarea{padding:.5rem .6rem;border:1.5px solid var(--line);border-radius:9px;background:#fff;font:inherit;font-size:.82rem;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink,#0B1B1F)}
   .po-x{display:grid;grid-template-columns:1fr 70px 110px 34px;gap:.4rem;margin-top:.4rem}
   .po-x input{padding:.4rem .5rem;border:1.5px solid var(--line);border-radius:8px;font:inherit;font-size:.8rem}
+  .po-sum{display:flex;justify-content:space-between;padding:.25rem .8rem;font-size:.8rem;color:var(--body);font-variant-numeric:tabular-nums}
   .po-total{display:flex;justify-content:space-between;margin-top:.7rem;padding:.6rem .8rem;background:#F4F9FA;border-radius:10px;font-weight:800;font-variant-numeric:tabular-nums}
   .sched-wrap{display:flex;align-items:stretch}
   .sched-wrap>.sched{flex:1;min-width:0}
@@ -555,13 +556,15 @@
         <label class="po-f">Message<textarea id="po-intro" rows="5"></textarea></label>
         <div class="section-label" style="margin-top:1rem">Purchase order lines <span class="hint" id="po-period"></span></div>
         <div class="rp-scroll"><table class="rp-table" id="po-lines"></table></div>
-        <div class="section-label" style="margin-top:.9rem">Extra lines <span class="hint">Use a negative price for a deduction, e.g. cash collected</span></div>
+        <div class="section-label" style="margin-top:.9rem">Extra lines <span class="hint">Price ex GST. Use a negative price for a deduction</span></div>
         <div id="po-extra"></div>
         <button class="btn btn-ghost" id="po-add" style="margin-top:.5rem">+ Add line</button>
-        <div class="po-total"><span>Total (excluding GST)</span><span id="po-total">$0.00</span></div>
+        <div class="po-sum"><span>Subtotal (ex GST)</span><span id="po-sub">$0.00</span></div>
+        <div class="po-sum"><span>GST (10%)</span><span id="po-gst">$0.00</span></div>
+        <div class="po-total"><span>Total (inc GST)</span><span id="po-total">$0.00</span></div>
       </div>
-      <div class="modal-foot"><span class="hint" id="po-hint">Amounts exclude GST. The office gets a copy.</span><span class="spacer"></span>
-        <button class="btn btn-ghost" id="po-cancel">Cancel</button><button class="btn btn-primary" id="po-send">Send purchase order</button></div>
+      <div class="modal-foot"><span class="hint" id="po-hint">The PDF is attached. The office gets a copy.</span><span class="spacer"></span>
+        <button class="btn btn-ghost" id="po-cancel">Cancel</button><button class="btn btn-ghost" id="po-pdf">Preview PDF</button><button class="btn btn-primary" id="po-send">Send purchase order</button></div>
     </div>
   </div>
 
@@ -1805,17 +1808,18 @@
     jobsApi(Object.assign({ action:"po_preview" }, poBody())).then(function(d){
       if (n !== po.seq) return;
       var p = d.po;
-      $("po-period").textContent = "· " + p.ref + " · " + p.period.label;
+      $("po-period").textContent = "· " + p.title + " · " + p.period.label;
       if (opts.resetEmail || !po.emailEdited) $("po-email").value = p.electrician.email || "";
       if (opts.resetIntro || !po.introEdited) $("po-intro").value = d.intro;
       var auto = p.lines.filter(function(l){ return !l.extra; });
       $("po-lines").innerHTML = '<thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>' +
         (auto.length ? auto.map(function(l){ return '<tr><td>' + esc(l.label) + '</td><td class="n">' + l.qty + '</td><td class="n">' + rpMoney(l.unit_cents / 100) + '</td><td class="n">' + rpMoney(l.amount_cents / 100) + '</td></tr>'; }).join("")
           : '<tr><td class="empty" colspan="4">No completed jobs for this electrician in this period.</td></tr>') + '</tbody>';
+      $("po-sub").textContent = rpMoney(p.subtotal_cents / 100); $("po-gst").textContent = rpMoney(p.gst_cents / 100);
       $("po-total").textContent = rpMoney(p.total_cents / 100);
       po.ok = p.lines.length > 0;
       $("po-send").disabled = !po.ok;
-      $("po-hint").textContent = "Amounts exclude GST. The office gets a copy.";
+      $("po-hint").textContent = "The PDF is attached. The office gets a copy.";
     }).catch(function(err){ if (n === po.seq){ $("po-hint").textContent = err.message; $("po-send").disabled = true; } });
   }
   function poRenderExtra(){
@@ -1854,6 +1858,19 @@
     var d = e.target.closest("[data-del]"); if (!d) return;
     po.extra.splice(+d.dataset.del, 1); poRenderExtra(); poPreview({});
   });
+  $("po-pdf").addEventListener("click", function(){
+    var btn = this, win = window.open("", "_blank"); btn.disabled = true;
+    fetch("/api/pipeline?resource=jobs", { method:"POST", headers:{ "Content-Type":"application/json", "x-portal-key": portalKey() },
+      body: JSON.stringify(Object.assign({ action:"po_pdf", actor: state.agent || "Office" }, poBody())) })
+      .then(function(res){
+        if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the PDF"); });
+        return res.blob();
+      }).then(function(blob){
+        var url = URL.createObjectURL(blob);
+        if (win) win.location.href = url; else window.open(url, "_blank");
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+      }).catch(function(err){ if (win) win.close(); toast(err.message); }).finally(function(){ btn.disabled = false; });
+  });
   $("po-send").addEventListener("click", function(){
     var to = $("po-email").value.trim();
     if (!to){ toast("Enter an email address to send to"); return; }
@@ -1861,7 +1878,7 @@
     var btn = this; btn.disabled = true;
     jobsApi(Object.assign({ action:"po_send", to_email: to, intro: $("po-intro").value,
       send_as: state.agent === "Sam" ? "sam" : state.agent === "Sunny" ? "sunny" : "customer_service" }, poBody()))
-      .then(function(d){ toast("Purchase order " + d.ref + " sent to " + d.to + (d.cc ? " (cc " + d.cc + ")" : "")); $("po-overlay").classList.remove("show"); })
+      .then(function(d){ toast(d.title + " sent to " + d.to + (d.cc ? " (cc " + d.cc + ")" : "")); $("po-overlay").classList.remove("show"); })
       .catch(function(err){ toast(err.message); }).finally(function(){ btn.disabled = !po.ok; });
   });
 
