@@ -33,6 +33,20 @@ async function renderPoPdf(po) {
     while (t.length > 1 && font.widthOfTextAtSize(t + "...", size) > max) t = t.slice(0, -1);
     return t.trimEnd() + "...";
   };
+  const wrap = (s, font, size, max) => {   // split into lines that fit a column; long words are broken
+    const out = []; let line = "";
+    for (let word of clean(s).replace(/\s+/g, " ").trim().split(" ")) {
+      while (font.widthOfTextAtSize(word, size) > max) {
+        if (line) { out.push(line); line = ""; }
+        let n = 1; while (n < word.length && font.widthOfTextAtSize(word.slice(0, n + 1), size) <= max) n++;
+        out.push(word.slice(0, n)); word = word.slice(n);
+      }
+      const next = line ? line + " " + word : word;
+      if (line && font.widthOfTextAtSize(next, size) > max) { out.push(line); line = word; } else line = next;
+    }
+    if (line) out.push(line);
+    return out.length ? out : [""];
+  };
   const label = (s, x, yy, color = TEAL_DEEP) => text(String(s).toUpperCase(), x, yy, { font: bold, size: 7.2, color });
 
   function newPage(first) {
@@ -94,13 +108,14 @@ async function renderPoPdf(po) {
   text("Order lines", M, y, { font: display, size: 12, color: INK }); y -= 12;
   tableHead([["Description", cols.desc], ["Qty", cols.qty, "right"], ["Unit price (ex GST)", cols.unit, "right"], ["Amount (ex GST)", cols.amt, "right"]]);
   po.lines.forEach((l, i) => {
-    ensure(20, () => tableHead([["Description", cols.desc], ["Qty", cols.qty, "right"], ["Unit price (ex GST)", cols.unit, "right"], ["Amount (ex GST)", cols.amt, "right"]]));
-    if (i % 2) page.drawRectangle({ x: M, y: y - 20, width: R - M, height: 20, color: PALE });
-    text(fit(l.label, reg, 9.5, cols.qty - cols.desc - 40), cols.desc, y - 13.5, { color: INK });
+    const desc = wrap(l.label, reg, 9.5, cols.qty - cols.desc - 40), rh = Math.max(20, desc.length * 12 + 8);
+    ensure(rh, () => tableHead([["Description", cols.desc], ["Qty", cols.qty, "right"], ["Unit price (ex GST)", cols.unit, "right"], ["Amount (ex GST)", cols.amt, "right"]]));
+    if (i % 2) page.drawRectangle({ x: M, y: y - rh, width: R - M, height: rh, color: PALE });
+    desc.forEach((t, k) => text(t, cols.desc, y - 13.5 - k * 12, { color: INK }));
     text(String(l.qty), cols.qty, y - 13.5, { align: "right" });
     text(dollars(l.unit_cents), cols.unit, y - 13.5, { align: "right" });
     text(dollars(l.amount_cents), cols.amt, y - 13.5, { color: l.amount_cents < 0 ? rgb(0.7, 0.27, 0.23) : INK, align: "right" });
-    y -= 20;
+    y -= rh;
     page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.5, color: LINE });
   });
 
@@ -130,16 +145,17 @@ async function renderPoPdf(po) {
     text(`Jobs included (${po.jobs.length})`, M, y, { font: display, size: 12, color: INK }); y -= 12;
     jhead();
     po.jobs.forEach((j) => {
-      ensure(17, jhead);
+      const addr = wrap((j.warranty ? "Warranty - " : "") + j.address, reg, 8.5, jc.bat - jc.addr - 30), rh = Math.max(17, addr.length * 10.5 + 6.5);
+      ensure(rh, jhead);
       const d = new Date(j.completed_at);
       text(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Brisbane", weekday: "short", day: "numeric", month: "short" }).format(d).replace(",", ""), jc.date, y - 12, { size: 8.5 });
       text("J" + j.job_no, jc.job, y - 12, { font: bold, size: 8.5, color: INK });
-      text(fit((j.warranty ? "Warranty - " : "") + j.address, reg, 8.5, jc.bat - jc.addr - 40), jc.addr, y - 12, { size: 8.5 });
+      addr.forEach((t, k) => text(t, jc.addr, y - 12 - k * 10.5, { size: 8.5 }));
       text(String(j.battery), jc.bat, y - 12, { size: 8.5, align: "right" });
       text(String(j.hardwired), jc.hw, y - 12, { size: 8.5, align: "right" });
       text(String(j.controllers), jc.rem, y - 12, { size: 8.5, align: "right" });
       text(dollars(j.amount_cents), jc.amt, y - 12, { size: 8.5, color: INK, align: "right" });
-      y -= 17;
+      y -= rh;
       page.drawLine({ start: { x: M, y }, end: { x: R, y }, thickness: 0.4, color: LINE });
     });
     y -= 8;
