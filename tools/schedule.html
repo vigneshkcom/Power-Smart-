@@ -563,7 +563,7 @@
         <div class="po-sum"><span>GST (10%)</span><span id="po-gst">$0.00</span></div>
         <div class="po-total"><span>Total (inc GST)</span><span id="po-total">$0.00</span></div>
       </div>
-      <div class="modal-foot"><span class="hint" id="po-hint">The PDF is attached. The office gets a copy.</span><span class="spacer"></span>
+      <div class="modal-foot"><span class="hint" id="po-hint">The PDF is attached. A copy goes to vignesh@powersmartco.com.au.</span><span class="spacer"></span>
         <button class="btn btn-ghost" id="po-cancel">Cancel</button><button class="btn btn-ghost" id="po-pdf">Preview PDF</button><button class="btn btn-primary" id="po-send">Send purchase order</button></div>
     </div>
   </div>
@@ -1825,7 +1825,7 @@
       $("po-total").textContent = rpMoney(p.total_cents / 100);
       po.ok = p.lines.length > 0;
       $("po-send").disabled = !po.ok;
-      $("po-hint").textContent = "The PDF is attached. The office gets a copy.";
+      $("po-hint").textContent = "The PDF is attached. A copy goes to vignesh@powersmartco.com.au.";
     }).catch(function(err){ if (n === po.seq){ $("po-hint").textContent = err.message; $("po-send").disabled = true; } });
   }
   function poRenderExtra(){
@@ -1880,7 +1880,7 @@
   $("po-send").addEventListener("click", function(){
     var to = $("po-email").value.trim();
     if (!to){ toast("Enter an email address to send to"); return; }
-    if (!confirm("Email this purchase order to " + to + "? A copy goes to the office.")) return;
+    if (!confirm("Email this purchase order to " + to + "? A copy goes to vignesh@powersmartco.com.au.")) return;
     var btn = this; btn.disabled = true;
     jobsApi(Object.assign({ action:"po_send", to_email: to, intro: $("po-intro").value,
       send_as: state.agent === "Sam" ? "sam" : state.agent === "Sunny" ? "sunny" : "customer_service" }, poBody()))

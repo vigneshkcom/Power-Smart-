@@ -78,3 +78,21 @@ test('the PDF renders with the company details and every job', async () => {
   assert.equal(Po.COMPANY.abn, '41 669 943 720');
   assert.match(Po.COMPANY.address.join(', '), /36 Clearwater Rise Parade, Truganina VIC 3029/);
 });
+
+test('the purchase order is copied to Vignesh only, never support@', async () => {
+  const Mod = require('node:module'), orig = Mod._load, sent = [];
+  Mod._load = function (req, parent, ...rest) {
+    if (req === './_transactional-mail') return { Resend: class { constructor() { this.emails = { send: async (m) => { sent.push(m); return { data: { id: 'x' }, error: null }; } }; } } };
+    if (req === './_maillog') return { logEmail: async () => true };
+    return orig.call(this, req, parent, ...rest);
+  };
+  try {
+    const po = Po.buildPo({ tech, from, to, rows: [row({ battery: 1 })] });
+    const r = await Po.send(po, { to: 'dillon@example.com' });
+    assert.equal(sent[0].cc, 'vignesh@powersmartco.com.au');
+    assert.equal(sent[0].to, 'dillon@example.com');
+    assert.ok(!JSON.stringify([sent[0].cc, sent[0].bcc]).includes('support@'));
+    assert.equal(sent[0].attachments[0].filename, 'Dillon PO Week ending 15 Nov 2026.pdf');
+    assert.equal(r.cc, 'vignesh@powersmartco.com.au');
+  } finally { Mod._load = orig; }
+});

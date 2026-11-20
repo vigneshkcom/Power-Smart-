@@ -137,7 +137,7 @@ async function send(po, { to, intro, sendAs, agent }) {
   if (!po.lines.length) throw bad("There is nothing to pay for in this period. Add a line first.");
   const { html, text, subject } = renderPoEmail(po, String(intro || "").trim() || defaultIntro(po));
   const pdf = await require("./_po-pdf").renderPoPdf(po);
-  const cc = String(process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL).toLowerCase();
+  const cc = COMPANY.email;   // purchase orders copy Vignesh only, not support@
   const sender = S.resolveSender(sendAs);
   const { Resend } = require("./_transactional-mail");
   const { data, error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
