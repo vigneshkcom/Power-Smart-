@@ -860,8 +860,8 @@
       if (j.work_type === "inspection") sales = SELL.inspection;
       else { n.untyped = Number(j.alarms) || 0; sales = n.untyped * SELL.alarm; }
     }
-    if (n.untyped) estimated = true;   // alarm type not recorded: pay at the higher hardwired rate so profit is not overstated
-    var elec = PAY.callout + (n.hardwired + n.untyped) * PAY.hardwired + n.battery * PAY.battery + n.controller * PAY.controller;
+    if (n.untyped) estimated = true;   // alarm type not recorded: treat as battery for now
+    var elec = PAY.callout + n.hardwired * PAY.hardwired + (n.battery + n.untyped) * PAY.battery + n.controller * PAY.controller;
     var gst = Math.round(sales * GST_PCT / (100 + GST_PCT));
     var stripe = sales > 0 ? Math.round(sales * STRIPE.pct / 100) + STRIPE.fixed : 0;
     return { n:n, alarms:n.hardwired + n.battery + n.untyped, sales:sales, gst:gst, rev:sales - gst, elec:elec, stripe:stripe, profit:sales - gst - elec - stripe, estimated:estimated };
@@ -871,7 +871,7 @@
     jobs.forEach(function(j){
       if (j.status === "cancelled" || j.work_type === "warranty") return;   // warranty visits earn nothing; cancelled jobs never happen
       var e = jobEarnings(j);
-      t.jobs++; t.alarms += e.alarms; t.hardwired += e.n.hardwired + e.n.untyped; t.battery += e.n.battery; t.controller += e.n.controller;
+      t.jobs++; t.alarms += e.alarms; t.hardwired += e.n.hardwired; t.battery += e.n.battery + e.n.untyped; t.controller += e.n.controller;
       ["sales","gst","rev","elec","stripe","profit"].forEach(function(k){ t[k] += e[k]; });
       if (e.estimated) t.estimated++;
     });
@@ -897,7 +897,7 @@
       row("Stripe (" + t.jobs + " payments)", '<span class="minus">-' + eMoney(t.stripe) + '</span>') +
       row("Profit", eMoney(t.profit), "tot") + '</div>' +
       '<div class="earn-note">Call-out fees ($35 / $50 paid when booking) are already in the bank, so they are not counted. Excludes cancelled and warranty jobs.' +
-      (t.estimated ? ' ' + t.estimated + (t.estimated === 1 ? ' job is' : ' jobs are') + ' estimated from the booked alarm count (not invoiced yet, or alarm type not recorded).' : '') +
+      (t.estimated ? ' ' + t.estimated + (t.estimated === 1 ? ' job is' : ' jobs are') + ' estimated from the booked alarm count (not invoiced yet, or alarm type not recorded; counted as battery).' : '') +
       ' Stripe is ' + STRIPE.pct + '% + $0.30 per payment; cash jobs have no fee.</div></div></aside>';
   }
 

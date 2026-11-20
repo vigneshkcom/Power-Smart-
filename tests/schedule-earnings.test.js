@@ -18,10 +18,10 @@ test('an invoiced job: sales from the invoice, electrician paid per alarm type, 
   assert.equal(e.alarms, 3); assert.equal(e.estimated, false);
 });
 
-test('a job not invoiced yet is estimated from the booked alarm count at the higher hardwired pay rate', () => {
+test('a job not invoiced yet is estimated from the booked alarm count and paid as battery alarms', () => {
   const e = ctx.jobEarnings({ status: 'scheduled', work_type: 'install', alarms: 4 });
   assert.equal(e.sales, 4 * 7900);
-  assert.equal(e.elec, 3000 + 4 * 1300);
+  assert.equal(e.elec, 3000 + 4 * 1000);
   assert.equal(e.estimated, true);
 });
 
@@ -34,5 +34,5 @@ test('totals skip cancelled and warranty jobs and count estimated ones', () => {
   ]);
   assert.equal(t.jobs, 2); assert.equal(t.alarms, 3); assert.equal(t.estimated, 1);
   assert.equal(t.sales, 3 * 7900);
-  assert.equal(t.elec, 2 * 3000 + 2 * 1000 + 1300);
+  assert.equal(t.elec, 2 * 3000 + 2 * 1000 + 1000);
 });
