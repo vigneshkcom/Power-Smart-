@@ -8,6 +8,9 @@
     "api/stripe-webhook.js": {
       "maxDuration": 60,
       "includeFiles": "api/_cert-assets/**"
+    },
+    "api/customer-link.js": {
+      "includeFiles": "api/_cert-assets/{powersmart-logo.png,poppins-600.ttf}"
     }
   },
   "cleanUrls": true,

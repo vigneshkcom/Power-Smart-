@@ -30,10 +30,33 @@ test('an owing invoice shows the balance, pay by card and the bank details with 
 
 test('a paid invoice shows no payment options', async () => {
   const r = await run({ token: ID }, { ...base, pay_status: 'paid' });
-  assert.ok(r.body.includes('TAX INVOICE (PAID)'));
+  assert.ok(r.body.includes('TAX INVOICE') && r.body.includes('>PAID<'));
   assert.ok(!r.body.includes('Paid in full. Thank you') && !r.body.includes('compliance certificate has been emailed'));
   assert.ok(r.body.includes('id="print-btn"') && r.body.includes('window.print()'));
   assert.ok(!r.body.includes('083-004') && !r.body.includes('by card'));
+});
+
+test('the page offers a PDF download, and pdf=1 returns the invoice as a downloadable PDF', async () => {
+  const page = await run({ token: ID }, { ...base, pay_status: 'paid', pay_method: 'bank_transfer' });
+  assert.ok(page.body.includes(`/invoice?token=${ID}&amp;pdf=1`) && page.body.includes('Download PDF'));
+  assert.ok(page.body.includes('Unit price') && page.body.includes('$86.00'), 'unit price shown');
+  assert.ok(page.body.includes('GST (10%)') && page.body.includes('$39.09'));
+  const r = await run({ token: ID, pdf: '1' }, { ...base, pay_status: 'paid', pay_method: 'bank_transfer' });
+  assert.equal(r.code, 200);
+  assert.equal(r.headers['Content-Type'], 'application/pdf');
+  assert.match(r.headers['Content-Disposition'], /attachment; filename="PowerSmart-Tax-Invoice-J1008\.pdf"/);
+  assert.equal(Buffer.from(r.body).subarray(0, 5).toString('ascii'), '%PDF-');
+  const owing = await run({ token: ID, pdf: '1' }, { ...base });
+  assert.equal(owing.headers['Content-Type'], 'application/pdf');
+  assert.equal(stripeCalls.length, 0, 'downloading never starts a card payment');
+});
+
+test('the invoice model adds the call-out fee as its own paid line and balances to zero when paid', () => {
+  const m = Invoice.model({ ...base, pay_status: 'paid', pay_method: 'card' }, '', 3500);
+  assert.equal(m.total_cents, 46500);
+  assert.deepEqual(m.items.at(-1), { label: 'Electrician call-out fee', qty: 1, unit_cents: 3500, amount_cents: 3500 });
+  assert.equal(m.payments.reduce((n, p) => n + p.cents, 0), 46500);
+  assert.equal(m.owing_cents, 0);
 });
 
 test('pay=1 sends the customer to a fresh Stripe Checkout tied to the job, for the amount owing', async () => {
