@@ -47,6 +47,24 @@ function priceCents(v) {
   return cents;
 }
 
+function cleanControllerPhotos(input) {
+  if (!Array.isArray(input) || input.length > 50) throw fail(400, 'Invalid remote controller photos.');
+  return input.map((entry, index) => {
+    const photo = clean(entry && entry.photo, 500);
+    if (photo && (!photo.startsWith('/PowerSmart Jobs/') || photo.includes('..'))) throw fail(400, 'Invalid remote controller photo.');
+    return { id: clean(entry && entry.id, 30) || `c${index + 1}`, photo };
+  });
+}
+
+function requireControllerPhotos(items) {
+  for (const item of items || []) {
+    if (item.code !== 'controller') continue;
+    if (!Array.isArray(item.photos) || item.photos.length !== item.qty || item.photos.some(entry => !entry.photo)) {
+      throw fail(409, 'Take a photo of each remote controller and synchronise first.');
+    }
+  }
+}
+
 // Items from the app → priced invoice lines (quantity 0 lines are dropped).
 // Older saves used one "alarm" line + a job-level alarm_type; those map onto the typed lines.
 function priceItems(raw, legacyType) {
@@ -65,8 +83,13 @@ function priceItems(raw, legacyType) {
       const code = it.code === "alarm" ? (legacyType === "hardwired" ? "alarm_hardwired" : "alarm_battery") : it.code;
       if (!Object.hasOwn(CATALOGUE, code)) throw fail(400, "Unknown invoice item");
       const c = CATALOGUE[code], line = items.find((i) => i.code === code);
-      if (line) { line.qty += qty; line.amount_cents = line.unit_cents * line.qty; continue; }
-      items.push({ code, label: c.label, qty, unit_cents: c.cents, amount_cents: c.cents * qty });
+      const photos = code === 'controller' && it.photos !== undefined ? cleanControllerPhotos(it.photos) : undefined;
+      if (line) {
+        line.qty += qty; line.amount_cents = line.unit_cents * line.qty;
+        if (photos) line.photos = [...(line.photos || []), ...photos];
+        continue;
+      }
+      items.push({ code, label: c.label, qty, unit_cents: c.cents, amount_cents: c.cents * qty, ...(photos ? { photos } : {}) });
     }
   }
   return items;
@@ -365,7 +388,14 @@ async function handler(req, res) {
         return res.status(200).json(await jobDetail(updated));
       }
       if (b.items !== undefined || b.approve) {
-        const work = b.items === undefined ? job.invoice_items || [] : priceItems(b.items);
+        // A phone running an older app must not erase controller photos that
+        // have already been synchronised by the new app.
+        const raw = Array.isArray(b.items) ? b.items.map(item => {
+          if (!item || item.code !== 'controller' || item.photos !== undefined) return item;
+          const previous = (job.invoice_items || []).find(entry => entry.code === 'controller');
+          return previous?.photos ? { ...item, photos: previous.photos.slice(0, J.intIn(item.qty, 0, 50, 0)) } : item;
+        }) : b.items;
+        const work = b.items === undefined ? job.invoice_items || [] : priceItems(raw);
         const discount = job.pay_status === "paid"
           ? -(job.invoice_items?.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0)
           : quoteDiscount(job, await invoiceQuote(job));
@@ -390,6 +420,7 @@ async function handler(req, res) {
       if (b.approve) {
         const items = f.invoice_items || job.invoice_items;
         if (!items || !items.length) throw fail(400, "Add at least one item before the customer approves.");
+        if (job.pay_status !== 'paid') requireControllerPhotos(items);
         f.approved_at = new Date().toISOString();
       }
       const updated = Object.keys(f).length ? await patchJob(job.id, f) : job;
@@ -403,6 +434,7 @@ async function handler(req, res) {
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
 
       if (!current.invoice_items || !current.invoice_items.length || !current.approved_at) throw fail(409, "Get the customer to approve the invoice first.");
+      requireControllerPhotos(current.invoice_items);
       await checkInvoiceDiscount(current);
       const t = totals(current.invoice_items, [...(await prepaid(current.lead_id)), ...priorCredit(current)]);
       if (t.due <= 0) throw fail(409, "Nothing to pay — this invoice is already covered.");
@@ -452,6 +484,7 @@ async function handler(req, res) {
     if (b.action === "complete") {
       let current = await refreshPayment(job);
       const items = current.invoice_items || [];
+      requireControllerPhotos(items);
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
       await checkInvoiceDiscount(current);
       const credits = [...(await prepaid(current.lead_id)), ...priorCredit(current)];

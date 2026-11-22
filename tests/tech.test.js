@@ -236,6 +236,61 @@ test('partial billing details never receive an invented or unrelated postcode', 
   assert.equal(result.data.customer.billingAddress, undefined);
 });
 
+test('remote controller photos persist with invoice items and block approval, payment and completion while missing', async () => {
+  const t = setup();
+  const items = [{ code: 'alarm_hardwired', qty: 3 }, { code: 'controller', qty: 2, photos: [{ id: 'c1', photo: '' }, { id: 'c2', photo: '' }] }];
+  const draft = await t.call({ action: 'save', id: 'j1', items });
+  assert.equal(draft.code, 200);
+  assert.equal(t.job('j1').alarms_installed, 3, 'Controllers do not count as smoke alarms');
+  assert.equal(t.job('j1').invoice_total_cents, 30700, 'Each controller keeps its existing $35 price');
+  const approve = await t.call({ action: 'save', id: 'j1', items, approve: true });
+  assert.equal(approve.code, 409);
+  assert.match(approve.data.error, /photo of each remote controller/);
+  t.job('j1').approved_at = new Date().toISOString();
+  assert.equal((await t.call({ action: 'pay', id: 'j1' })).code, 409, 'Existing approvals cannot bypass photo requirement');
+  assert.equal(t.Stripe.sessions.size, 0);
+  const done = await t.call({ action: 'complete', id: 'j1', method: 'bank_transfer', signoff_name: 'Jake', signature: 'data:image/png;base64,iVBORw0KGgo=' });
+  assert.equal(done.code, 409);
+  assert.equal(invoiceCalls.length, 0);
+  items[1].photos[0].photo = '/PowerSmart Jobs/J1001 - Kath/Controllers/first.jpg';
+  items[1].photos[1].photo = '/PowerSmart Jobs/J1001 - Kath/Controllers/second.jpg';
+  const saved = await t.call({ action: 'save', id: 'j1', items, approve: true });
+  assert.equal(saved.code, 200);
+  assert.equal(saved.data.items.find(item => item.code === 'controller').photos.length, 2);
+  assert.equal((await t.call({ action: 'job', id: 'j1' })).data.items.find(item => item.code === 'controller').photos[1].photo, items[1].photos[1].photo);
+  assert.equal((await t.call({ action: 'pay', id: 'j1' })).data.amount_cents, 30700);
+});
+
+test('older phones do not erase synchronised controller photos and invalid photo paths cannot be saved', async () => {
+  const t = setup();
+  const path = '/PowerSmart Jobs/J1001 - Kath/Controllers/first.jpg';
+  const items = [{ code: 'controller', qty: 1, photos: [{ id: 'c1', photo: path, photoKey: 'do-not-save-local-key' }] }];
+  assert.equal((await t.call({ action: 'save', id: 'j1', items })).code, 200);
+  assert.equal(t.job('j1').invoice_items[0].photos[0].photoKey, undefined);
+  assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ code: 'controller', qty: 1 }] })).code, 200);
+  assert.equal(t.job('j1').invoice_items[0].photos[0].photo, path);
+  const bad = await t.call({ action: 'save', id: 'j1', items: [{ code: 'controller', qty: 1, photos: [{ id: 'c1', photo: '/etc/passwd' }] }] });
+  assert.equal(bad.code, 400);
+  assert.equal(t.job('j1').invoice_items[0].photos[0].photo, path);
+  const denied = await t.call({ action: 'save', id: 'j1', items }, '1012');
+  assert.equal(denied.code, 404);
+});
+
+test('controller photo corrections can be saved after card payment without changing the paid invoice', async () => {
+  const t = setup();
+  const items = [{ code: 'controller', qty: 1, photos: [{ id: 'c1', photo: '/PowerSmart Jobs/J1001 - Kath/Controllers/first.jpg' }] }];
+  await t.call({ action: 'save', id: 'j1', items, approve: true });
+  await t.call({ action: 'pay', id: 'j1' });
+  const session = t.Stripe.sessions.get(t.job('j1').pay_session_id);
+  session.status = 'complete'; session.payment_status = 'paid';
+  await t.call({ action: 'pay_check', id: 'j1' });
+  items[0].photos[0].photo = '/PowerSmart Jobs/J1001 - Kath/Controllers/retaken.jpg';
+  assert.equal((await t.call({ action: 'save', id: 'j1', items })).code, 200);
+  assert.equal(t.job('j1').invoice_items[0].photos[0].photo, items[0].photos[0].photo);
+  assert.equal(t.job('j1').paid_cents, 3500);
+  assert.equal((await t.call({ action: 'save', id: 'j1', items: [{ ...items[0], qty: 2 }] })).code, 409);
+});
+
 test('a paid checkout marks the job paid once, and completing moves the lead to Won', async () => {
   const t = setup();
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
@@ -463,7 +518,7 @@ test('linked quote discount survives fitting, approval, and card pricing without
   job.quote_ref = 'Q7012';
   const quote = t.db.tables.sent_emails[0];
   quote.body_text += '\n- Discount (1 x -$50.00): -$50.00';
-  const items = [{ code: 'alarm_battery', qty: 4 }, { code: 'alarm_hardwired', qty: 2 }, { code: 'controller', qty: 1 }];
+  const items = [{ code: 'alarm_battery', qty: 4 }, { code: 'alarm_hardwired', qty: 2 }, { code: 'controller', qty: 1, photos: [{ id: 'c1', photo: '/PowerSmart Jobs/J1001 - Kath/Controllers/controller.jpg' }] }];
   const detail = await t.call({ action: 'job', id: job.id });
   assert.equal(detail.data.quote_discount_cents, 5000);
   assert.equal(detail.data.items.length, 0);

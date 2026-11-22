@@ -308,6 +308,7 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/js/tech-card-payment.js"></script>
+<script src="/assets/controller-photos.js"></script>
 <script>
 (function(){
   "use strict";
@@ -347,7 +348,7 @@
   });
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
-  var APP_VERSION = "2026-11-22.2";   // shown under the job list so you can tell which copy of the app a phone is running
+  var APP_VERSION = "2026-11-22.3";   // shown under the job list so you can tell which copy of the app a phone is running
   $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
   function scroller(){ return document.querySelector(".app"); }
@@ -421,6 +422,7 @@
             if (ph.category === "receipt") rec.receiptPath = r.path;
             var u = rec.units.find(function(x){ return (ph.unitId && x.id === ph.unitId) || (x.photoKey && x.photoKey === ph.key); });
             if (u){ u.photo = r.path; delete u.photoKey; }
+            window.PSControllerPhotos.attach(rec.items, ph, r.path);
             return idbDel(ph.key).catch(function(){}).then(function(){ qSet(rec); });
           });
         });
@@ -441,7 +443,7 @@
   function keepProgressInDraft(rec){
     try {
       var d = JSON.parse(localStorage.getItem(DRAFT_PREFIX + rec.jobId) || "null");
-      if (d){ d.units = rec.units; localStorage.setItem(DRAFT_PREFIX + rec.jobId, JSON.stringify(d)); }
+      if (d){ d.units = rec.units; d.items = rec.items; localStorage.setItem(DRAFT_PREFIX + rec.jobId, JSON.stringify(d)); }
     } catch(e){}
   }
   function flushQueue(){
@@ -671,6 +673,7 @@
     var hasItems = (cur.items || []).length > 0 || unitList().length > 0, approved = !!j.approved_at;
     if (!completeState.alarms) out.push({ name: "Smoke alarms", sec: "alarms" });
     if (!hasItems) out.push({ name: "Invoice", sec: "invoice" });
+    if (!window.PSControllerPhotos.ready(cur.items)) out.push({ name: "Remote controller photos", sec: "invoice" });
     if (!approved) out.push({ name: "Customer approval", sec: "approval" });
     else if (!completeState.payReady) out.push({ name: "Payment details", sec: "approval" });
     if (!(sigData && soOk && ($("so-name") ? $("so-name").value.trim() : true))) out.push({ name: "Work sign off", sec: "signoff" });
@@ -793,6 +796,7 @@
             if (rec.category === "receipt") receiptPath = r.path;
             var u = unitList().find(function(x){ return (rec.unitId && x.id === rec.unitId) || (x.photoKey && x.photoKey === rec.key); });
             if (u){ u.photo = r.path; delete u.photoKey; }
+            window.PSControllerPhotos.attach(cur.items, rec, r.path);
             return dropPhoto(rec.key);
           });
         });
@@ -815,6 +819,19 @@
   var draft = null, pay = { full: null, method: "", cash: "" }, soName = "", soOk = false, sigData = null, completeState = {};
   var LOCATIONS = ["Hallway", "Bedroom", "Living room", "Kitchen", "Stairwell", "Study", "Garage", "Other"];
   function unitList(){ return Array.isArray(cur.job.alarm_units) ? cur.job.alarm_units : []; }
+  var controllerPhotoBusy = false;
+  function controllerPhotosHtml(){
+    var entries = window.PSControllerPhotos.entries(cur.items);
+    if (!entries.length) return '';
+    var editable = cur.job.status !== 'completed';
+    return '<div class="draft"><div class="q">Remote controller photos</div><p class="muted">Take one photo of each installed controller.</p>' + entries.map(function(entry, index){
+      var thumbnail = entry.photoKey ? localThumb(entry.photoKey) : thumbFor(entry.photo);
+      return '<div class="item unit"><div class="uthumb" data-controller-thumb="' + esc(entry.id) + '">' + (thumbnail ? '<img src="' + esc(thumbnail) + '" alt="Remote controller photo">' : (entry.photo ? 'Photo' : '–')) + '</div>' +
+        '<div class="lab">Controller ' + (index + 1) + '<small>' + (entry.photoKey ? 'Photo waiting to sync' : entry.photo ? 'Photo saved' : 'Photo required') + '</small></div>' +
+        (editable ? '<label class="btn btn-ghost" style="width:auto;min-height:44px">' + (controllerPhotoBusy ? 'Saving…' : entry.photo || entry.photoKey ? 'Retake photo' : 'Take photo') +
+          '<input type="file" accept="image/*" capture="environment" data-controller-photo="' + esc(entry.id) + '" hidden' + (controllerPhotoBusy ? ' disabled' : '') + '></label>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
   function thumbFor(path){
     var p = path && photoCache[cur.job.id];
     var hit = p && p.photos && p.photos.find(function(x){ return x.path === path; });
@@ -917,7 +934,7 @@
   function updateComplete(){
     var btn = $("complete"); if (!btn) return;
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = syncing ? "Synchronising… one moment." : !completeState.alarms ? "Add the smoke alarms." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = syncing ? "Synchronising… one moment." : controllerPhotoBusy ? "Saving controller photo…" : !completeState.alarms ? "Add the smoke alarms." : !window.PSControllerPhotos.ready(cur.items) ? "Take a photo of each remote controller." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
@@ -974,7 +991,7 @@
     return out;
   }
   function photosCard(){
-    var opts = [["before", "Before"], ["after", "After"], ["alarms", "Alarms"], ["other", "Other"]].map(function(o){
+    var opts = [["before", "Before"], ["after", "After"], ["alarms", "Alarms"], ["controllers", "Remote controllers"], ["other", "Other"]].map(function(o){
       return '<option value="' + o[0] + '"' + (o[0] === photoCat ? " selected" : "") + '>' + o[1] + '</option>';
     }).join("");
     return '<div class="card" id="ph-card"><h2>Photos</h2>' +
@@ -984,7 +1001,14 @@
   }
   function loadPhotos(){
     var id = cur.job.id;
-    return call("photos", { id: id }).then(function(d){ if (cur && cur.job.id === id){ photoCache[id] = d; if ($("ph-grid")) $("ph-grid").innerHTML = photoGrid(); } })
+    return call("photos", { id: id }).then(function(d){ if (cur && cur.job.id === id){
+      photoCache[id] = d; if ($("ph-grid")) $("ph-grid").innerHTML = photoGrid();
+      window.PSControllerPhotos.entries(cur.items).forEach(function(entry){
+        var box = document.querySelector('[data-controller-thumb="' + entry.id.replace(/[^a-zA-Z0-9_-]/g, '') + '"]');
+        var thumbnail = entry.photoKey ? localThumb(entry.photoKey) : thumbFor(entry.photo);
+        if (box && thumbnail) box.innerHTML = '<img src="' + esc(thumbnail) + '" alt="Remote controller photo">';
+      });
+    } })
       .catch(function(e){ if (cur && cur.job.id === id){ photoCache[id] = { configured: true, photos: [] }; if ($("ph-grid")) $("ph-grid").innerHTML = '<div class="muted">' + esc(e.message) + '</div>'; } });
   }
   function shrink(file){
@@ -1053,7 +1077,7 @@
           : '<div class="muted">Invoice ' + money(cur.totals.total) + ' · ' + ({ paid:"Paid by card", later:"Customer paying later", none:"Nothing to pay on site" }[j.pay_status] || "") + '</div>') +
         (cur.items.length ? '<div class="tot">' + cur.items.map(function(it){ return '<div><span>' + it.qty + ' × ' + esc(it.label) + '</span><span>' + money(it.amount_cents) + '</span></div>'; }).join("") + '</div>' : '') +
         (j.tech_notes ? '<div class="notes">' + esc(j.tech_notes) + '</div>' : '') + '</div>' +
-        '<button class="btn btn-ghost" id="reopen">Edit job</button>';
+        controllerPhotosHtml() + '<button class="btn btn-ghost" id="reopen">Edit job</button>';
       $("j-body").innerHTML = html; renderSteps(); return;
     }
 
@@ -1103,7 +1127,7 @@
         '<button class="btn btn-ghost" id="o-add" style="margin-top:8px;min-height:44px">Add item</button></details>') +
       (cur.items.length ? '<div class="tot"><div><span>Total (incl. GST)</span><span>' + money(cur.totals.total) + '</span></div>' +
       cur.credits.map(function(cr){ return '<div class="muted"><span>Less paid in advance: ' + esc(cr.label) + '</span><span>\u2212' + money(cr.cents) + '</span></div>'; }).join("") +
-      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '') +
+      '<div class="due"><span>Amount due</span><span>' + money(cur.totals.due) + '</span></div></div>' : '') + controllerPhotosHtml() +
       ([3500,5000].includes(cur.booking_fee_cents) && !cur.credits.some(function(cr){return /call-out deposit/i.test(cr.label||'');}) ? '<p class="muted" style="margin-top:8px">Electrician call-out fee of ' + money(cur.booking_fee_cents) + ' was paid earlier and is separate from the installation total above.</p>' : '') + '</div>';
 
     // 3. payment details
@@ -1113,7 +1137,7 @@
     if (!alarmsDone()) html += '<div class="warn-banner">Add the smoke alarms first.</div>';
     if (!approved){
       html += '<p class="muted" style="margin-bottom:10px">Show the customer the invoice above. Once they say okay, tap below.</p>' +
-        '<button class="btn btn-primary" id="approve"' + (alarmsDone() ? "" : " disabled") + '>Approve invoice ' + money(cur.totals.total) + '</button>';
+        '<button class="btn btn-primary" id="approve"' + (alarmsDone() && window.PSControllerPhotos.ready(cur.items) && !controllerPhotoBusy ? "" : " disabled") + '>Approve invoice ' + money(cur.totals.total) + '</button>';
     } else {
       html += '<div class="ok-banner">Invoice approved at ' + timeLabel(new Date(j.approved_at)) + '</div>';
       if (due <= 0 && !paid) html += '<div class="ok-banner">Nothing to pay on site</div>';
@@ -1189,7 +1213,14 @@
     var stepBtn = t.closest(".step button");
     if (stepBtn){
       var code = stepBtn.parentNode.dataset.code, q = Math.max(0, Math.min(50, itemQty(code) + Number(stepBtn.dataset.d)));
-      setItems(cur.items.filter(function(i){ return i.code !== code; }).concat(q ? [{ code: code, qty: q, label: "", unit_cents: 0, amount_cents: 0 }] : []));
+      var oldItem = cur.items.find(function(item){ return item.code === code; });
+      var nextItem = Object.assign({}, oldItem || {}, { code: code, qty: q });
+      if (code === 'controller') {
+        var oldPhotos = oldItem && oldItem.photos || [];
+        oldPhotos.slice(q).forEach(function(photo){ if (photo.photoKey) dropPhoto(photo.photoKey); });
+        nextItem.photos = oldPhotos.slice(0, q);
+      }
+      setItems(cur.items.filter(function(i){ return i.code !== code; }).concat(q ? [nextItem] : []));
       return;
     }
     var del = t.closest("[data-del]");
@@ -1200,10 +1231,12 @@
       setItems(cur.items.concat([{ code:"other", label: label, price: price, qty: 1 }])); return;
     }
     if (t.id === "approve"){
+      if (controllerPhotoBusy || !window.PSControllerPhotos.ready(cur.items)){ toast('Take a photo of each remote controller first'); return; }
       cur.job.approved_at = new Date().toISOString(); markDirty(); keepScroll(renderJob); toast("Invoice approved");
       return;
     }
     if (t.id === "pay"){
+      if (controllerPhotoBusy || !window.PSControllerPhotos.ready(cur.items)){ toast('Take a photo of each remote controller first'); return; }
       var paymentJobId = cur.job.id;
       t.disabled = true; t.textContent = dirty ? "Synchronising…" : "Opening secure payment…";
       ensureSynced().then(function(){ return call("pay", { id: paymentJobId }); }).then(function(d){
@@ -1319,6 +1352,24 @@
   });
   $("j-body").addEventListener("change", function(e){
     var id = e.target.id;
+    if (e.target.hasAttribute('data-controller-photo') && e.target.files.length){
+      var controllerId = e.target.dataset.controllerPhoto, controllerJobId = cur.job.id;
+      var controllerEntry = window.PSControllerPhotos.entries(cur.items).find(function(photo){ return photo.id === controllerId; });
+      if (!controllerEntry || controllerPhotoBusy) return;
+      var controllerFile = e.target.files[0], previousPhotoKey = controllerEntry.photoKey;
+      controllerPhotoBusy = true; keepScroll(renderJob);
+      shrink(controllerFile).then(function(data){
+        if (!cur || cur.job.id !== controllerJobId) throw new Error('Open the controller job and try again.');
+        return queuePhoto('controllers', data, controllerId);
+      }).then(function(record){
+        var currentEntry = window.PSControllerPhotos.entries(cur.items).find(function(photo){ return photo.id === controllerId; });
+        if (!currentEntry){ dropPhoto(record.key); return; }
+        if (previousPhotoKey) dropPhoto(previousPhotoKey);
+        currentEntry.photoKey = record.key;
+        markDirty();
+      }).catch(function(error){ toast(error.message); }).then(function(){ controllerPhotoBusy = false; if (cur && cur.job.id === controllerJobId) keepScroll(renderJob); });
+      return;
+    }
     if (id === "j-notes") keepScroll(renderJob);
     if (id === "d-loc"){ draft.location = e.target.value; keepScroll(renderJob); }
     if (id === "d-type"){ draft.type = e.target.value; }
@@ -1341,7 +1392,10 @@
 
   function keepScroll(fn){ var a = scroller(), y = a.scrollTop; fn(); a.scrollTop = y; }
   function wireItems(){
-    return cur.items.filter(function(i){ return i.code !== "quote_discount"; }).map(function(i){ return i.code === "other" ? { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty } : { code: i.code, qty: i.qty }; });
+    return cur.items.filter(function(i){ return i.code !== "quote_discount"; }).map(function(i){
+      if (i.code === "other") return { code:"other", label: i.label, price: i.price || (i.unit_cents / 100).toFixed(2), qty: i.qty };
+      return Object.assign({ code: i.code, qty: i.qty }, i.code === 'controller' ? { photos: window.PSControllerPhotos.entries([i]).map(function(photo){ return Object.assign({}, photo); }) } : {});
+    });
   }
   // Prices items locally for an instant update; the server re-prices when the job is synchronised.
   function applyItems(items){
