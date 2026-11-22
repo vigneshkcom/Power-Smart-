@@ -44,8 +44,10 @@
         instance.payWithPopup({
           name: customer.name || undefined, email: customer.email || undefined,
           phone: customer.phone || undefined,
-          // Billing details are collected by the card form and can differ from
-          // the installation address. This is a one-off payment on a staff phone.
+          // Revolut hides its postcode input when a valid billing postcode is
+          // supplied. Incomplete addresses are collected by the secure form.
+          billingAddress: customer.billingAddress,
+          // This is a one-off payment on a staff phone.
           savePaymentMethodFor: 'none', upsellBanner: false,
           onSuccess: function () { resolve('success'); },
           onCancel: function () { resolve('cancelled'); },
