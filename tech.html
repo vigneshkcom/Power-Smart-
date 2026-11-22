@@ -1124,7 +1124,7 @@
         if (pay.method === "card"){
           html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">Take card payment ' + money(due) + '</button>' +
             (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
-            '<p class="muted">Opens the secure Stripe page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
+            '<p class="muted">Opens the secure payment page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
         } else if (pay.method === "bank_transfer"){
           var bk = cur.bank || {};
           html += '<div class="stack" style="margin-top:10px"><div class="draft" style="line-height:1.8">Account name: <strong>' + esc(bk.name || "") + '</strong><br>BSB: <strong>' + esc(bk.bsb || "") + '</strong><br>Account number: <strong>' + esc(bk.account || "") + '</strong><br>Reference: <strong>J' + esc(String(j.job_no)) + '</strong><br>Amount: <strong>' + money(due) + '</strong></div>' +

@@ -5,6 +5,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { Readable } = require('node:stream');
+test('staff checkout accepts both providers and rejects deceptive payment links', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../tools/pipeline.html'), 'utf8');
+  const match = /function safeCheckout\(value\)\{([\s\S]*?)\n  \}/.exec(source);
+  assert(match, 'Staff checkout validator exists');
+  const safeCheckout = vm.runInNewContext('(function(value){' + match[1] + '})', { URL });
+  assert.equal(safeCheckout('https://checkout.revolut.com/payment-link/test'), 'https://checkout.revolut.com/payment-link/test');
+  assert.equal(safeCheckout('https://checkout.stripe.com/c/pay/test'), 'https://checkout.stripe.com/c/pay/test');
+  assert.throws(() => safeCheckout('https://checkout.revolut.com.evil.test/pay'));
+  assert.throws(() => safeCheckout('https://user:pass@checkout.revolut.com/pay'));
+});
 
 const orderId = '6516e61c-d279-a454-a837-bc52ce55ed49';
 function load(file, mocks, env = {}, fetch = async () => { throw new Error('Unexpected fetch'); }) {
