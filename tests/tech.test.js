@@ -205,6 +205,37 @@ test('another electrician cannot obtain the card token and mismatched or missing
   assert.equal(missing.data.url, undefined);
 });
 
+test('card payment uses explicit billing details before installation details on new and existing orders', async () => {
+  const t = setup('revolut');
+  Object.assign(t.job('j1'), { address: '1 Installation Street', suburb: 'Brisbane', postcode: '4000' });
+  Object.assign(t.db.tables.leads[0], { billing_line1: '4 Billing Road', billing_suburb: 'Doonside', billing_state: 'NSW', billing_postcode: '2767' });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const first = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(JSON.stringify(first.data.customer.billingAddress), JSON.stringify({ countryCode: 'AU', streetLine1: '4 Billing Road', city: 'Doonside', postcode: '2767', region: 'NSW' }));
+  const again = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(again.data.customer.billingAddress.postcode, '2767');
+  assert.equal(t.Stripe.sessions.size, 1);
+});
+
+test('card payment uses the saved job address when there is no separate billing address', async () => {
+  const t = setup('revolut');
+  Object.assign(t.job('j1'), { address: '1 Installation Street', suburb: 'Brisbane', postcode: '4000' });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const result = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(result.data.customer.billingAddress.postcode, '4000');
+  assert.equal(result.data.customer.billingAddress.streetLine1, '1 Installation Street');
+});
+
+test('partial billing details never receive an invented or unrelated postcode', async () => {
+  const t = setup('revolut');
+  Object.assign(t.job('j1'), { address: '1 Installation Street', suburb: 'Brisbane', postcode: '4000' });
+  Object.assign(t.db.tables.leads[0], { billing_line1: '4 Billing Road', billing_suburb: 'Doonside', billing_state: 'NSW' });
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const result = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(result.code, 200);
+  assert.equal(result.data.customer.billingAddress, undefined);
+});
+
 test('a paid checkout marks the job paid once, and completing moves the lead to Won', async () => {
   const t = setup();
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });

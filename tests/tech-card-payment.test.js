@@ -60,6 +60,16 @@ test('cancelling and declining permit retry with the same token and no automatic
   assert.equal(f.destroyed(), 2);
 });
 
+test('supplies the saved billing address to Revolut to hide the repeated postcode prompt', async () => {
+  const f = fixture();
+  f.checkout.customer.billingAddress = { countryCode: 'AU', streetLine1: '4 Example Road', city: 'Doonside', postcode: '2767', region: 'NSW' };
+  const payment = f.open(f.checkout);
+  await mounted();
+  assert.deepEqual(f.popups[0].billingAddress, f.checkout.customer.billingAddress);
+  f.popups[0].onCancel();
+  await payment;
+});
+
 test('failed SDK loads can be retried, with no hosted wallet-page fallback', async () => {
   const f = fixture({ failLoad: true });
   await assert.rejects(f.open(f.checkout), /could not load/);

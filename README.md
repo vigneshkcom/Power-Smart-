@@ -158,7 +158,10 @@ Phone web app for electricians on site â€” `portal.powersmartco.com.au/tech
   (e.g. a prepaid inspection) are deducted.
 - **Approval + payment**: the customer approves the invoice on the phone, then
   *Take card payment* opens Revolut's card-only popup for Revolut jobs, with no
-  wallet buttons, card saving or promotional banners. Existing Stripe jobs keep
+  wallet buttons, card saving or promotional banners. Saved billing addresses
+  (or the installation address when billing is the same) are supplied to Revolut
+  so its popup hides the repeated postcode input. Records with incomplete
+  addresses still use Revolut's address collection. Existing Stripe jobs keep
   their Stripe Checkout flow. The popup collects card and billing details directly
   in Revolut's iframe. The app verifies the payment on the server before showing
   it as paid; provider webhooks also reconcile it (`metadata.job_id`). Reopening
