@@ -307,6 +307,7 @@
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="/assets/js/tech-card-payment.js"></script>
 <script>
 (function(){
   "use strict";
@@ -346,7 +347,7 @@
   });
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
-  var APP_VERSION = "2026-11-09.7";   // shown under the job list so you can tell which copy of the app a phone is running
+  var APP_VERSION = "2026-11-22.1";   // shown under the job list so you can tell which copy of the app a phone is running
   $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
   function scroller(){ return document.querySelector(".app"); }
@@ -1124,7 +1125,7 @@
         if (pay.method === "card"){
           html += '<div class="stack" style="margin-top:10px"><button class="btn btn-dark" id="pay">Take card payment ' + money(due) + '</button>' +
             (j.pay_status === "pending" ? '<button class="btn btn-ghost" id="paycheck">Check payment status</button>' : '') +
-            '<p class="muted">Opens the secure payment page. Hand the phone to the customer to tap their card details or Apple/Google Pay.</p></div>';
+            '<p class="muted">Opens a secure card form. Enter the customer\'s card details and complete any bank verification.</p></div>';
         } else if (pay.method === "bank_transfer"){
           var bk = cur.bank || {};
           html += '<div class="stack" style="margin-top:10px"><div class="draft" style="line-height:1.8">Account name: <strong>' + esc(bk.name || "") + '</strong><br>BSB: <strong>' + esc(bk.bsb || "") + '</strong><br>Account number: <strong>' + esc(bk.account || "") + '</strong><br>Reference: <strong>J' + esc(String(j.job_no)) + '</strong><br>Amount: <strong>' + money(due) + '</strong></div>' +
@@ -1203,11 +1204,19 @@
       return;
     }
     if (t.id === "pay"){
+      var paymentJobId = cur.job.id;
       t.disabled = true; t.textContent = dirty ? "Synchronising…" : "Opening secure payment…";
-      ensureSynced().then(function(){ return call("pay", { id: cur.job.id }); }).then(function(d){
-        if (d.paid){ openJob(cur.job.id); return; }
+      ensureSynced().then(function(){ return call("pay", { id: paymentJobId }); }).then(function(d){
+        if (d.paid){ openJob(paymentJobId); return; }
+        if (d.provider === "revolut"){
+          if (cur && cur.job.id === paymentJobId){ cur.job.pay_status = "pending"; cur.job.pay_session_id = d.session_id; }
+          return window.PowerSmartCardPayment.open(d).then(function(result){
+            if (result === "success") return checkPayment(paymentJobId);
+            if (cur && cur.job.id === paymentJobId) renderJob();
+          });
+        }
         window.location.href = d.url;
-      }).catch(function(err){ toast(err.message); renderJob(); });
+      }).catch(function(err){ toast(err.message); if (cur && cur.job.id === paymentJobId) renderJob(); });
       return;
     }
     if (t.id === "paycheck"){ checkPayment(); return; }
@@ -1362,11 +1371,13 @@
     keepScroll(renderJob);
   }
 
-  function checkPayment(){
-    return call("pay_check", { id: cur.job.id }).then(function(d){
-      if (d.paid){ toast("Payment received"); openJob(cur.job.id); }
-      else toast("Payment not received yet");
-    }).catch(function(err){ toast(err.message); });
+  function checkPayment(jobId){
+    jobId = jobId || cur.job.id;
+    return call("pay_check", { id: jobId }).then(function(d){
+      if (cur && cur.job.id === jobId && d.job) Object.assign(cur.job, d.job);
+      if (d.paid){ toast("Payment received"); if (cur && cur.job.id === jobId) openJob(jobId); }
+      else { toast("Payment not received yet. Tap Check payment to confirm."); if (cur && cur.job.id === jobId) renderJob(); }
+    }).catch(function(err){ toast(err.message); if (cur && cur.job.id === jobId) renderJob(); });
   }
 
   $("done-back").addEventListener("click", function(){ day = startOfDay(new Date()); loadList(); });

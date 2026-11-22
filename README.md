@@ -157,9 +157,12 @@ Phone web app for electricians on site â€” `portal.powersmartco.com.au/tech
   from `api/_quote.js` on the server. Advance payments other than the booking fee
   (e.g. a prepaid inspection) are deducted.
 - **Approval + payment**: the customer approves the invoice on the phone, then
-  *Take card payment* opens Stripe Checkout for the amount due and returns to the
-  app. The job is marked paid by the app's check or the Stripe webhook
-  (`metadata.job_id`). *Customer pays later* completes the job with the balance
+  *Take card payment* opens Revolut's card-only popup for Revolut jobs, with no
+  wallet buttons, card saving or promotional banners. Existing Stripe jobs keep
+  their Stripe Checkout flow. The popup collects card and billing details directly
+  in Revolut's iframe. The app verifies the payment on the server before showing
+  it as paid; provider webhooks also reconcile it (`metadata.job_id`). Reopening
+  an unpaid card form reuses its pending order. *Customer pays later* completes the job with the balance
   flagged for the office.
 - **Complete**: job â†’ Completed, lead â†’ Won, and a note with the alarms installed,
   invoice and payment is added to the lead. The office sees the electrician's

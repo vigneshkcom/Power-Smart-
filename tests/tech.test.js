@@ -30,7 +30,7 @@ function fakeDb(tables) {
     },
   };
 }
-function fakeStripe() {
+function fakeStripe(provider = 'stripe') {
   const sessions = new Map(), calls = [];
   return {
     sessions, calls, configured: () => true,
@@ -39,6 +39,7 @@ function fakeStripe() {
       if (p === '/checkout/sessions' && form) {
         const s = { id: 'cs_' + (sessions.size + 1), url: 'https://checkout.stripe.com/c/pay/cs_' + (sessions.size + 1), status: 'open', payment_status: 'unpaid',
           amount_total: Number(form['line_items[0][price_data][unit_amount]']), currency: 'aud', metadata: { job_id: form['metadata[job_id]'] } };
+        if (provider === 'revolut') Object.assign(s, { id: 'rv_order_' + (sessions.size + 1), provider: 'revolut', url: 'https://checkout.revolut.com/payment-link/example', revolut_token: 'public-order-token', revolut_mode: 'prod' });
         sessions.set(s.id, s); return s;
       }
       const m = p.match(/^\/checkout\/sessions\/([^/]+)(\/expire)?$/);
@@ -59,7 +60,7 @@ function vmLoad(file, mocks) {
 const QUOTE_TEXT = '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00\n- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00';
 
 const invoiceCalls = [], certCalls = [], afterPayCalls = [];
-function setup() {
+function setup(provider) {
   invoiceCalls.length = 0; certCalls.length = 0; afterPayCalls.length = 0;
   const db = fakeDb({
     electricians: [
@@ -76,7 +77,7 @@ function setup() {
     leads: [{ id: 'lead1', stage: 'quote_accepted' }],
     lead_comments: [],
   });
-  const Stripe = fakeStripe();
+  const Stripe = fakeStripe(provider);
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
   const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
   const tech = vmLoad('_tech.js', mocks);
@@ -159,6 +160,49 @@ test('payment needs customer approval, then opens Stripe for the amount due', as
   // changing the invoice resets approval
   await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 6 }] });
   assert.equal(t.job('j1').approved_at, null);
+});
+
+test('electrician Revolut checkout returns a card-only token and reuses an existing pending order', async () => {
+  const t = setup('revolut');
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const pay = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(pay.code, 200);
+  assert.equal(pay.data.provider, 'revolut');
+  assert.equal(pay.data.token, 'public-order-token');
+  assert.equal(pay.data.mode, 'prod');
+  assert.equal(pay.data.amount_cents, 23700);
+  assert.equal(pay.data.customer.name, 'Kath');
+  assert.equal(pay.data.customer.email, 'kath@x.com');
+  assert.equal(pay.data.url, undefined, 'Never send the wallet-selection URL to the electrician app');
+  assert.equal(t.job('j1').pay_status, 'pending');
+  assert.equal(t.job('j1').revolut_token, undefined, 'Public token is not persisted on the job');
+  const again = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(again.data.token, pay.data.token);
+  assert.equal(t.Stripe.sessions.size, 1, 'Do not create another order when reopening the card form');
+  assert.equal((await t.call({ action: 'pay_check', id: 'j1' })).data.paid, false);
+  const session = t.Stripe.sessions.get(t.job('j1').pay_session_id);
+  session.status = 'complete'; session.payment_status = 'paid';
+  assert.equal((await t.call({ action: 'pay_check', id: 'j1' })).data.paid, true);
+  assert.equal(t.job('j1').paid_cents, 23700);
+});
+
+test('another electrician cannot obtain the card token and mismatched or missing tokens never fall back to hosted checkout', async () => {
+  const t = setup('revolut');
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_hardwired', qty: 3 }], approve: true });
+  const denied = await t.call({ action: 'pay', id: 'j1' }, '1012');
+  assert.equal(denied.code, 404);
+  assert.equal(t.Stripe.sessions.size, 0);
+  await t.call({ action: 'pay', id: 'j1' });
+  const session = t.Stripe.sessions.get(t.job('j1').pay_session_id);
+  session.metadata.job_id = 'j2';
+  const mismatch = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(mismatch.code, 502);
+  assert.equal(mismatch.data.token, undefined);
+  assert.equal(mismatch.data.url, undefined);
+  session.metadata.job_id = 'j1'; session.revolut_token = null;
+  const missing = await t.call({ action: 'pay', id: 'j1' });
+  assert.equal(missing.code, 502);
+  assert.equal(missing.data.url, undefined);
 });
 
 test('a paid checkout marks the job paid once, and completing moves the lead to Won', async () => {

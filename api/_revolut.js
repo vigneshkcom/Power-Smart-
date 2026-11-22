@@ -44,6 +44,8 @@ function session(order) {
   if (!UUID.test(order.id || '') || !Number.isSafeInteger(order.amount) || order.amount <= 0) throw new Error('Invalid Revolut order.');
   return {
     id: 'rv_' + order.id, provider: 'revolut', mode: 'payment',
+    revolut_token: order.token || null,
+    revolut_mode: process.env.REVOLUT_ENVIRONMENT === 'sandbox' ? 'sandbox' : 'prod',
     url: order.checkout_url ? checkoutUrl(order.checkout_url) : null,
     amount_total: order.amount, currency: String(order.currency || '').toLowerCase(),
     status: order.state === 'completed' ? 'complete' : ['failed', 'cancelled'].includes(order.state) ? 'expired' : 'open',

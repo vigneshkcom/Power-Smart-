@@ -51,7 +51,7 @@ function fixture() {
     let data;
     if (options.method === 'POST' && url.endsWith('/orders')) {
       const body = JSON.parse(options.body);
-      data = { ...body, id: orderId, type: 'payment', state: 'pending', outstanding_amount: body.amount,
+      data = { ...body, id: orderId, token: 'public-order-token', type: 'payment', state: 'pending', outstanding_amount: body.amount,
         checkout_url: 'https://checkout.revolut.com/payment-link/example' };
       orders.push(data);
     } else if (options.method === 'PATCH') {
@@ -85,6 +85,8 @@ test('Revolut checkout creates a fixed AUD order and keeps its secret on the ser
   const checkout = await f.api.createSession(f.form, { idempotencyKey: 'quote1' });
   assert.equal(checkout.id, 'rv_' + orderId);
   assert.equal(checkout.payment_status, 'unpaid');
+  assert.equal(checkout.revolut_token, 'public-order-token');
+  assert.equal(checkout.revolut_mode, 'prod');
   const body = JSON.parse(f.calls[0].options.body);
   assert.equal(body.amount, 5000);
   assert.equal(body.currency, 'AUD');
