@@ -70,7 +70,32 @@ async function getSession(reference) {
   if (!attempt || (attempt.order_id && order.id !== attempt.order_id) || order.amount !== attempt.amount_cents || order.currency !== attempt.currency ||
       Object.entries(attempt.metadata).some(([key, value]) => order.metadata?.[key] !== value)) throw new Error('Revolut payment details do not match the saved checkout.');
   if (!attempt.order_id) await SB.sb(`checkout_attempts?request_key=eq.${attempt.request_key}&order_id=is.null`, { method: 'PATCH', body: { order_id: order.id }, prefer: 'return=minimal' });
+  // Repair older hash-labelled orders too. Display changes must never prevent
+  // a successful payment from being reconciled.
+  try { await labelOrder(order); }
+  catch (error) { console.error('Revolut order label update failed:', error.message); }
   return session(order);
+}
+
+async function orderDetails(metadata, email) {
+  const job = metadata.job_id ? (await SB.sb(`jobs?id=eq.${encodeURIComponent(metadata.job_id)}&select=job_no,customer_name,email,quote_ref&limit=1`))?.[0] : null;
+  const lead = !job && metadata.lead_id ? (await SB.sb(`leads?id=eq.${encodeURIComponent(metadata.lead_id)}&select=name,email,quote_ref&limit=1`))?.[0] : null;
+  const clean = value => String(value || '').replace(/[\x00-\x1f\x7f|]/g, ' ').replace(/\s+/g, ' ').trim();
+  const name = clean(job?.customer_name || lead?.name).slice(0, 120);
+  const number = metadata.job_no || job?.job_no;
+  const ref = clean(number ? 'J' + number : metadata.quote_ref || job?.quote_ref || lead?.quote_ref);
+  const type = { booking_fee: 'Deposit', inspection: 'Inspection', installation_balance: 'Installation balance', job: 'Job payment', other: 'Payment' }[metadata.payment_type] || 'Payment';
+  const reference = [ref, name, type].filter(Boolean).join(' | ');
+  return { reference, customer: {
+    ...(email || job?.email || lead?.email ? { email: email || job?.email || lead?.email } : {}),
+    ...(name ? { full_name: name } : {}),
+  } };
+}
+
+async function labelOrder(order, details) {
+  if (!['pending', 'authorised', 'completed'].includes(order.state) || !/^[a-f0-9]{64}$/.test(order.merchant_order_data?.reference || '')) return;
+  details ||= await orderDetails(order.metadata || {}, order.customer?.email);
+  await request('/orders/' + order.id, { merchant_order_data: { reference: details.reference } }, 'PATCH');
 }
 
 async function gatewayFor(form) {
@@ -93,6 +118,7 @@ async function createSession(form, options = {}) {
     return match ? [[match[1], String(value)]] : [];
   }));
   const currency = String(form['line_items[0][price_data][currency]']).toUpperCase();
+  const details = await orderDetails(metadata, form.customer_email);
   const baseKey = options.idempotencyKey || hash(JSON.stringify([metadata, amount, currency, form['line_items[0][price_data][product_data][description]'] || '']));
   let key = hash(baseKey);
   for (let generation = 0; generation < 10; generation++) {
@@ -118,7 +144,7 @@ async function createSession(form, options = {}) {
           amount, currency, description, metadata: orderMetadata,
           merchant_order_data: { reference: key }, capture_mode: 'automatic',
           expire_pending_after: 'P7D', redirect_url: redirect.href,
-          ...(form.customer_email ? { customer: { email: form.customer_email } } : {}),
+          ...(Object.keys(details.customer).length ? { customer: details.customer } : {}),
         });
       } catch (error) {
         // A definite rejection creates no order. A timeout is ambiguous, so keep
@@ -139,6 +165,10 @@ async function createSession(form, options = {}) {
     }
     if (order.amount !== amount || order.currency !== currency || Object.entries(orderMetadata).some(([k, v]) => order.metadata?.[k] !== v)) throw new Error('Revolut order does not match this checkout request.');
     await SB.sb(filter, { method: 'PATCH', body: { order_id: order.id }, prefer: 'return=minimal' });
+    // Keep the recovery hash until the order ID is safely saved. From here on,
+    // retries use that ID, so the reference can be readable without weakening
+    // duplicate-payment protection after an ambiguous create response.
+    await labelOrder(order, details);
     const result = session(order);
     if (result.status !== 'expired') return result;
     key = hash(baseKey + ':' + order.id);

@@ -30,6 +30,8 @@ function fixture() {
   const attempts = [], orders = [], calls = [];
   const db = { async sb(query, options = {}) {
     const [table, qs = ''] = query.split('?');
+    if (table === 'leads') return [{ name: 'Vignesh Kirubakaran', email: 'test@example.test', quote_ref: 'Q1' }];
+    if (table === 'jobs') return [{ job_no: 1019, customer_name: 'Job Customer', email: 'job@example.test', quote_ref: 'Q1' }];
     assert.equal(table, 'checkout_attempts');
     const params = new URLSearchParams(qs);
     const rows = attempts.filter(row => [...params].every(([key, value]) =>
@@ -52,7 +54,17 @@ function fixture() {
       data = { ...body, id: orderId, type: 'payment', state: 'pending', outstanding_amount: body.amount,
         checkout_url: 'https://checkout.revolut.com/payment-link/example' };
       orders.push(data);
-    } else if (url.includes('/orders?')) data = { orders };
+    } else if (options.method === 'PATCH') {
+      const order = orders.find(row => url.endsWith('/' + row.id));
+      assert(order);
+      const attempt = attempts.find(row => row.order_id === order.id);
+      assert(attempt, 'Save order ID before replacing the recovery reference');
+      Object.assign(order, JSON.parse(options.body));
+      data = order;
+    } else if (url.includes('/orders?')) {
+      const reference = new URL(url).searchParams.get('merchant_order_data_reference');
+      data = { orders: orders.filter(order => order.merchant_order_data.reference === reference) };
+    }
     else data = orders.find(row => url.endsWith('/' + row.id));
     assert(data, url);
     return { ok: true, status: 200, json: async () => data };
@@ -78,6 +90,8 @@ test('Revolut checkout creates a fixed AUD order and keeps its secret on the ser
   assert.equal(body.currency, 'AUD');
   assert.equal(body.capture_mode, 'automatic');
   assert.equal(body.metadata.lead_id, 'lead1');
+  assert.equal(body.customer.full_name, 'Vignesh Kirubakaran');
+  assert.equal(f.orders[0].merchant_order_data.reference, 'Q1 | Vignesh Kirubakaran | Deposit');
   assert.match(body.redirect_url, /revolut_request=[a-f0-9]{64}/);
   assert.doesNotMatch(JSON.stringify(checkout), /test-key/);
 });
@@ -97,12 +111,60 @@ test('simultaneous checkout requests create at most one Revolut order and retrie
 
 test('a lost database save recovers the existing order by reference without another create', async () => {
   const f = fixture();
-  await f.api.createSession(f.form, { idempotencyKey: 'recover' });
-  f.attempts[0].order_id = null;
+  const sb = f.db.sb;
+  let failSave = true;
+  f.db.sb = async (query, options = {}) => {
+    if (failSave && options.method === 'PATCH') { failSave = false; throw new Error('Save failed'); }
+    return sb(query, options);
+  };
+  await assert.rejects(f.api.createSession(f.form, { idempotencyKey: 'recover' }), /Save failed/);
+  assert.match(f.orders[0].merchant_order_data.reference, /^[a-f0-9]{64}$/);
   const checkout = await f.api.createSession(f.form, { idempotencyKey: 'recover' });
   assert.equal(checkout.id, 'rv_' + orderId);
   assert.equal(f.orders.length, 1);
   assert.equal(f.attempts[0].order_id, orderId);
+  assert.equal(f.orders[0].merchant_order_data.reference, 'Q1 | Vignesh Kirubakaran | Deposit');
+});
+
+test('electrician checkout shows the job number and customer name without an email', async () => {
+  const f = fixture();
+  delete f.form.customer_email;
+  delete f.form['metadata[lead_id]'];
+  f.form['metadata[job_id]'] = 'job1';
+  f.form['metadata[job_no]'] = '1019';
+  f.form['metadata[payment_type]'] = 'job';
+  await f.api.createSession(f.form);
+  assert.equal(f.orders[0].merchant_order_data.reference, 'J1019 | Job Customer | Job payment');
+  assert.equal(f.orders[0].customer.full_name, 'Job Customer');
+});
+
+test('completed legacy orders get a readable reference without changing payment data', async () => {
+  const f = fixture();
+  await f.api.createSession(f.form);
+  const order = f.orders[0];
+  order.merchant_order_data.reference = f.attempts[0].request_key;
+  order.state = 'completed';
+  order.outstanding_amount = 0;
+  const before = JSON.stringify({ amount: order.amount, metadata: order.metadata, customer: order.customer });
+  const result = await f.api.getSession('rv_' + orderId);
+  assert.equal(result.payment_status, 'paid');
+  assert.equal(order.merchant_order_data.reference, 'Q1 | Vignesh Kirubakaran | Deposit');
+  assert.equal(JSON.stringify({ amount: order.amount, metadata: order.metadata, customer: order.customer }), before);
+});
+
+test('a failed display update does not prevent completed payment reconciliation', async () => {
+  const f = fixture();
+  await f.api.createSession(f.form);
+  const order = f.orders[0];
+  order.merchant_order_data.reference = f.attempts[0].request_key;
+  order.state = 'completed';
+  order.outstanding_amount = 0;
+  const sb = f.db.sb;
+  f.db.sb = (query, options) => {
+    if (query.startsWith('leads?')) throw new Error('Customer lookup unavailable');
+    return sb(query, options);
+  };
+  assert.equal((await f.api.getSession('rv_' + orderId)).payment_status, 'paid');
 });
 
 test('a webhook arriving before the order ID is saved repairs its checkout mapping', async () => {
