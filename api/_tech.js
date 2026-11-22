@@ -228,6 +228,17 @@ async function bookingFeePaid(leadId) {
   } catch (_) { return 0; }
 }
 
+function cardCheckout(session, job, amount) {
+  if (!session.id.startsWith('rv_')) return { url: checkoutUrl(session.url), amount_cents: amount };
+  if (!session.revolut_token || session.metadata?.job_id !== job.id || session.currency !== 'aud' || session.amount_total !== amount) {
+    throw fail(502, 'Could not open the card form for this job. Please try again.');
+  }
+  // The public order token is only returned after electrician ownership and
+  // invoice checks. Card numbers and CVVs go directly to Revolut's secure form.
+  return { provider: 'revolut', session_id: session.id, token: session.revolut_token, mode: session.revolut_mode,
+    amount_cents: amount, customer: { name: job.customer_name || '', email: job.email || '' } };
+}
+
 async function jobDetail(job) {
   job = withTypedItems(job);
   const [quote, credits, bookingFee] = await Promise.all([invoiceQuote(job), prepaid(job.lead_id).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
@@ -374,7 +385,7 @@ async function handler(req, res) {
 
       if (current.pay_session_id) {
         const s = await Stripe.request(`/checkout/sessions/${encodeURIComponent(current.pay_session_id)}`);
-        if (s.status === "open" && s.amount_total === t.due && s.url) return res.status(200).json({ url: checkoutUrl(s.url), amount_cents: t.due });
+        if (s.status === "open" && s.amount_total === t.due && (s.id.startsWith('rv_') || s.url)) return res.status(200).json(cardCheckout(s, current, t.due));
         if (s.status === "open") await Stripe.request(`/checkout/sessions/${encodeURIComponent(s.id)}/expire`, {});   // invoice changed
       }
       const summary = itemsSummary(current.invoice_items) + (t.credit ? ` (less ${money(t.credit)} paid in advance)` : "");
@@ -389,7 +400,7 @@ async function handler(req, res) {
         "payment_intent_data[metadata][job_id]": current.id, "payment_intent_data[metadata][payment_type]": "job",
       });
       await patchJob(current.id, { pay_session_id: session.id, pay_status: "pending", amount_due_cents: t.due });
-      return res.status(200).json({ url: checkoutUrl(session.url), amount_cents: t.due });
+      return res.status(200).json(cardCheckout(session, current, t.due));
     }
 
     if (b.action === "complete" && W.isWarranty(job)) {
