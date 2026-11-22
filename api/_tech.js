@@ -193,18 +193,21 @@ async function patchJob(id, body) {
 async function reconcileJobPayment(session) {
   const jobId = session && session.metadata && session.metadata.job_id;
   if (!jobId || session.payment_status !== "paid") return null;
-  const rows = await sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=id,job_no,lead_id,pay_status&limit=1`);
+  const rows = await sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=id,job_no,lead_id,pay_status,amount_due_cents&limit=1`);
   const job = rows && rows[0];
   if (!job) throw new Error("Job for this Stripe payment was not found");
+  if (session.provider === 'revolut' && (session.currency !== 'aud' || session.amount_total !== job.amount_due_cents)) throw new Error('Revolut payment does not match the job balance.');
   const updated = await sb(`jobs?id=eq.${encodeURIComponent(jobId)}&pay_status=neq.paid`, { method: "PATCH", body: {
     pay_status: "paid", pay_method: "card", paid_cents: session.amount_total, paid_at: new Date().toISOString(), pay_session_id: session.id,
   } });
   if (updated && updated.length) {
     await J.addPayment(jobId, { amount_cents: session.amount_total, method: "card", by: "Customer (card)" });
-    await J.leadNote(job.lead_id, "Stripe", `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. Stripe checkout: ${session.id}.`, "payment");
+    const provider = session.id.startsWith('rv_') ? 'Revolut' : 'Stripe';
+    await J.leadNote(job.lead_id, provider, `💳 Job J${job.job_no} paid on site: ${money(session.amount_total)} AUD by card. ${provider} checkout: ${session.id}.`, "payment");
   }
   // A card payment received after sign-off (pay-later invoice) sends the paid tax invoice and the certificate; both check the job is completed.
-  if (updated && updated.length) await require("./_after-payment").releaseAfterPayment(jobId, { agent: "Stripe" });
+  // Retrying a webhook also repairs an interrupted invoice/certificate handoff.
+  await require("./_after-payment").releaseAfterPayment(jobId, { agent: session.id.startsWith('rv_') ? 'Revolut' : 'Stripe' });
   return (updated && updated[0]) || { ...job, pay_status: "paid" };
 }
 
@@ -360,7 +363,7 @@ async function handler(req, res) {
 
     if (b.action === "pay" || b.action === "pay_check") {
       if (W.isWarranty(job)) throw fail(409, "Warranty jobs are free. There is nothing to pay.");
-      if (!Stripe.configured()) throw fail(503, "Card payments are not set up (missing STRIPE_SECRET_KEY).");
+      if (!Stripe.configured()) throw fail(503, "Card payments are not set up.");
       let current = await refreshPayment(job);
       if (b.action === "pay_check" || current.pay_status === "paid") return res.status(200).json({ paid: current.pay_status === "paid", job: current });
 

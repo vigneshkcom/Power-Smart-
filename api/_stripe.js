@@ -3,10 +3,22 @@ const crypto = require("crypto");
 const API = "https://api.stripe.com/v1";
 
 function configured() {
-  return Boolean((process.env.STRIPE_SECRET_KEY || "").trim());
+  return Boolean((process.env.STRIPE_SECRET_KEY || "").trim() || (process.env.REVOLUT_SECRET_KEY || "").trim());
 }
 
 async function request(path, form, options = {}) {
+  // The checkout callers share a session representation. Existing cs_* and
+  // payment-intent requests always go to Stripe, regardless of the cutover.
+  const revolutSession = /^\/checkout\/sessions\/(rv_[a-f0-9-]{36})(\/expire)?$/i.exec(path);
+  if (revolutSession) {
+    const Revolut = require('./_revolut');
+    if (revolutSession[2]) await Revolut.request('/orders/' + revolutSession[1].slice(3) + '/cancel', {});
+    return Revolut.getSession(revolutSession[1]);
+  }
+  if (path === '/checkout/sessions' && form && (process.env.REVOLUT_SECRET_KEY || '').trim()) {
+    const Revolut = require('./_revolut');
+    if (await Revolut.gatewayFor(form) === 'revolut') return Revolut.createSession(form, options);
+  }
   const key = (process.env.STRIPE_SECRET_KEY || "").trim();
   if (!key) {
     const error = new Error("Stripe is not configured");

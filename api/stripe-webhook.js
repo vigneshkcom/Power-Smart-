@@ -6,6 +6,7 @@ const Payments = require("./_payments");
 async function rawBody(req) { const parts = []; for await (const chunk of req) parts.push(chunk); return Buffer.concat(parts); }
 
 async function handler(req, res) {
+  if (req.query?.provider === 'revolut') return require('./_revolut-webhook')(req, res);
   if (req.method !== "POST") { res.setHeader("Allow", "POST"); return res.status(405).send("Method not allowed"); }
   const raw = await rawBody(req);
   if (!Stripe.verifySignature(raw.toString("utf8"), req.headers["stripe-signature"])) return res.status(400).send("Invalid Stripe signature");

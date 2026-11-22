@@ -85,7 +85,7 @@ async function checkout(quote, lead) {
     amount_cents: amount, currency: 'aud', status: 'sent', stripe_session_id: session.id, checkout_url: url,
     request_key: requestKey, sent_at: new Date().toISOString(),
   }, prefer: 'resolution=ignore-duplicates,return=minimal' });
-  await P.note(lead.id, 'System', `${P.TYPES[type]} checkout created: ${Q.fmt(amount / 100)} AUD. Quote ${quote.quote_ref}. Payment pending. Stripe checkout: ${session.id}.`);
+  await P.note(lead.id, 'System', `${P.TYPES[type]} checkout created: ${Q.fmt(amount / 100)} AUD. Quote ${quote.quote_ref}. Payment pending. ${session.id.startsWith('rv_') ? 'Revolut' : 'Stripe'} checkout: ${session.id}.`);
   return { paid: false, url };
 }
 
