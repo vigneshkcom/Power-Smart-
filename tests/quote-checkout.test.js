@@ -7,7 +7,7 @@ const Q = require('../api/_quote');
 function load(name, mocks) {
   const module = {exports:{}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', name), 'utf8'), {
-    module, require:key => key in mocks ? mocks[key] : key === './_payment-summary' ? load('_payment-summary.js', mocks) : key === './_callout-fee' ? require('../api/_callout-fee') : require(key), URL, URLSearchParams, Buffer, Date,
+    module, require:key => key in mocks ? mocks[key] : key === './_transactional-mail' && mocks.resend ? mocks.resend : key === './_payment-summary' ? load('_payment-summary.js', mocks) : key === './_callout-fee' ? require('../api/_callout-fee') : require(key), URL, URLSearchParams, Buffer, Date,
     console:{error(){}}, process:{env:{}},
   });
   return module.exports;

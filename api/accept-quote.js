@@ -1,5 +1,5 @@
 // POST /api/accept-quote: a customer accepted their quotation.
-// Emails PowerSmart a notification and either returns the Stripe payment URL
+// Emails PowerSmart a notification and either returns the assigned payment URL
 // or records that the customer requested a call to arrange payment.
 //
 // Env vars: RESEND_API_KEY (required), NOTIFY_EMAIL (optional, default support),
@@ -40,7 +40,7 @@ async function logAcceptance({ ref, customerName, lead, payableToday, paymentMet
         method: "POST",
         body: { lead_id: lead.id, author: "System", kind: "status", body: paymentMethod === "phone"
           ? `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and requested a call to arrange the ${Q.fmt(payableToday)} fee. Call the customer, arrange payment, then book them in.`
-          : `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and was sent to Stripe for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.` },
+          : `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and was sent to secure online checkout for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.` },
         prefer: "return=minimal",
       });
   } catch (e) { console.error("accept-quote pipeline comment failed:", e.message); }
@@ -118,7 +118,7 @@ module.exports = async (req, res) => {
           <strong style="font-size:16px;">Quote accepted - ${Q.escapeHtml(ref || "no ref")}</strong>
         </div>
         <div style="border:1px solid #eee;border-top:none;padding:20px;border-radius:0 0 10px 10px;">
-          <p style="margin:0 0 12px;font-size:14px;"><strong>${Q.escapeHtml(customerName || "A customer")}</strong> has accepted their ${serviceMode === "inspect" ? "inspection" : "installation"} quote${paymentMethod === "phone" ? ` and requested a call to arrange the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.` : ` and been sent to Stripe to pay the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.`}</p>
+          <p style="margin:0 0 12px;font-size:14px;"><strong>${Q.escapeHtml(customerName || "A customer")}</strong> has accepted their ${serviceMode === "inspect" ? "inspection" : "installation"} quote${paymentMethod === "phone" ? ` and requested a call to arrange the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.` : ` and been sent to secure online checkout to pay the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.`}</p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">
             <tr><td style="padding:4px 10px;color:#6B8288;">Customer</td><td style="padding:4px 10px;"><strong>${Q.escapeHtml(customerName || "Not provided")}</strong></td></tr>
             <tr><td style="padding:4px 10px;color:#6B8288;">Email</td><td style="padding:4px 10px;">${Q.escapeHtml(customerEmail || "Not provided")}</td></tr>
@@ -130,14 +130,14 @@ module.exports = async (req, res) => {
           <table style="width:100%;border-collapse:collapse;">${rows}
             <tr><td style="padding:8px 10px;font-weight:bold;">Total (incl. GST)</td><td></td><td align="right" style="padding:8px 10px;font-weight:bold;">${Q.fmt(q.total)}</td></tr>
           </table>
-          <p style="margin:14px 0 0;font-size:12px;color:#6B8288;">${paymentMethod === "phone" ? "Call the customer to arrange payment, then book the installation." : "Confirm payment in Stripe, then book the installation and follow up with the customer."}</p>
+          <p style="margin:14px 0 0;font-size:12px;color:#6B8288;">${paymentMethod === "phone" ? "Call the customer to arrange payment, then book the installation." : "Confirm payment in the portal, then book the installation and follow up with the customer."}</p>
         </div>
       </div>`;
 
     const paymentText = paymentMethod === "phone"
       ? `requested a call to arrange the ${Q.fmt(q.payableToday)} fee`
-      : `was sent to Stripe for the ${Q.fmt(q.payableToday)} fee`;
-    const text = `Quote accepted - ${ref || "no ref"}\n\n${customerName || "A customer"} accepted their ${serviceMode} quote and ${paymentText}.\n\nCustomer: ${customerName || "Not provided"}\nEmail: ${customerEmail || "Not provided"}\nInstallation address: ${address.full}\nRef: ${ref || "Not provided"}\nPayment method: ${paymentMethod === "phone" ? "Call requested" : "Stripe"}\n${agentName ? "Prepared by: " + agentName + "\n" : ""}\n${q.lines.map((l) => `- ${l.label} (${l.qty}): ${Q.fmt(l.amount)}`).join("\n")}\nTotal (incl. GST): ${Q.fmt(q.total)}`;
+      : `was sent to secure online checkout for the ${Q.fmt(q.payableToday)} fee`;
+    const text = `Quote accepted - ${ref || "no ref"}\n\n${customerName || "A customer"} accepted their ${serviceMode} quote and ${paymentText}.\n\nCustomer: ${customerName || "Not provided"}\nEmail: ${customerEmail || "Not provided"}\nInstallation address: ${address.full}\nRef: ${ref || "Not provided"}\nPayment method: ${paymentMethod === "phone" ? "Call requested" : "Online payment"}\n${agentName ? "Prepared by: " + agentName + "\n" : ""}\n${q.lines.map((l) => `- ${l.label} (${l.qty}): ${Q.fmt(l.amount)}`).join("\n")}\nTotal (incl. GST): ${Q.fmt(q.total)}`;
 
     try {
       const { Resend } = require('./_transactional-mail');

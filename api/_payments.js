@@ -23,7 +23,9 @@ function manualPaidAt(date) {
 }
 function checkoutUrl(value) {
   const url = new URL(value);
-  if (url.protocol !== 'https:' || url.hostname !== 'checkout.stripe.com') throw new Error('Stripe returned an invalid checkout link.');
+  const hosts = ['checkout.stripe.com', 'checkout.revolut.com'];
+  if (process.env.REVOLUT_ENVIRONMENT === 'sandbox') hosts.push('sandbox-checkout.revolut.com');
+  if (url.protocol !== 'https:' || !hosts.includes(url.hostname) || url.username || url.password) throw new Error('Payment provider returned an invalid checkout link.');
   return url.href;
 }
 async function note(leadId, author, body) {
@@ -33,7 +35,7 @@ async function note(leadId, author, body) {
 }
 async function reconcile(payment, session, eventId) {
   if (session.id !== payment.stripe_session_id || session.metadata?.lead_id !== payment.lead_id || session.currency !== payment.currency || session.amount_total !== payment.amount_cents) {
-    throw new Error('Stripe payment details do not match the customer payment request.');
+    throw new Error('Payment details do not match the customer payment request.');
   }
   if (session.payment_status === 'paid') {
     const paidAt = payment.paid_at || new Date().toISOString();
@@ -41,7 +43,8 @@ async function reconcile(payment, session, eventId) {
       status: 'paid', amount_paid_cents: session.amount_total, stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null,
       ...(eventId ? { stripe_event_id: eventId } : {}), paid_at: paidAt,
     }, prefer: 'return=minimal' });
-    await note(payment.lead_id, 'Stripe', `${TYPES[payment.payment_type] || 'Payment'} paid: $${(session.amount_total / 100).toFixed(2)} AUD. ${payment.description || 'Electrician call-out fee'}. Stripe checkout: ${session.id}.`);
+    const provider = session.id.startsWith('rv_') ? 'Revolut' : 'Stripe';
+    await note(payment.lead_id, provider, `${TYPES[payment.payment_type] || 'Payment'} paid: $${(session.amount_total / 100).toFixed(2)} AUD. ${payment.description || 'Electrician call-out fee'}. ${provider} checkout: ${session.id}.`);
     return { ...payment, status: 'paid', amount_paid_cents: session.amount_total, paid_at: paidAt };
   }
   if (session.status === 'expired' && payment.status !== 'paid') {

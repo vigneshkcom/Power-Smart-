@@ -8,9 +8,16 @@ module.exports = async (req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('Referrer-Policy', 'no-referrer');
   if (req.method !== 'GET') return res.status(405).send('Method not allowed');
-  const id = String(req.query.session_id || '');
-  if (!/^cs_(live|test)_[a-zA-Z0-9]{20,200}$/.test(id)) return res.status(404).send('Payment not found.');
+  let id = String(req.query.session_id || '');
+  const requestKey = String(req.query.revolut_request || '');
+  if (requestKey && !/^[a-f0-9]{64}$/.test(requestKey)) return res.status(404).send('Payment not found.');
+  if (!requestKey && !/^cs_(live|test)_[a-zA-Z0-9]{20,200}$/.test(id) && !/^rv_[a-f0-9-]{36}$/i.test(id)) return res.status(404).send('Payment not found.');
   try {
+    if (requestKey) {
+      const attempt = (await SB.sb(`checkout_attempts?request_key=eq.${requestKey}&select=order_id&limit=1`))?.[0];
+      if (!attempt?.order_id) return res.status(503).send('Your payment is still being confirmed. Please reopen your quote shortly.');
+      id = 'rv_' + attempt.order_id;
+    }
     const payments = await SB.sb(`payment_requests?stripe_session_id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
     if (!payments?.[0]) return res.status(404).send('Payment not found. Please contact PowerSmart.');
     const payment = await P.reconcile(payments[0], await Stripe.request(`/checkout/sessions/${encodeURIComponent(id)}`));

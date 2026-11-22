@@ -115,7 +115,7 @@ module.exports = async (req, res) => {
     if (prior?.[0]) {
       const payment = await P.reconcile(prior[0], await Stripe.request(`/checkout/sessions/${encodeURIComponent(prior[0].stripe_session_id)}`));
       if (payment.status !== 'sent') return res.status(409).json({ error: `This request is ${payment.status}. Review payment history before creating another payment.` });
-      await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
+      await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. ${payment.stripe_session_id.startsWith('rv_') ? 'Revolut' : 'Stripe'} checkout: ${payment.stripe_session_id}.`);
       return res.status(200).json({ payment, checkout_url: P.checkoutUrl(payment.checkout_url) });
     }
     const leads = await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=id,name,email,quote_ref,created_at&limit=1`), lead = leads?.[0];
@@ -132,7 +132,7 @@ module.exports = async (req, res) => {
       if (updated.status === 'paid' && b.payment_type === 'booking_fee') return res.status(409).json({ error: 'This electrician call-out fee has already been paid. Choose another payment type.' });
       if (existing.status === 'open' && existing.url) {
         if (payment.amount_cents !== amount || (b.payment_type !== 'booking_fee' && payment.description !== description)) return res.status(409).json({ error: 'A call-out fee request already exists. Use its link in payment history.' });
-        await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. Stripe checkout: ${payment.stripe_session_id}.`);
+        await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[payment.payment_type]} checkout created: $${(payment.amount_cents / 100).toFixed(2)} AUD. ${payment.description}. Payment pending. ${payment.stripe_session_id.startsWith('rv_') ? 'Revolut' : 'Stripe'} checkout: ${payment.stripe_session_id}.`);
         return res.status(200).json({ payment: updated, checkout_url: P.checkoutUrl(existing.url) });
       }
     }
@@ -155,7 +155,7 @@ module.exports = async (req, res) => {
     }, prefer: 'resolution=ignore-duplicates,return=representation' });
     const payment = rows?.[0] || (await SB.sb(`payment_requests?stripe_session_id=eq.${encodeURIComponent(session.id)}&select=${fields}&limit=1`))?.[0];
     if (!payment) throw new Error('Could not save the payment request. Please retry.');
-    await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[b.payment_type]} checkout created: $${(amount / 100).toFixed(2)} AUD. ${description}. Payment pending. Stripe checkout: ${session.id}.`);
+    await P.note(leadId, ['Sam', 'Sunny'].includes(agent) ? agent : 'Team', `${P.TYPES[b.payment_type]} checkout created: $${(amount / 100).toFixed(2)} AUD. ${description}. Payment pending. ${session.id.startsWith('rv_') ? 'Revolut' : 'Stripe'} checkout: ${session.id}.`);
     return res.status(200).json({ payment, checkout_url: url });
   } catch (error) {
     console.error('PowerSmart payment request failed:', error.message);

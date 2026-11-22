@@ -17,6 +17,10 @@
   "trailingSlash": false,
   "rewrites": [
     {
+      "source": "/api/revolut-webhook",
+      "destination": "/api/stripe-webhook?provider=revolut"
+    },
+    {
       "source": "/api/make-lead",
       "destination": "/api/lead?make=1"
     },
