@@ -156,6 +156,12 @@ Phone web app for electricians on site â€” `portal.powersmartco.com.au/tech
   "other" item. Prices come
   from `api/_quote.js` on the server. Advance payments other than the booking fee
   (e.g. a prepaid inspection) are deducted.
+- **Controller photos**: adding remote controllers to the invoice creates one
+  photo slot per controller. Take or retake each photo, then Synchronise. Photos
+  wait on the phone with the alarm photos when offline and upload into the job's
+  Dropbox `Controllers` folder. Photos must be saved before invoice approval,
+  card payment or completion. Their references stay on the controller invoice
+  line and do not change alarm counts, prices or stock quantities.
 - **Approval + payment**: the customer approves the invoice on the phone, then
   *Take card payment* opens Revolut's card-only popup for Revolut jobs, with no
   wallet buttons, card saving or promotional banners. Saved billing addresses

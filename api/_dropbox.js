@@ -15,7 +15,7 @@ function dropboxWebFolderUrl(folder, category) {
   const path = DROPBOX_WEB_APP_ROOT + folder + (category ? "/" + category : "");
   return "https://www.dropbox.com/home" + path.split("/").map(encodeURIComponent).join("/");
 }
-const CATEGORIES = { before: "Before", after: "After", alarms: "Alarms", receipt: "Receipts", other: "Other" };
+const CATEGORIES = { before: "Before", after: "After", alarms: "Alarms", controllers: "Controllers", receipt: "Receipts", other: "Other" };
 const IMAGE_EXT = /\.(jpe?g|png|gif|webp|heic)$/i;
 
 function configured() {

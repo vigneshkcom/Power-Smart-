@@ -66,3 +66,38 @@ test('PDF documents upload into a Documents folder using idempotent overwrite', 
     }
   }
 });
+
+test('controller photos upload into their own Controllers folder and are archived with the job', async () => {
+  const originalFetch = global.fetch;
+  const keep = { ...process.env };
+  process.env.DROPBOX_APP_KEY = 'dummy-key'; process.env.DROPBOX_APP_SECRET = 'dummy-secret'; process.env.DROPBOX_REFRESH_TOKEN = 'dummy-refresh';
+  const requests = [], folder = '/PowerSmart Jobs/J1019 - Test';
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (url.endsWith('/oauth2/token')) return { ok: true, json: async () => ({ access_token: 'dummy-access', expires_in: 3600 }) };
+    if (url.endsWith('/files/list_folder')) {
+      const request = JSON.parse(options.body);
+      return { ok: true, text: async () => JSON.stringify({ entries: request.path === '/PowerSmart Jobs'
+        ? [{ '.tag': 'folder', name: 'J1019 - Test', path_display: folder }]
+        : [{ '.tag': 'folder', name: 'Controllers', path_display: folder + '/Controllers' }], has_more: false }) };
+    }
+    if (url.endsWith('/files/upload') || url.endsWith('/files/move_v2')) return { ok: true, text: async () => '{}' };
+    throw new Error('Unexpected request');
+  };
+  try {
+    const job = { job_no: 1019, customer_name: 'Test' };
+    const result = await D.uploadPhoto(job, 'controllers', Buffer.from('photo-test'));
+    assert.match(result.path, /\/Controllers\/controllers-.*\.jpg$/);
+    const upload = requests.find(request => request.url.endsWith('/files/upload'));
+    assert.match(JSON.parse(upload.options.headers['Dropbox-API-Arg']).path, /\/Controllers\//);
+    assert.equal(await D.archivePhotos(job), 1);
+    const archive = JSON.parse(requests.find(request => request.url.endsWith('/files/move_v2')).options.body);
+    assert.equal(archive.from_path, folder + '/Controllers');
+    assert.match(archive.to_path, /\/Archived\/.*\/Controllers$/);
+  } finally {
+    global.fetch = originalFetch;
+    for (const key of ['DROPBOX_APP_KEY', 'DROPBOX_APP_SECRET', 'DROPBOX_REFRESH_TOKEN']) {
+      if (keep[key] === undefined) delete process.env[key]; else process.env[key] = keep[key];
+    }
+  }
+});
