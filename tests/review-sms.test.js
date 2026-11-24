@@ -30,7 +30,7 @@ test('a customer asked for a review in the last 90 days is not asked again',asyn
 });
 test('the office button sends regardless of the stop switch or a recent request, and stamps the job',async()=>{
   const {R,sent,patches}=setup({recent:[{id:'x'}]}),r=await R.sendManual(job({review_sms:false}));
-  assert.equal(r.phone,'+61400000000');assert.equal(sent.length,1);assert.match(sent[0].message,/thanks for choosing PowerSmart Co!/);
+  assert.equal(r.phone,'+61400000000');assert.equal(sent.length,1);assert.match(sent[0].message,/thank you for choosing PowerSmart Co for your smoke alarm service/);
   assert.match(sent[0].key,/^review-manual-j1-/);assert.ok(patches[0].body.review_sms_sent_at);
 });
 test('the office button explains why it cannot send',async()=>{
