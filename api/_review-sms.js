@@ -11,7 +11,7 @@ const enc = encodeURIComponent;
 
 function reviewMessage(name) {
   const first = String(name || "").trim().split(/\s+/)[0] || "there";
-  return `Hi ${first}, thanks for choosing PowerSmart Co! A Google review would really be appreciated: ${REVIEW_URL}\n\nReply STOP to opt out.`;
+  return `Hi ${first}, thank you for choosing PowerSmart Co for your smoke alarm service. We hope you're happy with the work. If so, we'd really appreciate a short Google review: ${REVIEW_URL}\n\nKind regards,\nPowerSmart Team\nReply STOP to opt out.`;
 }
 
 // Returns { status: "sent" | "skipped" | "failed", reason?, error? }. Never throws: completing a job must not depend on it.
