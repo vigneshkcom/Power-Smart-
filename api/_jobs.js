@@ -611,6 +611,16 @@ module.exports = async (req, res) => {
     }
 
     // Removes the job from the schedule only — the linked pipeline lead is kept (just noted).
+    if (b.action === "review_sms_send") {
+      const id = clean(b.id, 40);
+      if (!id) return res.status(400).json({ error: "id is required" });
+      const job = (await sb(`jobs?id=eq.${encodeURIComponent(id)}&select=*&limit=1`))?.[0];
+      if (!job) return res.status(404).json({ error: "Job not found" });
+      if (job.status !== "completed") return res.status(409).json({ error: "The job isn't completed yet." });
+      try { const r = await require("./_review-sms").sendManual(job, actor); return res.status(200).json({ ok: true, phone: r.phone }); }
+      catch (e) { return res.status(502).json({ error: e.message }); }
+    }
+
     if (b.action === "job_delete") {
       const id = clean(b.id, 40);
       if (!id) return res.status(400).json({ error: "id is required" });

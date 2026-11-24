@@ -11,7 +11,7 @@ const enc = encodeURIComponent;
 
 function reviewMessage(name) {
   const first = String(name || "").trim().split(/\s+/)[0] || "there";
-  return `Hi ${first}, thanks for choosing PowerSmart! If you were happy with our service, a quick Google review would really help our small team: ${REVIEW_URL}\n\nReply STOP to opt out.`;
+  return `Hi ${first}, thanks for choosing PowerSmart Co! A Google review would really be appreciated: ${REVIEW_URL}\n\nReply STOP to opt out.`;
 }
 
 // Returns { status: "sent" | "skipped" | "failed", reason?, error? }. Never throws: completing a job must not depend on it.
@@ -37,4 +37,16 @@ async function sendForCompletedJob(job, agent = "System") {
   }
 }
 
-module.exports = { sendForCompletedJob, reviewMessage, REVIEW_URL };
+// Office button: sends the request now, whatever the stop switch or the 90-day rule says. Throws on failure so the office sees why.
+async function sendManual(job, agent = "Office") {
+  if (!job) throw new Error("Job not found");
+  const phone = Sms.cleanPhone(job.phone);
+  if (!phone) throw new Error("Add a mobile number to this job first.");
+  if (!Sms.smsEnabled()) throw new Error(Sms.SMS_PAUSED_MESSAGE);
+  const r = await Sms.sendLeadSms({ lead: { id: job.lead_id || undefined, phone }, message: reviewMessage(job.customer_name), key: `review-manual-${job.id}-${Math.floor(Date.now() / 60000)}`, author: agent });
+  if (r.status !== "submitted") throw new Error(r.error || "SMS not sent");
+  try { await SB.sb(`jobs?id=eq.${enc(job.id)}`, { method: "PATCH", body: { review_sms_sent_at: new Date().toISOString() }, prefer: "return=minimal" }); } catch (_) { /* column added by supabase/review-sms.sql */ }
+  return { phone };
+}
+
+module.exports = { sendManual, sendForCompletedJob, reviewMessage, REVIEW_URL };

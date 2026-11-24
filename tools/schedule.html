@@ -479,6 +479,7 @@
         <button class="btn btn-ghost" id="jm-recordpay" style="display:none" title="Record a payment received so far (a part payment keeps the rest pending)">Record payment</button>
         <button class="btn btn-ghost" id="jm-markpaid" style="display:none" title="Record that the balance owing on this completed job has been received. This sends the compliance certificate.">Mark paid in full</button>
         <button class="btn btn-ghost" id="jm-sendcert" style="display:none">Send certificate</button>
+        <button class="btn btn-ghost" id="jm-sendreview" style="display:none">Send review SMS</button>
         <button class="btn btn-ghost" id="jm-revert" title="Clear the electrician's work (alarms, invoice, notes, sign-off). Payments and photos are kept.">Revert to assigned</button>
         <button class="btn btn-ghost" id="jm-unassign">Move to waiting list</button>
         <button class="btn btn-ghost" id="jm-cancel">Close</button>
@@ -1282,7 +1283,7 @@
     updateWarrantyUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
     $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
-    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-invoice").style.display = "none";
+    $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-sendreview").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
     $("jm-report").style.display = "none"; $("jm-payments").style.display = "none"; $("jm-docs").style.display = "none"; docsRequestId++; setCustCollapsed(false); setCustBrief(false);
@@ -1556,6 +1557,8 @@
     $("jm-recordpay").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     var certReady = (!j.inspection && j.work_type !== "inspection" || ["compliant","installed"].includes(j.compliance_outcome)) && j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none") && j.work_type !== "warranty";   // no certificate for a warranty visit
     $("jm-sendcert").style.display = certReady ? "" : "none";
+    $("jm-sendreview").style.display = j.status === "completed" && j.work_type !== "warranty" ? "" : "none";
+    $("jm-sendreview").textContent = j.review_sms_sent_at ? "Resend review SMS" : "Send review SMS";
     $("jm-sendcert").textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate";
     $("jm-photos-wrap").style.display = "";
     window.PSPhotos.mount($("jm-photos"),
@@ -1702,6 +1705,14 @@
     var btn = this; btn.disabled = true; btn.textContent = "Sending…";
     jobsApi({ action:"certificate_send", id: j.id, force: !!j.certificate_sent_at }).then(function(){ closeJob(); toast("Certificate emailed"); return reload(); })
       .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; btn.textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate"; });
+  });
+  $("jm-sendreview").addEventListener("click", function(){
+    var j = state.editing; if (!j) return;
+    if (!j.phone){ toast("Add a mobile number to this job first"); return; }
+    if (!confirm((j.review_sms_sent_at ? "A review request was already sent for J" + j.job_no + ". Send it again to " : "Text a Google review request for J" + j.job_no + " to ") + j.phone + "?")) return;
+    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    jobsApi({ action:"review_sms_send", id: j.id, actor: state.agent || "Office" }).then(function(r){ closeJob(); toast("Review SMS sent to " + r.phone); return reload(); })
+      .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; btn.textContent = j.review_sms_sent_at ? "Resend review SMS" : "Send review SMS"; });
   });
   $("jm-revert").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
