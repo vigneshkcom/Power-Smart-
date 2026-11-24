@@ -57,7 +57,7 @@ async function rpc(endpoint, body, { allowNotFound = false } = {}) {
 
 // Keep folder names filesystem-safe and short.
 function safe(text) {
-  return String(text || "").replace(/[\\/<>:"|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, all ? undefined : 60);
+  return String(text || "").replace(/[\\/<>:"|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, 60);
 }
 function folderName(job) {
   const place = job.address ? `${safe(job.address)}` : "";
@@ -133,7 +133,7 @@ async function photosForJob(job, { all = false } = {}) {
   if (!folder) return { folder: null, photos: [] };
   const entries = (await listAll(folder, true)) || [];
   const files = entries.filter((e) => e[".tag"] === "file" && IMAGE_EXT.test(e.name))
-    .sort((a, b) => String(b.server_modified).localeCompare(String(a.server_modified))).slice(0, 60);
+    .sort((a, b) => String(b.server_modified).localeCompare(String(a.server_modified))).slice(0, all ? undefined : 60);
   const thumbs = files.length ? await thumbnails(files.map((f) => f.path_display)).catch(() => ({})) : {};
   const photos = files.map((f) => ({
     path: f.path_display, name: f.name, modified: f.server_modified,
