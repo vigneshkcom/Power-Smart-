@@ -18,6 +18,7 @@ const { checkoutUrl } = require("./_payments");
 const { PRICE_ALARM, PRICE_CTRL, FEE_INSPECT } = require("./_quote");
 const J = require("./_jobs");
 const W = require("./_warranty");
+const I = require("./_inspection");
 
 const PORTAL = "https://portal.powersmartco.com.au";
 
@@ -30,6 +31,7 @@ const CATALOGUE = {
   alarm_battery: { label: "Photoelectric smoke alarm (10-year battery) – supplied & installed", short: "battery smoke alarm", cents: PRICE_ALARM * 100 },
   alarm_hardwired: { label: "Photoelectric smoke alarm (240V hardwired) – supplied & installed", short: "hardwired smoke alarm", cents: PRICE_ALARM * 100 },
   controller: { label: "Smoke alarm remote controller (test / hush / locate)", short: "remote controller", cents: PRICE_CTRL * 100 },
+  installation_callout: { label: "Electrician installation call-out fee", short: "installation call-out", cents: 5000 },
   inspection: { label: "Smoke alarm compliance inspection", short: "compliance inspection", cents: FEE_INSPECT * 100 },
 };
 
@@ -102,11 +104,12 @@ function withQuoteDiscount(items, discountCents) {
 }
 
 async function invoiceQuote(job) {
-  return J.latestQuote(job.lead_id, job.email, job.quote_ref, { required: !!job.quote_ref && job.work_type === "install" });
+  const ref = job.installation_quote_ref || job.quote_ref;
+  return J.latestQuote(job.lead_id, job.email, ref, { required: !!ref && job.work_type === "install" });
 }
 
 function quoteDiscount(job, quote) {
-  return job.work_type === "install" && job.quote_ref && quote?.ref === job.quote_ref ? quote.discount_cents : 0;
+  return job.work_type === "install" && quote?.service === "install" && job.quote_ref && quote?.ref === (job.installation_quote_ref || job.quote_ref) ? quote.discount_cents : 0;
 }
 
 async function checkInvoiceDiscount(job) {
@@ -131,7 +134,8 @@ function itemsSummary(items) {
 // Payments the customer already made in advance (inspection fee, balances…).
 // Only deposits promised as included in previously issued quotes are credited.
 // Separate $35/$50 call-out fees are not subtracted from installation invoices.
-async function prepaid(leadId) {
+async function prepaid(leadId, job) {
+  if (job && I.tracked(job)) return I.credits(job);
   if (!leadId) return [];
   try {
     const rows = await sb(`payment_requests?lead_id=eq.${encodeURIComponent(leadId)}&status=eq.paid&select=payment_type,description,amount_cents,amount_paid_cents`);
@@ -288,11 +292,11 @@ async function cardCheckout(session, job, amount) {
 
 async function jobDetail(job) {
   job = withTypedItems(job);
-  const [quote, credits, bookingFee] = await Promise.all([invoiceQuote(job), prepaid(job.lead_id).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
+  const [quote, credits, bookingFee] = await Promise.all([invoiceQuote(job), prepaid(job.lead_id, job).then((c) => [...c, ...priorCredit(job)]), bookingFeePaid(job.lead_id)]);
   // The invoice starts empty and only holds what the electrician records. Alarm lines follow the alarms
   // added one by one, so counts left over from the old counter are not shown on an unfinished job.
   const hasUnits = Array.isArray(job.alarm_units) && job.alarm_units.length > 0;
-  let items = job.invoice_items || [];
+  let items = I.isInspection(job) ? priceItems([{ code: "inspection", qty: 1 }]) : I.installItems(job.invoice_items || [], job);
   if (job.status !== "completed" && !hasUnits) items = items.filter((i) => !ALARM_CODES.includes(i.code));
   const editable = job.status !== "completed" && job.pay_status !== "paid";
   const discount = editable ? quoteDiscount(job, quote) : -(items.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0);
@@ -303,9 +307,9 @@ async function jobDetail(job) {
     items = preview;
   }
   return {
-    job, quote, credits, items, quote_discount_cents: discount, booking_fee_cents: bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
+    job, quote, credits, items, quote_discount_cents: discount, booking_fee_cents: I.tracked(job) ? 0 : bookingFee, totals: totals(items, credits), bank: require("./_job-invoice").BANK,
     alarm_codes: ALARM_CODES, catalogue: Object.entries(CATALOGUE).map(([code, c]) => ({ code, label: c.label, cents: c.cents })),
-    warranty: W.isWarranty(job), faults: W.FAULTS,
+    warranty: W.isWarranty(job), faults: W.FAULTS, inspection_only: I.isInspection(job), inspection_labels: I.LABELS,
   };
 }
 
@@ -358,6 +362,26 @@ async function handler(req, res) {
 
     let job = await ownJob(tech, b.id);
 
+    if (b.action === "inspection_save" || b.action === "inspection_convert") {
+      if (!I.isInspection(job) || job.status === "completed") throw fail(409, "This job is not an open inspection.");
+      const record = b.action === "inspection_convert" ? I.validate(b.inspection) : I.clean(b.inspection);
+      const payment = await I.payment(job);
+      const f = { inspection: record, inspection_payment_id: payment.id };
+      if (b.action === "inspection_convert") {
+        if (record.compliant !== false || record.decision !== "accepted") throw fail(409, "Record a non-compliant inspection and customer acceptance first.");
+        await I.verifyPhotos(job, record);
+        const agreed = await J.latestQuote(job.lead_id, job.email);
+        f.installation_quote_ref = agreed?.service === "install" ? agreed.ref : null;
+        Object.assign(f, { work_type: "install", inspection_converted_at: new Date().toISOString(), compliance_outcome: "converted",
+          invoice_items: I.installItems([], { inspection_converted_at: true }), invoice_total_cents: 5000,
+          approved_at: null, pay_status: "unpaid", amount_due_cents: 0, alarms_installed: 0, alarm_units: [] });
+      }
+      const rows = await sb(`jobs?id=eq.${encodeURIComponent(job.id)}&work_type=eq.inspection&status=neq.completed`, { method: "PATCH", body: f });
+      if (!rows?.length) throw fail(409, "The inspection changed. Refresh the job.");
+      if (b.action === "inspection_convert") await J.leadNote(job.lead_id, tech.name, "Inspection converted to installation on J" + job.job_no + ". Customer: " + record.customer_name + ". $120 credited, $50 installation call-out applies. Reason: " + record.reason);
+      return res.status(200).json(await jobDetail(rows[0]));
+    }
+
     // Reopen a completed job to correct it; a card-paid invoice stays locked (see "save").
     if (b.action === "reopen") {
       if (job.status !== "completed") throw fail(409, "This job isn't completed.");
@@ -379,6 +403,7 @@ async function handler(req, res) {
     }
 
     if (b.action === "save") {
+      if (I.isInspection(job)) return res.status(200).json(await jobDetail(job));
       const f = {}, warranty = W.isWarranty(job);
       if (b.notes !== undefined) f.tech_notes = clean(b.notes, 2000) || null;
       if (warranty) {
@@ -399,7 +424,7 @@ async function handler(req, res) {
         const discount = job.pay_status === "paid"
           ? -(job.invoice_items?.find(i => i.code === QUOTE_DISCOUNT)?.amount_cents || 0)
           : quoteDiscount(job, await invoiceQuote(job));
-        const items = withQuoteDiscount(work, discount);
+        const items = I.installItems(withQuoteDiscount(work, discount), job);
         if (b.approve && job.pay_status !== "paid" && (discount || b.quote_discount_cents) && b.quote_discount_cents !== discount) {
           throw fail(409, "The quote discount changed. Refresh the job and review the invoice before approving.");
         }
@@ -428,6 +453,7 @@ async function handler(req, res) {
     }
 
     if (b.action === "pay" || b.action === "pay_check") {
+      if (I.isInspection(job)) throw fail(409, "Inspection visits are paid upfront. No additional payment is due.");
       if (W.isWarranty(job)) throw fail(409, "Warranty jobs are free. There is nothing to pay.");
       if (!Stripe.configured()) throw fail(503, "Card payments are not set up.");
       let current = await refreshPayment(job);
@@ -436,7 +462,7 @@ async function handler(req, res) {
       if (!current.invoice_items || !current.invoice_items.length || !current.approved_at) throw fail(409, "Get the customer to approve the invoice first.");
       requireControllerPhotos(current.invoice_items);
       await checkInvoiceDiscount(current);
-      const t = totals(current.invoice_items, [...(await prepaid(current.lead_id)), ...priorCredit(current)]);
+      const t = totals(current.invoice_items, [...(await prepaid(current.lead_id, current)), ...priorCredit(current)]);
       if (t.due <= 0) throw fail(409, "Nothing to pay — this invoice is already covered.");
 
       if (current.pay_session_id) {
@@ -454,7 +480,7 @@ async function handler(req, res) {
         "line_items[0][price_data][product_data][description]": summary.slice(0, 250), "line_items[0][quantity]": "1",
         "metadata[job_id]": current.id, "metadata[job_no]": String(current.job_no), "metadata[payment_type]": "job",
         "payment_intent_data[metadata][job_id]": current.id, "payment_intent_data[metadata][payment_type]": "job",
-      });
+      }, { idempotencyKey: require("crypto").createHash("sha256").update("job:" + current.id + ":" + t.due + ":" + current.approved_at).digest("hex") });
       await patchJob(current.id, { pay_session_id: session.id, pay_status: "pending", amount_due_cents: t.due });
       return res.status(200).json(await cardCheckout(session, current, t.due));
     }
@@ -481,13 +507,42 @@ async function handler(req, res) {
       return res.status(200).json({ ok: true, job: done, warranty: true, email });
     }
 
+    if (b.action === "complete" && I.isInspection(job)) {
+      const record = I.validate(job.inspection);
+      if (!record.compliant && record.decision !== "declined") throw fail(409, "Convert this job to installation before completing the upgrade.");
+      await I.verifyPhotos(job, record);
+      const payment = await I.payment(job);
+      const name = clean(b.signoff_name, 80), signature = String(b.signature || "");
+      if (!name || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(signature) || signature.length > 300000 || b.inspection_confirmed !== true) throw fail(400, "Sign and confirm the inspection findings.");
+      const now = new Date().toISOString(), items = priceItems([{ code: "inspection", qty: 1 }]);
+      const outcome = record.compliant ? "compliant" : "declined";
+      const rows = await sb(`jobs?id=eq.${job.id}&status=neq.completed`, { method: "PATCH", body: {
+        status: "completed", completed_at: now, inspection_payment_id: payment.id, compliance_outcome: outcome,
+        invoice_items: items, invoice_total_cents: 12000, amount_due_cents: 0, pay_status: "none",
+        signoff_name: name, signoff_signature: signature, signoff_at: now, alarms_installed: 0
+      } });
+      if (!rows?.length) throw fail(409, "This inspection is already completed.");
+      const done = rows[0], credits = await I.credits(done);
+      const invoice = await require("./_job-invoice").sendJobInvoice({ job: done, items, totals: totals(items, credits), credits, bookingFee: 0, paid: true, agent: tech.name });
+      const certificate = record.compliant ? await require("./_certificate").issueCertificate(done.id, { agent: tech.name }) : { status: "skipped", reason: "Non-compliant property. Customer declined upgrade. No compliance certificate." };
+      await J.leadNote(job.lead_id, tech.name, I.LABELS[outcome] + ". J" + job.job_no + ". $120 retained, $0 to collect. " + (record.reason || "") + " Findings: " + record.findings);
+      if (job.lead_id) await sb(`leads?id=eq.${job.lead_id}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
+      return res.status(200).json({ ok: true, job: done, invoice, certificate });
+    }
+
     if (b.action === "complete") {
       let current = await refreshPayment(job);
       const items = current.invoice_items || [];
+      if (current.inspection_converted_at) {
+        if (b.installation_compliant !== true || b.customer_approved !== true) throw fail(409, "Confirm customer approval and that the completed installation is compliant.");
+        if (!alarmQty(items) || (current.alarm_units || []).length !== alarmQty(items) || current.alarm_units.some(u => !u.location || !u.photo)) throw fail(409, "Record every installed alarm, location and installation photo.");
+        await I.verifyPhotos(current, { alarms: current.alarm_units.map(u => ({ photo: u.photo, plate: u.photo })) });
+        if (itemsKey(items) !== itemsKey(I.installItems(items, current))) throw fail(409, "Review and approve the installation call-out fee.");
+      }
       requireControllerPhotos(items);
       if (items.length && !current.approved_at) throw fail(409, "The customer needs to approve the invoice first.");
       await checkInvoiceDiscount(current);
-      const credits = [...(await prepaid(current.lead_id)), ...priorCredit(current)];
+      const credits = [...(await prepaid(current.lead_id, current)), ...priorCredit(current)];
       let t = totals(items, credits);
 
       const signoffName = clean(b.signoff_name, 80), signature = String(b.signature || "");
@@ -525,13 +580,18 @@ async function handler(req, res) {
       else if (b.method === "bank_transfer") { f.pay_status = "later"; payText = `Bank transfer: ${money(t.due)} owing. A pending invoice with the bank details has been emailed; the compliance certificate follows once the payment is received.`; }
       else { f.pay_status = "later"; payText = `Not paid in full: ${money(t.due)} owing. A pending invoice has been emailed.`; }
 
-      const done = await patchJob(current.id, f);
+      if (f.pay_status !== "later") f.paid_invoice_emailed_at = new Date().toISOString();
+      if (current.inspection_converted_at) Object.assign(f, { compliance_outcome: "installed", installation_compliant_at: new Date().toISOString() });
+      const claimed = await sb(`jobs?id=eq.${current.id}&status=neq.completed`, { method: "PATCH", body: f });
+      const done = claimed?.[0];
+      if (!done) throw fail(409, "This job is already completed.");
       // Payment ledger: cash taken on site (full or part).
       if (f.pay_method === "cash" && f.pay_status === "paid" && f.paid_cents > 0) await J.addPayment(current.id, { amount_cents: f.paid_cents, method: "cash", by: tech.name });
       else if (cashPart > 0) await J.addPayment(current.id, { amount_cents: cashPart, method: "cash", by: tech.name });
       const paid = f.pay_status !== "later";
       const lead = current.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(current.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
-      const invoice = await require("./_job-invoice").sendJobInvoice({ job: current, lead, items, totals: t, credits, bookingFee: await bookingFeePaid(current.lead_id), paid, method: f.pay_method, agent: tech.name });
+      const invoice = await require("./_job-invoice").sendJobInvoice({ job: done, lead, items, totals: t, credits, bookingFee: I.tracked(current) ? 0 : await bookingFeePaid(current.lead_id), paid, method: f.pay_method, agent: tech.name });
+      if (invoice.status !== "sent" && f.pay_status !== "later") await patchJob(current.id, { paid_invoice_emailed_at: null }).catch(() => {});
       if (invoice.status === "sent") await patchJob(current.id, { invoice_emailed_at: new Date().toISOString() }).catch(() => {});
       // Certificate only goes out when the job is paid in full (paid on site, or nothing owing).
       const certificate = f.pay_status !== "later" ? await require("./_certificate").issueCertificate(current.id, { agent: tech.name }) : { status: "skipped", reason: "Invoice not paid yet." };
@@ -577,3 +637,4 @@ async function sendWarrantyCompletion(job, units, agent) {
 
 module.exports = handler;
 Object.assign(module.exports, { reconcileJobPayment, ALARM_CODES, priceItems, totals, prepaid, priorCredit, bookingFeePaid });
+

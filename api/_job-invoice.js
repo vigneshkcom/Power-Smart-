@@ -98,7 +98,16 @@ async function sendJobInvoice({ job, lead, items, totals, credits, bookingFee, p
   const address = [job.address, [job.suburb, job.postcode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const date = Q.fmtDate(new Date());
   const billingAddress = await billingAddressFor(job);
-  const { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, reminder, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
+  let { html, text } = renderInvoice({ name: job.customer_name, jobNo: job.job_no, items, total: totals.total, credits, due: totals.due, paid, method, address, billingAddress, date, bookingFee, reminder, invoiceUrl: `${Q.SITE}/invoice?token=${encodeURIComponent(job.id)}` });
+  if (job.work_type === "inspection") {
+    const outcome = job.compliance_outcome === "compliant" ? "Inspection outcome: compliant." : "Inspection outcome: non-compliant. Customer declined the upgrade. This invoice is not a compliance certificate.";
+    html = html.replace(/smoke alarm installation is complete/g, "smoke alarm inspection is complete").replace("</body>", "<p>" + Q.escapeHtml(outcome) + "</p></body>");
+    text = text.replace(/smoke alarm installation is complete/g, "smoke alarm inspection is complete") + "\n\n" + outcome;
+    if (job.compliance_outcome !== "compliant") {
+      html = html.replace(/Your compliance certificate is sent to you in a separate email\./g, "No compliance certificate is issued for this non-compliant property.");
+      text = text.replace(/Your compliance certificate is sent to you in a separate email\./g, "No compliance certificate is issued for this non-compliant property.");
+    }
+  }
   const subject = paid ? `Your PowerSmart tax invoice J${job.job_no} (paid)` : reminder ? `Payment pending: PowerSmart invoice J${job.job_no}, ${fmt(totals.due)} owing` : `Your PowerSmart invoice J${job.job_no}: ${fmt(totals.due)} owing`;
   try {
     const { Resend } = require('./_transactional-mail');
@@ -133,3 +142,4 @@ async function separateFeeFor(leadId) {
 }
 
 module.exports = { renderInvoice, sendJobInvoice, billingAddressFor, separateFeeFor, BANK };
+

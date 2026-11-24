@@ -21,7 +21,7 @@ function bookingSlot(iso) {
   return { date, short, slot: isAm ? "AM" : "PM", window: isAm ? "8:00am and 12:00pm" : "12:00pm and 5:00pm" };
 }
 
-function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeIncluded = false, address, billingAddress, slot, quoteUrl, note }) {
+function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeIncluded = false, address, billingAddress, slot, quoteUrl, note, inspection = false }) {
   const first = String(name || "there").trim().split(/\s+/)[0] || "there";
   const balance = quoteTotal != null ? Math.max(0, quoteTotal - (feePaid || 0)) : null;
   const row = (label, value, color) => `<tr><td colspan="2" style="padding:4px 12px;color:${color || "#41585D"};">${label}</td><td align="right" style="padding:4px 12px;color:${color || "#41585D"};">${value}</td></tr>`;
@@ -37,7 +37,7 @@ function renderBookingEmail({ name, jobNo, quoteRef, quoteTotal, feePaid, feeInc
 </td></tr>` : "";
   const balanceLine = balance != null ? `<br>&bull; The balance of <strong>${fmt(balance)}</strong> is payable on the day, after installation.` : "";
 
-  const html = `<!DOCTYPE html>
+  let html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Booking confirmed - PowerSmart</title></head>
 <body style="margin:0;padding:0;background-color:#EAF2F3;">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Your smoke alarm installation is booked for ${esc(slot.date)} (${slot.slot} slot).</div>
@@ -81,7 +81,7 @@ ${note ? `<tr><td style="background:#ffffff;padding:14px 32px 0;"><p style="marg
 </td></tr>
 </table></td></tr></table></body></html>`;
 
-  const text = `BOOKING CONFIRMED - PowerSmart
+  let text = `BOOKING CONFIRMED - PowerSmart
 
 Hi ${first},
 
@@ -99,6 +99,10 @@ Before we arrive:
 ${note ? note + "\n\n" : ""}Need to change the day or slot? Reply to this email or call ${Q.PHONE_DISPLAY} at least 24 hours before.
 
 PowerSmart Pty Ltd | ABN ${Q.ABN}`;
+  if (inspection) {
+    const transform = value => value.replace(/smoke alarm installation/g, "smoke alarm inspection").replace(/after installation/g, "after the inspection").replace(/Deposit received \(credited against quote\)/g, "Inspection fee paid upfront").replace(/You will get your <strong>compliance certificate the same day<\/strong>\./g, "A compliance certificate is issued only if the property is confirmed compliant.").replace(/You will get your compliance certificate the same day\./g, "A compliance certificate is issued only if the property is confirmed compliant.");
+    html=transform(html);text=transform(text);
+  }
   return { html, text };
 }
 
@@ -110,7 +114,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   // SMS is paused: anything that would have gone by SMS goes by email instead.
   const smsPaused = !Sms.smsEnabled();
   if (smsPaused && sms) { email = true; sms = false; }
-  const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode,work_type";
+  const jobCols = "id,job_no,lead_id,customer_name,phone,email,scheduled_start,address,suburb,postcode,work_type,quote_ref";
   let job;
   if (jobId) {
     job = (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&status=in.(scheduled,en_route,on_site)&select=${jobCols}&limit=1`))?.[0];
@@ -133,7 +137,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
     ? [lead.address_line1, [lead.address_suburb, lead.address_state, lead.address_postcode].filter(Boolean).join(" ")].join(", ") : "";
   const address = jobAddress || leadAddress;
   const billingAddress = await require("./_job-invoice").billingAddressFor({ lead_id: leadId });   // empty when it is the same as the installation address
-  const quoteTotal = lead && lead.quote_total != null ? Number(lead.quote_total) : null;
+  let quoteTotal = lead && lead.quote_total != null ? Number(lead.quote_total) : null;
 
   let feePaid = 0, feeIncluded = false, quoteUrl = "";
   if (leadId) {
@@ -152,6 +156,8 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
     } catch (_) { /* link is optional */ }
   }
 
+  const inspection = job.work_type === "inspection";
+  if (inspection) { await require("./_inspection").payment(job); quoteTotal = 120; feePaid = 120; feeIncluded = true; }
   const result = { ok: true, date: slot.date, slot: slot.slot, email: { status: "skipped" }, sms: { status: "skipped" } };
   const sender = S.resolveSender(sendAs);
   // Warranty visit: no quote, balance or call-out fee, just the visit details.
@@ -160,7 +166,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
   if (email) {
     if (!toEmail) result.email = { status: "skipped", error: "No email address saved." };
     else {
-      const { html, text } = warranty || renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note });
+      const { html, text } = warranty || renderBookingEmail({ name, jobNo: job.job_no, quoteRef: lead && lead.quote_ref, quoteTotal, feePaid, feeIncluded, address, billingAddress, slot, quoteUrl, note, inspection });
       const subject = warranty ? warranty.subject : `Your PowerSmart booking is confirmed: ${slot.short} (${slot.slot})`;
       try {
         const { Resend } = require('./_transactional-mail');
@@ -182,7 +188,7 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
       try {
         const first = String(name || "there").trim().split(/\s+/)[0] || "there";
         const balance = quoteTotal != null ? Math.max(0, quoteTotal - feePaid) : null;
-        const message = warranty ? warranty.sms : `PowerSmart: Hi ${first}, your smoke alarm install is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY} or reply to this SMS.`;
+        const message = warranty ? warranty.sms : `PowerSmart: Hi ${first}, your smoke alarm ${inspection ? "inspection" : "install"} is booked for ${slot.short}, ${slot.slot} slot (${slot.slot === "AM" ? "8am-12pm" : "12pm-5pm"})${address ? ` at ${address}` : ""}.${balance != null ? ` Balance due on the day: ${fmt(balance)}.` : ""} To change, call ${Q.PHONE_DISPLAY} or reply to this SMS.`;
         result.sms = await Sms.sendLeadSms({ lead: { id: leadId || undefined, phone }, message, key: `booking-${job.id}-${job.scheduled_start}`, author: agent });
       } catch (e) { result.sms = { status: "failed", error: e.message }; }
     }
@@ -200,3 +206,4 @@ async function sendBookingConfirmation({ leadId, jobId, sendAs, agent, email = t
 }
 
 module.exports = { bookingSlot, renderBookingEmail, sendBookingConfirmation };
+

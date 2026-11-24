@@ -118,6 +118,7 @@ async function issueCertificate(jobId, { agent, force } = {}) {
   try {
     job = (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=*&limit=1`))?.[0];
     if (!job) return { status: "skipped", reason: "Job not found." };
+    if (!require("./_inspection").certificateAllowed(job)) return { status: "skipped", reason: "Inspection compliance has not been confirmed. No compliance certificate permitted." };
     if (!paidInFull(job)) return { status: "skipped", reason: "The job is not completed and paid in full yet." };
     if (job.certificate_sent_at && !force) return { status: "skipped", reason: "Certificate already sent." };
     const to = String(job.email || "").trim().toLowerCase() ||
@@ -192,3 +193,4 @@ async function issueCertificate(jobId, { agent, force } = {}) {
 }
 
 module.exports = { renderCertificatePdf, issueCertificate, paidInFull, manualsForJob, stateFor, dateText };
+

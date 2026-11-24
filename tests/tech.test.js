@@ -53,7 +53,7 @@ const archived = [];   // jobs the electrician app asked to archive the Alarm Ca
 function vmLoad(file, mocks) {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
-    module, require: (k) => (k in mocks ? mocks[k] : k === './_payment-summary' ? vmLoad('_payment-summary.js', mocks) : k === './_warranty' ? require('../api/_warranty') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
+    module, require: (k) => (k in mocks ? mocks[k] : k === './_inspection' ? vmLoad('_inspection.js', mocks) : k === './_payment-summary' ? vmLoad('_payment-summary.js', mocks) : k === './_warranty' ? require('../api/_warranty') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, URLSearchParams, Buffer, setTimeout, process: { env: {} },
   }, { filename: file });
   return module.exports;
 }
@@ -79,7 +79,7 @@ function setup(provider) {
   });
   const Stripe = fakeStripe(provider);
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
+  const mocks = { './_dropbox': { photosForJob: async job => ({ photos: [...(job.inspection?.alarms || []).flatMap(a => [{path:a.photo},{path:a.plate}]), ...(job.alarm_units || []).map(a => ({path:a.photo}))] }) }, './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
@@ -360,14 +360,15 @@ test('a reopened card-paid job keeps its invoice locked', async () => {
   assert.equal((await t.call({ action: 'complete', id: 'j1', paid_in_full: true, method: 'card', signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' })).code, 200);
 });
 
-test('an inspection-only job has no alarms', async () => {
-  const t = setup();
-  Object.assign(t.job('j1'), { work_type: 'inspection', lead_id: null, email: null });
+test('inspection jobs require the upfront payment and use a fixed $120 invoice without installed alarms', async () => {
+  const t = inspectionSetup();
   const d = (await t.call({ action: 'job', id: 'j1' })).data;
-  assert.equal(d.items.length, 0, 'the invoice is not pre-populated');
-  await t.call({ action: 'save', id: 'j1', items: [{ code: 'inspection', qty: 1 }], approve: true });
-  assert(t.job('j1').approved_at);
-  assert.equal(t.job('j1').alarms_installed, 0);
+  assert.equal(d.inspection_only, true);
+  assert.equal(d.totals.total, 12000);
+  assert.equal(d.totals.due, 0);
+  assert.equal(d.booking_fee_cents, 0);
+  assert.equal((await t.call({action:'pay',id:'j1'})).code,409);
+  assert.equal(t.job('j1').alarms_installed || 0,0);
 });
 
 test('Stripe webhook records job payments from the electrician app', async () => {
@@ -539,3 +540,99 @@ test('linked quote discount survives fitting, approval, and card pricing without
   assert.equal(revised.data.job.approved_at, null);
   assert.equal(revised.data.totals.due, 44900);
 });
+
+
+function inspectionSetup(provider) {
+  const t=setup(provider);
+  Object.assign(t.job('j1'),{work_type:'inspection',quote_ref:'QI1',inspection_payment_id:'p-inspection'});
+  t.db.tables.payment_requests.push({id:'p-inspection',lead_id:'lead1',quote_ref:'QI1',status:'paid',payment_type:'inspection',amount_cents:12000,amount_paid_cents:12000});
+  return t;
+}
+function inspectionRecord(compliant=true,decision='') {
+  return {alarms:[{id:'e1',type:'battery',location:'Bedroom 1',expiry:'2034-01-01',photo:'/PowerSmart Jobs/J1001/Before/alarm.jpg',plate:'/PowerSmart Jobs/J1001/Before/plate.jpg'}],
+    checks:{coverage:compliant?'pass':'fail',photoelectric:'pass',age_expiry:'pass',functionality:'pass',interconnection:'pass'},
+    findings:'Inspected existing alarms',compliant,reason:compliant?'':'Bedroom coverage missing',decision,customer_name:decision==='accepted'?'Test Customer':''};
+}
+const inspectionSignature='data:image/png;base64,AAAA';
+test('compliant inspection retains $120, completes with zero owing and releases certificate once',async()=>{
+  const t=inspectionSetup();
+  assert.equal((await t.call({action:'inspection_save',id:'j1',inspection:inspectionRecord()})).code,200);
+  const result=await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,inspection_confirmed:true});
+  assert.equal(result.code,200);
+  assert.equal(result.data.job.compliance_outcome,'compliant');
+  assert.equal(result.data.job.amount_due_cents,0);
+  assert.equal(result.data.job.invoice_total_cents,12000);
+  assert.equal(certCalls.length,1);
+  assert.equal(invoiceCalls[0].totals.due,0);
+  assert.equal(invoiceCalls[0].credits[0].cents,12000);
+  assert.equal((await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,inspection_confirmed:true})).code,409);
+  assert.equal(invoiceCalls.length,1);
+  assert.equal(certCalls.length,1);
+});
+test('declined upgrade completes non-compliant inspection without issuing a certificate',async()=>{
+  const t=inspectionSetup();
+  await t.call({action:'inspection_save',id:'j1',inspection:inspectionRecord(false,'declined')});
+  const r=await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,inspection_confirmed:true});
+  assert.equal(r.code,200);
+  assert.equal(r.data.job.compliance_outcome,'declined');
+  assert.equal(r.data.job.invoice_total_cents,12000);
+  assert.equal(r.data.job.amount_due_cents,0);
+  assert.equal(certCalls.length,0);
+  assert.match(r.data.certificate.reason,/Non-compliant/);
+  assert.equal(invoiceCalls.length,1);
+});
+test('accepted inspection converts in place, charges 6 x $79 + $50 less $120 = $404, then uses normal installation payment and signoff',async()=>{
+  const t=inspectionSetup('revolut'), count=t.db.tables.jobs.length;
+  await t.call({action:'inspection_save',id:'j1',inspection:inspectionRecord(false,'accepted')});
+  let r=await t.call({action:'inspection_convert',id:'j1',inspection:inspectionRecord(false,'accepted')});
+  assert.equal(r.code,200,JSON.stringify(r.data));
+  assert.equal(t.db.tables.jobs.length,count);
+  assert.equal(t.job('j1').work_type,'install');
+  assert.equal(t.job('j1').compliance_outcome,'converted');
+  assert.equal((await t.call({action:'inspection_convert',id:'j1',inspection:inspectionRecord(false,'accepted')})).code,409);
+  const units=Array.from({length:6},(_,i)=>({id:'u'+i,type:i<4?'battery':'hardwired',location:'Bedroom '+i,photo:'/PowerSmart Jobs/J1001/Alarms/'+i+'.jpg'}));
+  r=await t.call({action:'save',id:'j1',alarm_units:units,items:[{code:'alarm_battery',qty:4},{code:'alarm_hardwired',qty:2},{code:'inspection',qty:1}],approve:true});
+  assert.equal(r.code,200,JSON.stringify(r.data));
+  assert.equal(r.data.totals.total,52400);
+  assert.equal(r.data.totals.credit,12000);
+  assert.equal(r.data.totals.due,40400);
+  assert.equal(r.data.items.some(i=>i.code==='inspection'),false);
+  const pay=await t.call({action:'pay',id:'j1'});
+  assert.equal(pay.code,200,JSON.stringify(pay.data));
+  assert.equal(pay.data.amount_cents,40400);
+  const session=t.Stripe.sessions.get(t.job('j1').pay_session_id);
+  session.payment_status='paid';session.status='complete';
+  await t.tech.reconcileJobPayment(session);
+  const blocked=await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature});
+  assert.equal(blocked.code,409);
+  r=await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,installation_compliant:true,customer_approved:true});
+  assert.equal(r.code,200,JSON.stringify(r.data));
+  assert.equal(r.data.job.compliance_outcome,'installed');
+  assert.equal(r.data.job.paid_cents,40400);
+  assert.equal(certCalls.length,1);
+  assert.equal(invoiceCalls[0].totals.total,52400);
+  assert.equal(invoiceCalls[0].bookingFee,0);
+  assert.equal(t.db.tables.jobs.length,count);
+});
+test('inspection completion rejects missing checks, photos, non-compliance reason, decision or signoff',async()=>{
+  for(const mutate of [
+    d=>delete d.checks.coverage,d=>d.alarms[0].plate='',d=>{d.compliant=false;d.reason='';d.decision='declined';},d=>{d.compliant=false;d.reason='Coverage';d.decision='';}
+  ]){
+    const t=inspectionSetup(),d=inspectionRecord();mutate(d);
+    await t.call({action:'inspection_save',id:'j1',inspection:d});
+    assert.equal((await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,inspection_confirmed:true})).code,409);
+    assert.equal(certCalls.length,0);
+  }
+});
+test('inspection credit cannot use another quote, an unpaid payment or an already allocated payment',async()=>{
+  for(const mutate of [
+    t=>t.db.tables.payment_requests.find(p=>p.id==='p-inspection').status='sent',
+    t=>t.db.tables.payment_requests.find(p=>p.id==='p-inspection').quote_ref='OTHER',
+    t=>t.db.tables.jobs.push({id:'used',inspection_payment_id:'p-inspection'})
+  ]){
+    const t=inspectionSetup();mutate(t);
+    assert.equal((await t.call({action:'inspection_convert',id:'j1',inspection:inspectionRecord(false,'accepted')})).code,409);
+    assert.equal(t.Stripe.calls.length,0);
+  }
+});
+

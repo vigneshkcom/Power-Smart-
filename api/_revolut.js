@@ -102,7 +102,8 @@ async function labelOrder(order, details) {
 
 async function gatewayFor(form) {
   const jobId = form['metadata[job_id]'];
-  const job = jobId ? (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=lead_id,payment_gateway&limit=1`))?.[0] : null;
+  const job = jobId ? (await SB.sb(`jobs?id=eq.${encodeURIComponent(jobId)}&select=lead_id,payment_gateway,inspection_converted_at&limit=1`))?.[0] : null;
+  if (job?.inspection_converted_at || form['metadata[payment_type]'] === 'inspection') return 'revolut';
   const leadId = form['metadata[lead_id]'] || job?.lead_id;
   if (leadId) {
     const lead = (await SB.sb(`leads?id=eq.${encodeURIComponent(leadId)}&select=payment_gateway&limit=1`))?.[0];
@@ -191,3 +192,4 @@ function verifySignature(raw, headers) {
 }
 
 module.exports = { configured, request, checkoutUrl, session, getSession, gatewayFor, createSession, verifySignature, REFERENCE };
+

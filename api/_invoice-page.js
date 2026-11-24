@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
   const notFound = () => res.status(404).send("Invoice not found. Please contact PowerSmart on 0475 184 984.");
   if (!UUID.test(token)) return notFound();
   try {
-    const job = (await SB.sb(`jobs?id=eq.${token}&select=id,job_no,customer_name,address,suburb,postcode,email,lead_id,status,pay_status,amount_due_cents,invoice_items,invoice_total_cents,completed_at,certificate_sent_at,pay_method&limit=1`))?.[0];
+    const job = (await SB.sb(`jobs?id=eq.${token}&select=id,job_no,customer_name,address,suburb,postcode,email,lead_id,status,pay_status,amount_due_cents,invoice_items,invoice_total_cents,completed_at,certificate_sent_at,pay_method,work_type,compliance_outcome,inspection_converted_at&limit=1`))?.[0];
     if (!job || job.status !== "completed") return notFound();
     if (String(req.query.pay || "") === "1" && job.pay_status === "later" && job.amount_due_cents > 0 && Stripe.configured()) {
       const base = `${Q.SITE}/invoice?token=${job.id}`;
@@ -137,7 +137,7 @@ module.exports = async (req, res) => {
       });
       res.setHeader("Location", checkoutUrl(session.url)); return res.status(302).end();
     }
-    const [billing, fee] = await Promise.all([billingAddressFor(job), separateFeeFor(job.lead_id)]);
+    const [billing, fee] = await Promise.all([billingAddressFor(job), (job.work_type === "inspection" || job.inspection_converted_at ? Promise.resolve(0) : separateFeeFor(job.lead_id))]);
     if (String(req.query.pdf || "") === "1") {
       const pdf = await renderInvoicePdf(model(job, billing, fee));
       res.setHeader("Content-Type", "application/pdf"); res.setHeader("Content-Disposition", `attachment; filename="${pdfName(job)}"`);
@@ -149,3 +149,4 @@ module.exports = async (req, res) => {
 };
 module.exports.page = page;
 module.exports.model = model;
+

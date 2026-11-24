@@ -4,7 +4,7 @@ const archived = [];   // jobs the office completion asked to archive the Alarm 
 function load(SB, file = '_jobs.js') {
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../api', file), 'utf8'), {
-    module, require: (k) => (k === './_supabase' ? SB : k === './_payment-summary' ? load(SB, '_payment-summary.js') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
+    module, require: (k) => (k === './_supabase' ? SB : k === './_inspection' ? load(SB, '_inspection.js') : k === './_payment-summary' ? load(SB, '_payment-summary.js') : k === './_care-notice' ? { archiveForJob: async (j) => { archived.push(j); return { status: 'skipped' }; } } : require(k)), console: { error() {} }, URL, Buffer, process: { env: {} },
   }, { filename: '_jobs.js' });
   return module.exports;
 }
@@ -335,3 +335,4 @@ test('payments are added to the job ledger when recorded in the office, and the 
   assert.deepEqual([ledgerWrites[0].body.payments[0].amount_cents, ledgerWrites[0].body.payments[0].method, ledgerWrites[0].body.payments[0].by], [29000, 'bank_transfer', 'Sunny']);
   assert.ok(ledgerWrites[0].body.payments[0].at && ledgerWrites[0].body.payments[0].id);
 });
+

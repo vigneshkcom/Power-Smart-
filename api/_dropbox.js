@@ -57,7 +57,7 @@ async function rpc(endpoint, body, { allowNotFound = false } = {}) {
 
 // Keep folder names filesystem-safe and short.
 function safe(text) {
-  return String(text || "").replace(/[\\/<>:"|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, 60);
+  return String(text || "").replace(/[\\/<>:"|?*\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, all ? undefined : 60);
 }
 function folderName(job) {
   const place = job.address ? `${safe(job.address)}` : "";
@@ -128,7 +128,7 @@ async function thumbnails(paths) {
 }
 
 // Photos for one job, newest first, with small inline thumbnails (first 60 only).
-async function photosForJob(job) {
+async function photosForJob(job, { all = false } = {}) {
   const folder = await findJobFolder(job);
   if (!folder) return { folder: null, photos: [] };
   const entries = (await listAll(folder, true)) || [];
@@ -223,3 +223,4 @@ async function temporaryLink(path) {
 }
 
 module.exports = { ROOT, CATEGORIES, configured, fail, safe, folderName, ensureJobFolder, findJobFolder, uploadPhoto, photosForJob, archivePhotos, temporaryLink, assertInside, dropboxWebFolderUrl, uploadDocuments };
+

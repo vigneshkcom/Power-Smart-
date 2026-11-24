@@ -860,12 +860,16 @@
         card.dataset.id = l.id;
         var chips = '<span class="chip src">' + esc(l.source || "Not provided") + '</span>';
         chips += areaChip(l);
+        if(l.job && (l.job.work_type === "inspection" || l.job.compliance_outcome)){
+          var outcomes={compliant:"Inspection completed: Compliant",declined:"Inspection completed: Non-compliant, upgrade declined",converted:"Inspection converted to installation",installed:"Installation completed and compliant"};
+          chips += '<span class="chip ' + (l.job.compliance_outcome==="declined"?"owe":"src") + '">' + esc(outcomes[l.job.compliance_outcome] || "Inspection Only") + '</span>';
+        }
         if (l.quote_ref) chips += '<span class="chip quote">' + esc(l.quote_ref) + (l.quote_total ? ' · ' + fmt$(l.quote_total) : '') + '</span>';
         if (l.paid_total_cents > 0) chips += '<span class="chip src" title="Total payments received">Paid ' + fmt$(l.paid_total_cents / 100) + ((l.paid_methods || []).length ? ' · ' + esc(l.paid_methods.join(", ")) : '') + '</span>';
         else if (l.payment) chips += '<span class="chip quote">' + (l.payment.status === "paid" ? "Paid " : "Call-out fee ") + fmt$((l.payment.status === "paid" ? l.payment.amount_paid_cents : l.payment.amount_cents) / 100) + '</span>';
         else if (l.payment_preference === "phone" && l.stage !== "scheduled" && l.stage !== "won") chips += '<span class="chip quote">Payment call requested</span>';
         // Still to pay on the quote (quote total less everything received): red, on part-paid leads and on installed jobs with nothing paid.
-        var pendingCents = l.quote_total > 0 ? Math.round(l.quote_total * 100) - (l.paid_total_cents || 0) : 0;
+        var pendingCents = l.job && l.job.compliance_outcome ? (l.job.pay_status === "later" ? l.job.amount_due_cents || 0 : l.job.compliance_outcome === "converted" ? Math.max(0,(l.job.invoice_total_cents || 0) - (l.paid_total_cents || 0)) : 0) : l.quote_total > 0 ? Math.round(l.quote_total * 100) - (l.paid_total_cents || 0) : 0;
         if (pendingCents > 0 && ((l.paid_total_cents || 0) > 0 || l.stage === "won")) chips += '<span class="chip owe" title="Quote total less payments received">Pending ' + fmt$(pendingCents / 100) + '</span>';
         if (l.scheduled_start) chips += '<span class="chip sched" title="Scheduled visit">&#128197; ' + esc(fmtVisit(l.scheduled_start)) + '</span>';
         var jobBtns = "";
@@ -879,7 +883,7 @@
         if (dest) foot += '<a class="icb" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + encodeURIComponent(dest) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Driving directions to ' + esc(dest) + '" aria-label="Driving directions"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></a>';
         foot += '<span class="age' + (isStale(l.updated_at) ? " stale" : "") + '">' + daysAgo(l.updated_at) + '</span>';
 
-        card.innerHTML = '<h3>' + esc(l.name) + '<span class="fee-pill" title="Electrician call-out fee">' + fmt$(calloutFeeForLead(l)) + '</span></h3><div class="meta">' + chips + '</div>' + jobBtns + '<div class="foot">' + foot + '</div>';
+        card.innerHTML = '<h3>' + esc(l.name) + '<span class="fee-pill" title="Electrician call-out fee">' + fmt$(l.job && l.job.work_type === "inspection" ? 0 : calloutFeeForLead(l)) + '</span></h3><div class="meta">' + chips + '</div>' + jobBtns + '<div class="foot">' + foot + '</div>';
         var vj = card.querySelector(".view-job"), gd = card.querySelector(".go-date");
         function scheduleUrl(withJob){
           var u = "https://portal.powersmartco.com.au/tools/schedule?";
@@ -1865,3 +1869,4 @@
 <script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>
+

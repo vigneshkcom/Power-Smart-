@@ -1523,6 +1523,14 @@
     $("jm-title").textContent = "Job J" + j.job_no + " · " + j.customer_name;
     setPill(statusKey(j));
     fillForm(j);
+    var oldInspection=$("jm-inspection-detail");if(oldInspection)oldInspection.remove();
+    if(j.inspection || j.work_type === "inspection"){
+      var labels={compliant:"Inspection completed: Compliant",declined:"Inspection completed: Non-compliant, upgrade declined",converted:"Inspection converted to installation",installed:"Installation completed and compliant"};
+      var detail=document.createElement("div");detail.id="jm-inspection-detail";detail.className="card";
+      var d=j.inspection || {};
+      detail.innerHTML='<h3>' + esc(labels[j.compliance_outcome] || "Inspection Only") + '</h3><p>' + esc(d.findings || "Inspection not yet recorded") + '</p><p>' + esc(d.reason || "") + '</p><p>Customer decision: ' + esc(d.decision || "Pending") + (d.customer_name?" · "+esc(d.customer_name):"") + '</p><p>' + esc(JSON.stringify(d.checks || {})) + '</p><p>Existing alarms: ' + (d.alarms || []).length + '</p>' + (d.alarms || []).map(function(a){return '<p>' + esc(a.location + " · " + a.type + " · " + a.expiry) + '</p>';}).join("");
+      $("jm-title").parentNode.appendChild(detail);
+    }
     if (j.lead_id || j.email) loadJobPayments(j);
     techOptions(j.electrician_id || "");
     // Already-booked jobs default to no message; jobs being scheduled for the first time default to sending.
@@ -1540,7 +1548,7 @@
     $("jm-resend-invoice").style.display = j.status === "completed" && j.work_type !== "warranty" && Array.isArray(j.invoice_items) && j.invoice_items.length ? "" : "none";
     $("jm-markpaid").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
     $("jm-recordpay").style.display = j.status === "completed" && j.pay_status === "later" ? "" : "none";
-    var certReady = j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none") && j.work_type !== "warranty";   // no certificate for a warranty visit
+    var certReady = (!j.inspection && j.work_type !== "inspection" || ["compliant","installed"].includes(j.compliance_outcome)) && j.status === "completed" && (j.pay_status === "paid" || j.pay_status === "none") && j.work_type !== "warranty";   // no certificate for a warranty visit
     $("jm-sendcert").style.display = certReady ? "" : "none";
     $("jm-sendcert").textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate";
     $("jm-photos-wrap").style.display = "";
@@ -2049,3 +2057,4 @@
 <script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>
+

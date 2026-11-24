@@ -254,7 +254,7 @@ async function reportData(from, to, techId) {
       invoice, payment: j.pay_status === "paid" ? `Paid by ${METHOD_WORD[j.pay_method || "card"] || j.pay_method}` : (PAY_LABEL[j.pay_status] || ""),
       paid_card: paidSplit(j).card, paid_cash: paidSplit(j).cash, paid_other: paidSplit(j).other, cash_receipt: Boolean(j.pay_receipt),
       to_collect: j.pay_status === "later" ? (j.amount_due_cents || 0) / 100 : 0,
-      notes: j.tech_notes || "",
+      notes: [require("./_inspection").LABELS[j.compliance_outcome] || "", j.inspection?.findings || "", j.inspection?.reason || "", j.tech_notes || ""].filter(Boolean).join(" | "),
     };
   });
   const by = {};
@@ -373,6 +373,11 @@ module.exports = async (req, res) => {
       f.created_by = actor;
       const quote = f.lead_id ? await latestQuote(f.lead_id, f.email) : null;
       f.quote_ref = quote && quote.lead_id === f.lead_id ? quote.ref : null;
+      if (quote?.service === "inspection") f.work_type = "inspection";
+      if (f.work_type === "inspection") {
+        const p = await require("./_inspection").payment({ ...f, id: "00000000-0000-0000-0000-000000000000" });
+        f.inspection_payment_id = p.id;
+      }
       const rows = await sb("jobs", { method: "POST", body: f });
       const job = rows && rows[0];
       if (job && job.lead_id) {
@@ -401,6 +406,7 @@ module.exports = async (req, res) => {
       // Handing the job to a different electrician (or back to the waiting list) starts it over as a brand-new job.
       const reassigned = Boolean(prev.electrician_id) && "electrician_id" in f && f.electrician_id !== prev.electrician_id && hasWork(prev);
       if (reassigned) Object.assign(f, resetFields(prev));
+      if (require("./_inspection").tracked(prev) && ((f.status === "completed" && prev.status !== "completed") || (f.work_type && f.work_type !== prev.work_type))) throw bad("Complete inspections and conversions through the electrician inspection workflow.");
       // completion date drives the weekly report
       if (f.status === "completed" && prev.status !== "completed") f.completed_at = new Date().toISOString();
       else if (f.status && f.status !== "completed" && prev.status === "completed") f.completed_at = null;
@@ -513,12 +519,12 @@ module.exports = async (req, res) => {
       const due = paid ? 0 : Number(job.amount_due_cents) || 0;
       if (!paid && due <= 0) return res.status(409).json({ error: "This job has no invoice balance to resend." });
       const T = require("./_tech");
-      const credits = [...await T.prepaid(job.lead_id), ...T.priorCredit(job)];
+      const credits = [...await T.prepaid(job.lead_id, job), ...T.priorCredit(job)];
       const total = job.invoice_total_cents || items.reduce((n, i) => n + (i.amount_cents || 0), 0);
       const lead = job.lead_id ? (await sb(`leads?id=eq.${encodeURIComponent(job.lead_id)}&select=email&limit=1`).catch(() => []))?.[0] : null;
       const r = await require("./_job-invoice").sendJobInvoice({
         job, lead, items, totals: { total, due }, credits,
-        bookingFee: await T.bookingFeePaid(job.lead_id),
+        bookingFee: require("./_inspection").tracked(job) ? 0 : await T.bookingFeePaid(job.lead_id),
         paid, method: paid ? (job.pay_method || "card") : null,
         agent: actor, reminder: !paid && job.pay_status === "later"
       });
@@ -650,3 +656,4 @@ module.exports = async (req, res) => {
 
 // Shared with api/_tech.js (electrician app).
 Object.assign(module.exports, { addPayment, carryPaymentFields, STATUS_LABEL, clean, intIn, fmtWhen, techName, leadNote, latestQuote });
+

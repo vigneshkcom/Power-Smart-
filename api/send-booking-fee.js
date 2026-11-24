@@ -35,6 +35,7 @@ module.exports = async (req, res) => {
       const quote = (await SB.sb(`sent_emails?lead_id=eq.${encodeURIComponent(lead.id)}&quote_ref=eq.${encodeURIComponent(lead.quote_ref)}&kind=eq.quote&status=eq.sent&select=body_html,quote_total&order=created_at.desc&limit=1`))?.[0];
       if (quote) issued = QP.quoteOptions(quote);
     }
+    if (issued?.serviceMode === "inspect") return res.status(409).json({ error: "Inspection Only requires $120 paid upfront through the inspection quote. No additional $50 booking fee applies." });
     const feeCents = pending ? pending.amount_cents : issued && issued.serviceMode === 'install' ? Math.round(issued.calculation.payableToday * 100) : Fee.centsForLead(lead);
     const feeDisplay = `$${(feeCents / 100).toFixed(2)}`;
     const includedDeposit = pending ? /^Deposit toward/i.test(pending.description || '') : Boolean(issued?.calloutIncluded);
@@ -90,3 +91,4 @@ module.exports = async (req, res) => {
     return res.status(200).json({ ok: true, amount: feeCents / 100, session_id: session.id, checkout_url: session.url });
   } catch (error) { return res.status(error.status || 500).json({ error: error.message || "Could not send electrician call-out fee" }); }
 };
+

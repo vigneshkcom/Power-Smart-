@@ -651,7 +651,10 @@
         $("q-now").addEventListener("click", function(){ flushQueue().then(function(){ if (!qGet(id)) loadList(); else toast("Still no signal. It will send when you are back online."); }); });
         return;
       }
-      cur = d; delete photoCache[id];
+      cur = d; delete photoCache[id]; inspectionChanged=false; inspectionBusy=false;
+      if(cur.inspection_only && cur.job.status !== "completed"){
+        try { var savedInspection=JSON.parse(localStorage.getItem("ps-inspection-"+id)||"null"); if(savedInspection){cur.job.inspection=savedInspection;inspectionChanged=true;} }catch(e){}
+      }
       return loadLocalRecs(id).then(function(){
         var restored = restoreDraft();
         renderJob();
@@ -933,8 +936,9 @@
   })();
   function updateComplete(){
     var btn = $("complete"); if (!btn) return;
+    if(cur.inspection_only) completeState = { alarms: inspectionReady(), approved: true, payReady: true };
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = syncing ? "Synchronising… one moment." : controllerPhotoBusy ? "Saving controller photo…" : !completeState.alarms ? "Add the smoke alarms." : !window.PSControllerPhotos.ready(cur.items) ? "Take a photo of each remote controller." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = syncing ? "Synchronising… one moment." : controllerPhotoBusy ? "Saving controller photo…" : !completeState.alarms ? (cur.inspection_only ? "Complete and save the inspection checklist, photos and outcome." : "Add the smoke alarms.") : !window.PSControllerPhotos.ready(cur.items) ? "Take a photo of each remote controller." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
@@ -950,6 +954,7 @@
     ];
     var keys = ["alarms", "invoice", "approval", "signoff"], names = ["Alarms", "Invoice", "Approval", "Sign off"];
     if (cur.warranty){ flags = [flags[0], finished || signed]; keys = ["alarms", "signoff"]; names = ["Alarms", "Sign off"]; }
+    if(cur.inspection_only){flags=[inspectionReady(),cur.job.status==="completed" || signed];keys=["inspection","signoff"];names=["Inspection","Sign off"];}
     var now = flags.indexOf(false);
     box.innerHTML = names.map(function(n, i){
       return '<button type="button" class="jstep' + (flags[i] ? " done" : i === now ? " now" : "") + '" data-sec="' + keys[i] + '" aria-label="Go to ' + n + '"><i></i>' + n + '</button>';
@@ -1049,6 +1054,81 @@
     call("photo_link", { id: cur.job.id, path: b.dataset.photo }).then(function(d){ if (w) w.location.replace(d.link); }).catch(function(err){ if (w) w.close(); toast(err.message); });
   });
 
+
+  var inspectionLabels = { coverage: "Alarm locations and coverage", photoelectric: "Photoelectric compliance", age_expiry: "Alarm age and expiry dates", functionality: "Alarm functionality", interconnection: "Interconnection test" };
+  var inspectionBusy = false, inspectionChanged = false;
+  function inspectionRecord(){ return cur.job.inspection || (cur.job.inspection = { alarms: [], checks: {}, findings: "", reason: "", compliant: null, decision: "", customer_name: "" }); }
+  function inspectionReady(){
+    var d = inspectionRecord();
+    return !inspectionBusy && !inspectionChanged && Object.keys(inspectionLabels).every(function(k){ return !!d.checks[k]; }) &&
+      d.alarms.every(function(a){ return a.location && a.expiry && a.photo && a.plate; }) &&
+      (d.compliant === true ? d.alarms.length > 0 && Object.keys(inspectionLabels).every(function(k){return d.checks[k] === "pass";}) : d.compliant === false && d.reason && d.decision === "declined");
+  }
+  function inspectionCard(){
+    var d = inspectionRecord(), locked = cur.job.status === "completed";
+    var battery = d.alarms.filter(function(a){return a.type === "battery";}).length;
+    var h = '<div class="card" id="sec-inspection"><h2>Inspection Only</h2><div class="ok-banner">$120 paid upfront · Amount to collect: $0</div><p class="muted">No additional booking fee. Record the existing alarms and all inspection checks.</p>';
+    if (locked) h += '<div class="' + (d.compliant ? 'ok-banner' : 'warn-banner') + '">' + esc((cur.inspection_labels || {})[cur.job.compliance_outcome] || "Inspection completed") + '</div>';
+    h += '<div class="tot"><div><span>Existing smoke alarms</span><b>' + d.alarms.length + '</b></div><div><span>Battery: ' + battery + '</span><span>Hardwired: ' + (d.alarms.length-battery) + '</span></div></div>';
+    d.alarms.forEach(function(a,i){
+      h += '<div class="item" style="display:block"><b>Existing alarm ' + (i+1) + '</b><div class="field"><label>Power type</label><select data-ins-alarm="' + i + '" data-ins-field="type"><option value="battery"' + (a.type==="battery"?' selected':'') + '>Battery</option><option value="hardwired"' + (a.type==="hardwired"?' selected':'') + '>Hardwired</option></select></div><div class="field"><label>Location and coverage</label><input data-ins-alarm="' + i + '" data-ins-field="location" value="' + esc(a.location||"") + '"></div><div class="field"><label>Manufacture / expiry date or age (record unknown if unreadable)</label><input data-ins-alarm="' + i + '" data-ins-field="expiry" value="' + esc(a.expiry||"") + '"></div>';
+      ["photo","plate"].forEach(function(key){
+        h += '<label class="btn btn-ghost" style="margin-top:8px">' + (a[key] ? '✓ Saved: ' : 'Take mandatory ') + (key==="plate"?"compliance plate photo":"existing alarm photo") + '<input type="file" accept="image/*" capture="environment" data-ins-photo="' + i + '" data-ins-kind="' + key + '" hidden></label>';
+      });
+      if(!locked) h += '<button class="link" data-ins-remove="' + i + '">Remove existing alarm</button>';
+      h += '</div>';
+    });
+    if(!locked) h += '<button class="btn btn-ghost" id="ins-add">Add existing smoke alarm</button>';
+    Object.keys(inspectionLabels).forEach(function(k){
+      h += '<div class="field" style="margin-top:12px"><label>' + inspectionLabels[k] + '</label><select data-ins-check="' + k + '"><option value="">Select result</option>' + ["pass","fail","na"].map(function(v){return '<option value="'+v+'"' + (d.checks[k]===v?' selected':'') + '>' + ({pass:"Pass",fail:"Fail",na:"Not applicable, explain in findings"}[v]) + '</option>';}).join("") + '</select></div>';
+    });
+    h += '<div class="field" style="margin-top:12px"><label>Inspection findings and notes</label><textarea data-ins="findings">' + esc(d.findings||"") + '</textarea></div><h2 style="margin-top:20px">Is the property compliant?</h2><div class="seg"><button data-ins-compliant="yes" class="' + (d.compliant===true?'on':'') + '">Yes</button><button data-ins-compliant="no" class="' + (d.compliant===false?'on':'') + '">No</button></div>';
+    if(d.compliant===false){
+      h += '<div class="warn-banner" style="margin-top:12px">Non-compliant. No compliance certificate can be issued for this inspection.</div><div class="field"><label>Why is the property non-compliant? (required)</label><textarea data-ins="reason">' + esc(d.reason||"") + '</textarea></div><h2 style="margin-top:20px">Does the customer wish to proceed with a smoke alarm upgrade today?</h2><div class="stack"><button class="btn ' + (d.decision==="accepted"?"btn-primary":"btn-ghost") + '" data-ins-decision="accepted">Yes, proceed with installation</button><button class="btn ' + (d.decision==="declined"?"btn-dark":"btn-ghost") + '" data-ins-decision="declined">No, customer declined</button></div>';
+      if(d.decision==="accepted") h += '<div class="field" style="margin-top:12px"><label>Customer name authorising the upgrade</label><input data-ins="customer_name" value="' + esc(d.customer_name||"") + '"></div><div class="draft" style="margin-top:12px">The $120 inspection charge is removed. Installation: $79 per alarm plus $50 call-out, with $120 credited in full. Customer approves the revised invoice before payment.<br>Example: 6 alarms + call-out = $524. Less $120 paid = $404 remaining.</div><button class="btn btn-primary" id="ins-convert" style="margin-top:12px">Convert this job to installation</button>';
+      if(d.decision==="declined") h += '<div class="warn-banner" style="margin-top:12px">$120 inspection payment retained. $0 to collect. No compliance certificate will be sent.</div>';
+    }
+    if(!locked) h += '<button class="btn btn-primary" id="ins-save" style="margin-top:16px">' + (inspectionBusy?"Saving…":"Save inspection findings") + '</button><p class="muted">' + (inspectionChanged?"Save your changes before signing off.":"Findings saved. Complete the outcome and sign-off below.") + '</p>';
+    h += '</div>';
+    return h;
+  }
+  function changeInspection(){ inspectionChanged = true; try{ localStorage.setItem("ps-inspection-"+cur.job.id,JSON.stringify(inspectionRecord())); }catch(e){} }
+  function saveInspection(convert){
+    if(inspectionBusy) return;
+    inspectionBusy = true;
+    call(convert?"inspection_convert":"inspection_save",{id:cur.job.id,inspection:inspectionRecord()}).then(function(d){
+      cur = d; inspectionChanged = false; inspectionBusy = false;
+      try{localStorage.removeItem("ps-inspection-"+cur.job.id);}catch(e){}
+      keepScroll(renderJob); toast(convert?"Converted. Review installation and revised invoice.":"Inspection findings saved.");
+    }).catch(function(e){inspectionBusy=false;toast(e.message);keepScroll(renderJob);});
+  }
+  $("j-body").addEventListener("input",function(e){
+    var t=e.target;if(!cur || !cur.inspection_only)return;
+    if(t.dataset.ins){inspectionRecord()[t.dataset.ins]=t.value;changeInspection();updateComplete();}
+    if(t.dataset.insAlarm!==undefined){inspectionRecord().alarms[Number(t.dataset.insAlarm)][t.dataset.insField]=t.value;changeInspection();updateComplete();}
+  });
+  $("j-body").addEventListener("change",function(e){
+    var t=e.target;if(!cur || !cur.inspection_only)return;
+    if(t.dataset.insCheck){inspectionRecord().checks[t.dataset.insCheck]=t.value;changeInspection();updateComplete();}
+    if(t.dataset.insAlarm!==undefined){inspectionRecord().alarms[Number(t.dataset.insAlarm)][t.dataset.insField]=t.value;changeInspection();updateComplete();}
+    if(t.dataset.insPhoto!==undefined && t.files.length){
+      var index=Number(t.dataset.insPhoto),key=t.dataset.insKind,jobId=cur.job.id;
+      inspectionBusy=true;
+      shrink(t.files[0]).then(function(data){return call("photo_upload",{id:jobId,category:"before",data:data});}).then(function(r){
+        inspectionRecord().alarms[index][key]=r.path;changeInspection();inspectionBusy=false;saveInspection(false);
+      }).catch(function(e){inspectionBusy=false;toast(e.message);keepScroll(renderJob);});
+    }
+  });
+  $("j-body").addEventListener("click",function(e){
+    var t=e.target.closest("button");if(!t || !cur || !cur.inspection_only)return;
+    if(t.id==="ins-add"){inspectionRecord().alarms.push({id:"e"+Date.now(),type:"battery",location:"",expiry:"",photo:"",plate:""});changeInspection();keepScroll(renderJob);}
+    if(t.dataset.insRemove!==undefined){inspectionRecord().alarms.splice(Number(t.dataset.insRemove),1);changeInspection();keepScroll(renderJob);}
+    if(t.dataset.insCompliant){inspectionRecord().compliant=t.dataset.insCompliant==="yes";inspectionRecord().decision="";changeInspection();keepScroll(renderJob);}
+    if(t.dataset.insDecision){inspectionRecord().decision=t.dataset.insDecision;changeInspection();keepScroll(renderJob);}
+    if(t.id==="ins-save")saveInspection(false);
+    if(t.id==="ins-convert")saveInspection(true);
+  });
+
   function renderJob(){
     var j = cur.job, done = j.status === "completed";
     $("j-title").textContent = "J" + j.job_no;
@@ -1071,6 +1151,7 @@
       '</div>' : '') + (j.notes ? '<div class="notes"><b>Office notes</b>' + esc(j.notes) + '</div>' : '') + '</div>';
 
     if (done){
+      if (cur.inspection_only) { html += inspectionCard(); $("j-body").innerHTML=html; renderSteps(); return; }
       html += '<div class="card"><div class="ok-banner">Completed' + (j.completed_at ? " " + new Date(j.completed_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit" }) : "") + '</div>' +
         (cur.warranty
           ? '<div class="muted">Warranty visit · no charge</div><div class="tot">' + unitList().map(function(u){ return '<div><span>' + esc(u.location) + ' · ' + (u.type === "hardwired" ? "Hardwired" : "Battery") + (u.fault ? ' · ' + esc(u.fault) : '') + '</span><span>' + (u.outcome === "replaced" ? "Replaced" : "Fixed") + '</span></div>'; }).join("") + '</div>'
@@ -1086,7 +1167,8 @@
     // (no status buttons: the job moves to Partial when synchronised and Completed at sign-off)
 
     var paid = j.pay_status === "paid", approved = !!j.approved_at, due = cur.totals.due;
-    if (cur.warranty){ html += warrantyAlarmsCard(); approved = true; due = 0; } else {
+    if (cur.inspection_only){ html += inspectionCard(); approved = true; due = 0; } else if (cur.warranty){ html += warrantyAlarmsCard(); approved = true; due = 0; } else {
+    if(j.inspection_converted_at) html += '<div class="card"><div class="ok-banner">Inspection converted to installation</div><p>$120 payment credited in full. $50 installation call-out included below.</p><p class="muted">Customer: ' + esc(j.inspection.customer_name) + '. Findings: ' + esc(j.inspection.reason) + '</p></div>';
     // 1. smoke alarms, added one at a time with a photo
     var units = unitList();
     var nBat = units.filter(function(u){ return u.type === "battery"; }).length, nHw = units.length - nBat;
@@ -1109,11 +1191,11 @@
       '<textarea id="j-notes" rows="2" placeholder="Anything the office should know">' + esc(j.tech_notes || "") + '</textarea></div></div>';
 
     // 2. invoice: a plain line-item table; starts empty, shows only what has been recorded
-    var extras = cur.catalogue.filter(function(p){ return !isAlarm(p.code); });
+    var extras = cur.catalogue.filter(function(p){ return !isAlarm(p.code) && (!j.inspection_converted_at || !["inspection","installation_callout"].includes(p.code)); });
     var short = function(l){ return String(l).replace(/\s*[\u2013-]\s*supplied (&|and) installed/i, ""); };
     var line = function(desc, qtyCell, amount, extra){ return '<div class="inv-row"><div class="d">' + desc + (extra || "") + '</div><div class="q">' + qtyCell + '</div><div class="a">' + money(amount) + '</div></div>'; };
     var rowsHtml = cur.items.map(function(it, i){
-      if (isAlarm(it.code) || it.code === "quote_discount") return line(esc(short(it.label)), it.qty, it.amount_cents);
+      if (isAlarm(it.code) || it.code === "quote_discount" || it.code === "installation_callout") return line(esc(short(it.label)), it.qty, it.amount_cents);
       if (it.code === "other") return line(esc(it.label), it.qty, it.amount_cents, paid ? "" : '<button class="del" data-del="' + i + '">Remove</button>');
       return line(esc(short(it.label)), stepper(it.code, it.qty, paid), it.amount_cents);
     }).join("");
@@ -1193,12 +1275,12 @@
         ? '<button type="button" class="signbox done" id="so-sign" aria-label="Signature captured. Tap to sign again"><img src="' + esc(sigData) + '" alt="Signature"></button>' +
           '<button class="link" id="so-clear" style="align-self:flex-start;margin-top:4px">Clear signature</button>'
         : '<button type="button" class="signbox" id="so-sign"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4zM13.5 6.5l4 4"/></svg>Tap to sign</button>') + '</div>' +
-      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> ' + (cur.warranty ? "I confirm the smoke alarms have been checked and are working." : "I confirm that the installed smoke alarms are compliant and the work is complete.") + '</label>' +
+      '<label class="chk"><input type="checkbox" id="so-ok"' + (soOk ? " checked" : "") + '> ' + (cur.inspection_only ? "I confirm the inspection checklist, evidence and recorded compliance outcome are accurate." : cur.warranty ? "I confirm the smoke alarms have been checked and are working." : "I confirm that the installed smoke alarms are compliant, the customer approved the revised price and the work is complete.") + '</label>' +
       '<div id="sync-bar2" style="margin-top:10px">' + (dirty && !syncing ? '<button class="btn btn-primary" data-sync>Synchronise</button>' : '') + '</div>' +
       '</div></div>' +
       '<div class="stickybar"><button class="btn btn-green" id="complete" disabled>' + (cur.warranty ? "Complete warranty job" : 'Complete job &amp; send ' + (due <= 0 || paid || pay.full === true || pay.method === "card" ? "invoice" : "pending invoice")) + '</button>' +
       '<p class="nexthint" id="so-hint"></p></div>';
-    completeState = { alarms: alarmsDone(), approved: approved, payReady: payReady };
+    completeState = { alarms: cur.inspection_only ? inspectionReady() : alarmsDone(), approved: approved, payReady: payReady };
 
     $("j-body").innerHTML = html;
     updateComplete();
@@ -1302,7 +1384,7 @@
         jobId: cur.job.id, jobNo: cur.job.job_no, name: cur.job.customer_name, tech: me && me.code, at: Date.now(),
         items: wireItems(), units: JSON.parse(JSON.stringify(unitList())), notes: cur.job.tech_notes || "", approve: !!cur.job.approved_at, quote_discount_cents: cur.quote_discount_cents, saved: false, error: null,
         complete: { id: cur.job.id, paid_in_full: pay.method === "cash" && pay.full === true, method: pay.method,
-          cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData }
+          cash_cents: pay.method === "cash" && pay.full === false ? Math.max(0, cashCents()) : 0, signoff_name: $("so-name").value.trim(), signature: sigData, inspection_confirmed: !!soOk, installation_compliant: !!soOk, customer_approved: !!cur.job.approved_at }
       };
       var dueNow = cur.totals.due;
       qSet(rec);                                   // saved on the phone before anything is sent
@@ -1316,7 +1398,9 @@
         }
         else {
           var inv = d.invoice || {};
+          if(d.job.compliance_outcome === "declined") $("done-title") && ($("done-title").textContent = "Inspection completed: Non-compliant");
           $("done-msg").textContent = "J" + d.job.job_no + " · " + d.job.customer_name + " · " +
+            (d.job.compliance_outcome === "declined" ? "Non-compliant, upgrade declined. No compliance certificate. " : d.job.compliance_outcome === "compliant" ? "Inspection completed: Compliant. " : "") +
             ({ paid:"paid in full.", later: money(dueNow) + " owing, to be collected by the office.", none:"nothing to pay on site." }[d.job.pay_status] || "") +
             " " + (inv.status === "sent" ? "Invoice emailed to " + inv.to + "." : "Invoice email NOT sent" + (inv.error ? " (" + inv.error + ")" : "") + ". Tell the office.") +
             (d.certificate && d.certificate.status === "sent" ? " Compliance certificate emailed." :
@@ -1459,3 +1543,4 @@ if ("serviceWorker" in navigator) window.addEventListener("load", function(){ na
 </script>
 </body>
 </html>
+
