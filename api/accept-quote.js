@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
   address.full = `${address.line1}, ${address.suburb} ${address.state} ${address.postcode}`;
   // The faulty-alarm notice must have been ticked, and the page must be showing the wording this server knows.
   if (b.careNoticeAccepted !== true) return res.status(400).json({ error: "Please tick the box to confirm you've read how faulty alarms are handled." });
-  if (b.careNoticeVersion !== CN.VERSION) return res.status(400).json({ error: "This page is out of date. Please refresh it and try again." });
+  if (b.careNoticeVersion !== CN.VERSION && (!CN.INSPECTION_VERSION || b.careNoticeVersion !== CN.INSPECTION_VERSION)) return res.status(400).json({ error: "This page is out of date. Please refresh it and try again." });
   // Optional billing address: the customer ticks "same as installation" or enters a different one for the invoice.
   let billing = null;
   if (b.billingSame === false) {
@@ -92,6 +92,8 @@ module.exports = async (req, res) => {
     if (!lead || lead.quote_ref !== ref || lead.email?.toLowerCase() !== customerEmail.toLowerCase()) throw new Error('Please use your latest quote link or contact PowerSmart.');
     const saved = QP.quoteOptions(quote);
     serviceMode = saved.serviceMode; q = saved.calculation;
+    const requiredCareVersion = serviceMode === "inspect" ? CN.INSPECTION_VERSION || CN.VERSION : CN.VERSION;
+    if (b.careNoticeVersion !== requiredCareVersion) return res.status(400).json({ error: "This page is out of date. Please refresh it and review the notice for your quote." });
     if (paymentMethod === 'stripe') {
       const checkout = await QP.checkout(quote, lead);
       stripeUrl = checkout.url; paymentReceived = checkout.paid;
@@ -104,7 +106,7 @@ module.exports = async (req, res) => {
   }
 
   // Record the tick on the customer and email them (bcc support) the PDF copy. Never blocks or fails the acceptance.
-  await CN.acceptAndSend({ lead: careLead, name: customerName, ref, address: address.full, agent: "System" });
+  await CN.acceptAndSend({ lead: careLead, name: customerName, ref, address: address.full, agent: "System", version: serviceMode === "inspect" ? CN.INSPECTION_VERSION || CN.VERSION : CN.VERSION });
 
   const apiKey = 'transactional-email';
   if (apiKey) {

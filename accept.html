@@ -235,6 +235,7 @@
 
   <p class="foot">PowerSmart Pty Ltd &middot; ABN 41 669 943 720 &middot; <a href="https://smokealarms.powersmartco.com.au">smokealarms.powersmartco.com.au</a></p>
 
+<script src="/assets/inspection-care.js"></script>
 <script>
 (function(){
   "use strict";
@@ -247,6 +248,13 @@
   var email = (p.get("email") || "").slice(0, 254);
   var agent = (p.get("agent") || "").slice(0, 120);
   var mode = p.get("mode") === "inspect" ? "inspect" : "install";
+  if (mode === "inspect" && window.PSInspectionCare) {
+    var care = window.PSInspectionCare;
+    document.getElementById("noticeTitle").textContent = care.HEADLINE;
+    document.querySelector(".notice-head p").textContent = care.LEAD;
+    document.querySelector(".nsit").textContent = care.SITUATION;
+    document.querySelector("#noticeTickRow span").textContent = care.TICK;
+  }
   var alarms = Math.max(0, Math.min(50, parseInt(p.get("alarms"), 10) || 0));
   var ctrl = Math.max(0, Math.min(10, parseInt(p.get("ctrl"), 10) || 0));
   // Existing quote URLs have no fee parameter and retain their promised $35.
@@ -312,7 +320,7 @@
       body: JSON.stringify({ ref:ref, customerName:name, customerEmail:email, agentName:agent, serviceMode:mode, alarmQty:alarms, controllerQty:ctrl, paymentMethod:paymentMethod,
         addressLine1:document.getElementById("addressLine1").value.trim(), addressSuburb:document.getElementById("addressSuburb").value.trim(),
         addressState:document.getElementById("addressState").value, addressPostcode:document.getElementById("addressPostcode").value.trim(),
-        careNoticeAccepted:true, careNoticeVersion:"v2",
+        careNoticeAccepted:true, careNoticeVersion:mode === "inspect" && window.PSInspectionCare ? window.PSInspectionCare.VERSION : "v2",
         billingSame:document.getElementById("billingSame").checked,
         billingLine1:document.getElementById("billingLine1").value.trim(), billingSuburb:document.getElementById("billingSuburb").value.trim(),
         billingState:document.getElementById("billingState").value, billingPostcode:document.getElementById("billingPostcode").value.trim() })

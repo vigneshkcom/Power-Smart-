@@ -194,3 +194,24 @@ test('a discounted quote reduces the balance only, and its saved total still ver
   assert.equal(Q.normalise({serviceMode:'inspect',discount:50}).discount,0);
   assert.equal(Q.buildQuote(Q.normalise({serviceMode:'install',alarmQty:1,discount:9999})).balance,0);
 });
+
+
+test('inspection acceptance requires the conditional notice for the saved quote and records that version',async()=>{
+  const f=fixture(), accepted=[];
+  f.quote.body_html=Q.renderQuoteEmail({ref:'7011',customerEmail:f.lead.email,serviceMode:'inspect',alarmQty:0,controllerQty:0}).html;f.quote.quote_total=120;
+  const handler=load('accept-quote.js',{'./_quote':Q,'./_supabase':f.SB,'./_quote-payments':f.QP,'./_care-notice':{VERSION:'v2',INSPECTION_VERSION:'v3',acceptAndSend:async args=>{accepted.push(args);return {status:'sent'};}}});
+  const body={careNoticeAccepted:true,careNoticeVersion:'v3',ref:'7011',customerEmail:f.lead.email,customerName:'Test',serviceMode:'install',alarmQty:99,paymentMethod:'stripe',addressLine1:'1 Test Road',addressSuburb:'Brisbane',addressState:'QLD',addressPostcode:'4000'};
+  const stale=await invoke(handler,{method:'POST',body:{...body,careNoticeVersion:'v2'}});
+  assert.equal(stale.status,400);
+  assert.equal(f.sessions.size,0,'no checkout before the correct notice is acknowledged');
+  const result=await invoke(handler,{method:'POST',body});
+  assert.equal(result.status,200);
+  assert.equal(f.payments[0].amount_cents,12000);
+  assert.equal(f.payments[0].payment_type,'inspection');
+  assert.equal(accepted[0].version,'v3');
+});
+test('an installation quote cannot be accepted using the inspection-only notice',async()=>{
+  const f=fixture(),handler=load('accept-quote.js',{'./_quote':Q,'./_supabase':f.SB,'./_quote-payments':f.QP,'./_care-notice':{VERSION:'v2',INSPECTION_VERSION:'v3',acceptAndSend:async()=>({})}});
+  const result=await invoke(handler,{method:'POST',body:{careNoticeAccepted:true,careNoticeVersion:'v3',ref:'7011',customerEmail:f.lead.email,customerName:'Test',paymentMethod:'stripe',addressLine1:'1 Test Road',addressSuburb:'Brisbane',addressState:'QLD',addressPostcode:'4000'}});
+  assert.equal(result.status,400);assert.equal(f.sessions.size,0);
+});

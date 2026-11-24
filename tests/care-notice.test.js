@@ -17,7 +17,7 @@ test('the accept page pop-up carries exactly the approved wording and version', 
   for (const t of [W.HEADLINE, W.LEAD, W.SITUATION, W.SAFETY_LABEL, W.SAFETY, W.COMFORT_LABEL, W.COMFORT, W.LAW, W.TICK, ...W.STEPS.flatMap((s) => [s.title, s.text])]) {
     assert.ok(html.includes(t), 'accept.html is missing: ' + t);
   }
-  assert.match(fs.readFileSync(require.resolve('../accept.html'), 'utf8'), new RegExp(`careNoticeVersion:"${CN.VERSION}"`));
+  assert.match(fs.readFileSync(require.resolve('../accept.html'), 'utf8'), new RegExp(`careNoticeVersion:[^\\n]*"${CN.VERSION}"`));
 });
 
 // ---- PDF ----

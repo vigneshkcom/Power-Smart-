@@ -12,6 +12,8 @@ const Q = require("./_quote");
 const { logEmail } = require("./_maillog");
 
 const VERSION = "v2";
+const INSPECTION_WORDING = require("../assets/inspection-care");
+const INSPECTION_VERSION = INSPECTION_WORDING.VERSION;
 // Older acceptances keep the exact wording the customer ticked. Only step 3 has changed between versions.
 const STEP3_BY_VERSION = {
   v1: "Swap the alarm over. For hardwired alarms our electrician has already wired the base plate, so you only change the alarm itself and never touch the wiring. Our step-by-step pairing guide shows how to connect it to your other alarms.",
@@ -41,6 +43,7 @@ const stepsFor = (version) => STEPS.map((s, i) => (i === 2 && STEP3_BY_VERSION[v
 const versionOf = (body) => (/\((v\d+)\) accepted/.exec(body || "") || [])[1] || VERSION;
 
 const WORDING = { VERSION, TITLE, SUBTITLE, HEADLINE, LEAD, SITUATION, STEPS, SAFETY_LABEL, SAFETY, COMFORT_LABEL, COMFORT, LAW, TICK };
+const wordingFor = version => version === INSPECTION_VERSION ? { ...WORDING, ...INSPECTION_WORDING } : WORDING;
 
 const TZ = "Australia/Brisbane";
 const enc = encodeURIComponent;
@@ -58,6 +61,7 @@ const INK = hex("#0B1B1F"), BODY = hex("#41585D"), MUTED = hex("#6B8288"), TEAL 
 // With acceptedAt: the Acknowledgement the customer ticked. Without it (customers who did not accept the notice online, e.g. sent
 // with their certificate): the same information as a plain "Alarm Care Notice", with no acknowledgement block.
 async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = VERSION, jobNo, issuedAt }) {
+  const { SUBTITLE, HEADLINE, LEAD, SITUATION, TICK } = wordingFor(version);
   const acknowledged = Boolean(acceptedAt), docTitle = acknowledged ? TITLE : NOTICE_TITLE;
   const doc = await PDFDocument.create();
   doc.setTitle(`${docTitle}${acknowledged ? (ref ? " - " + ref : "") : (jobNo ? " - J" + jobNo : "")}`); doc.setAuthor("PowerSmart Pty Ltd"); doc.setSubject(SUBTITLE);
@@ -105,7 +109,7 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
   para(SUBTITLE, { size: 11, color: MUTED, gap: 10 });
 
   // Who and what this is for
-  const details = [["Customer", name], ["Installation address", address], acknowledged ? ["Quote reference", ref] : ["Job reference", jobNo ? `J${jobNo}` : ""]].filter(([, v]) => v);
+  const details = [["Customer", name], [version === INSPECTION_VERSION ? "Inspection address" : "Installation address", address], acknowledged ? ["Quote reference", ref] : ["Job reference", jobNo ? `J${jobNo}` : ""]].filter(([, v]) => v);
   const dh = 12 + details.length * 17; need(dh + 10);
   page.drawRectangle({ x: M, y: y - dh, width: CW, height: dh, color: PAPER, borderColor: LINE, borderWidth: 0.8 });
   details.forEach(([k, v], i) => { const ly = y - 20 - i * 17 + 4; text(k, M + 12, ly, font, 9, MUTED); text(v, M + 130, ly, bold, 10, INK); });
@@ -141,7 +145,7 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
     const issued = new Date(issuedAt || Date.now()).toLocaleDateString("en-AU", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" });
     need(110);
     para("Keep this notice", { f: bold, size: 13, color: INK, lh: 17, gap: 6 });
-    const kl = wrap("This notice explains how we look after your smoke alarms if anything ever goes wrong. Please keep it with your Compliance Certificate and your alarm manuals.", font, 10, CW - 24), kh = 24 + kl.length * 14.5 + 18 + 8; need(kh + 10);
+    const kl = wrap(version === INSPECTION_VERSION ? INSPECTION_WORDING.KEEP_NOTE : "This notice explains how we look after your smoke alarms if anything ever goes wrong. Please keep it with your Compliance Certificate and your alarm manuals.", font, 10, CW - 24), kh = 24 + kl.length * 14.5 + 18 + 8; need(kh + 10);
     page.drawRectangle({ x: M, y: y - kh, width: CW, height: kh, color: rgb(1, 1, 1), borderColor: TEAL, borderWidth: 1.2 });
     let ky = y - 12; for (const l of kl) { ky -= 14.5; text(l, M + 12, ky + 3, font, 10, INK); }
     text(`Issued by PowerSmart on ${issued}  |  Notice version ${version}`, M + 12, y - kh + 12, font, 8.5, MUTED);
@@ -160,12 +164,15 @@ async function renderCareNoticePdf({ name, address, ref, acceptedAt, version = V
 
 // ---------- email ----------
 function careNoticeEmail({ name, ref, acceptedAt, version = VERSION }) {
+  const { HEADLINE, LEAD, SITUATION } = wordingFor(version);
+  const inspection = version === INSPECTION_VERSION;
+  const intro = inspection ? `Thanks for accepting your inspection quote${ref ? " " + ref : ""}. The attached notice explains how alarm care would apply if you choose our smoke alarm supply and installation. It does not cover the existing alarms checked during an inspection-only visit.` : "";
   const steps = stepsFor(version);
-  const first = firstName(name), subject = `Your PowerSmart alarm care notice${ref ? ` (${ref})` : ""}`;
+  const first = firstName(name), subject = `${inspection ? "If you proceed: PowerSmart smoke alarm care" : "Your PowerSmart alarm care notice"}${ref ? ` (${ref})` : ""}`;
   const stepsText = steps.map((s, i) => `${i + 1}. ${s.title}: ${s.text}`).join("\n");
-  const text = `Hi ${first},\n\nThanks for accepting your quote${ref ? " " + ref : ""}. Attached is a copy of the ${TITLE} you confirmed on ${when(acceptedAt)}. Please keep it for your records.\n\n${HEADLINE}. ${SITUATION}:\n\n${stepsText}\n\nPairing guide: ${PAIRING_URL}\n\n${SAFETY_LABEL} ${SAFETY}\n\n${COMFORT_LABEL} ${COMFORT}\n\n${LAW}\n\nKind regards,\nThe PowerSmart Team\n\nPowerSmart Pty Ltd | ABN ${Q.ABN}\n${Q.PHONE_DISPLAY} | ${Q.SUPPORT_EMAIL}`;
+  let text = `Hi ${first},\n\nThanks for accepting your quote${ref ? " " + ref : ""}. Attached is a copy of the ${TITLE} you confirmed on ${when(acceptedAt)}. Please keep it for your records.\n\n${HEADLINE}. ${SITUATION}:\n\n${stepsText}\n\nPairing guide: ${PAIRING_URL}\n\n${SAFETY_LABEL} ${SAFETY}\n\n${COMFORT_LABEL} ${COMFORT}\n\n${LAW}\n\nKind regards,\nThe PowerSmart Team\n\nPowerSmart Pty Ltd | ABN ${Q.ABN}\n${Q.PHONE_DISPLAY} | ${Q.SUPPORT_EMAIL}`;
   const step = (s, i) => `<tr><td width="30" valign="top" style="padding:6px 0;"><span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:#E7F4F6;color:#1E5F6B;font-size:12px;font-weight:bold;text-align:center;line-height:24px;">${i + 1}</span></td><td style="padding:6px 0 6px 8px;font-size:14px;color:#41585D;line-height:1.6;"><strong style="color:#0B1B1F;">${esc(s.title)}</strong><br>${esc(s.text)}${i === 2 ? ` <a href="${PAIRING_URL}" style="color:#1E5F6B;font-weight:bold;">Open the pairing guide</a>` : ""}</td></tr>`;
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
+  let html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
 <body style="margin:0;padding:0;background-color:#EAF2F3;">
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#EAF2F3;"><tr><td align="center" style="padding:26px 12px;">
 <table role="presentation" cellpadding="0" cellspacing="0" width="620" style="width:620px;max-width:100%;font-family:Arial,Helvetica,sans-serif;">
@@ -179,6 +186,12 @@ function careNoticeEmail({ name, ref, acceptedAt, version = VERSION }) {
 <tr><td style="background:#ffffff;border-radius:0 0 14px 14px;padding:12px 32px 28px;font-size:12px;color:#6B8288;line-height:1.6;"><em>${esc(LAW)}</em><p style="margin:14px 0 0;font-size:14px;color:#41585D;">Kind regards,<br><strong style="color:#0B1B1F;">The PowerSmart Team</strong></p></td></tr>
 <tr><td align="center" style="padding:20px 12px 6px;"><p style="margin:0 0 4px;font-size:12px;color:#6B8288;font-weight:bold;">PowerSmart Pty Ltd &middot; ABN ${Q.ABN}</p><p style="margin:0;font-size:11px;color:#8AA0A5;"><a href="tel:${Q.PHONE_TEL}" style="color:#8AA0A5;">${Q.PHONE_DISPLAY}</a> &middot; ${Q.SUPPORT_EMAIL}</p></td></tr>
 </table></td></tr></table></body></html>`;
+  if (inspection) {
+    const originalIntro = `Thanks for accepting your quote${ref ? " " + ref : ""}. Attached is a copy of the ${TITLE} you confirmed on ${when(acceptedAt)}. Please keep it for your records.`;
+    text = text.replace(originalIntro, intro + "\n\n" + LEAD);
+    const htmlIntro = `Thanks for accepting your quote${ref ? " " + esc(ref) : ""}. Attached is a copy of the <strong style="color:#0B1B1F;">${esc(TITLE)}</strong> you confirmed on ${esc(when(acceptedAt))}. Please keep it for your records.`;
+    html = html.replace(htmlIntro, esc(intro) + "<br><br>" + esc(LEAD));
+  }
   return { subject, html, text };
 }
 
@@ -189,12 +202,13 @@ const tagSafe = (v) => String(v == null ? "" : v).replace(/[\[\]\r\n]/g, " ").tr
 const noteLike = (ref) => `${enc(`*${NOTE_MARK}*accepted for quote ${ref}*`)}`;
 
 // Saves "customer ticked the notice" on the lead once per quote; returns the time of the first acceptance.
-async function recordAcceptance({ lead, ref, name, address, now = new Date() }) {
-  const found = await SB.sb(`lead_comments?lead_id=eq.${enc(lead.id)}&kind=eq.status&body=like.${noteLike(ref)}&select=body,created_at&order=created_at.asc&limit=1`);
+async function recordAcceptance({ lead, ref, name, address, now = new Date(), version = VERSION }) {
+  const { TICK } = wordingFor(version);
+  const found = await SB.sb(`lead_comments?lead_id=eq.${enc(lead.id)}&kind=eq.status&body=like.${enc(`*${NOTE_MARK} (${version}) accepted for quote ${ref}*`)}&select=body,created_at&order=created_at.asc&limit=1`);
   if (found && found[0]) return { acceptedAt: parseAccepted(found[0].body) || found[0].created_at, existing: true };
   const acceptedAt = now.toISOString();
   await SB.sb("lead_comments", { method: "POST", prefer: "return=minimal", body: { lead_id: lead.id, author: "System", kind: "status",
-    body: `${NOTE_MARK} (${VERSION}) accepted for quote ${ref} at ${when(acceptedAt)}. The customer ticked: "${TICK}" [accepted_at=${acceptedAt}] [name=${tagSafe(name || lead.name)}] [address=${tagSafe(address)}]` } });
+    body: `${NOTE_MARK} (${version}) accepted for quote ${ref} at ${when(acceptedAt)}. The customer ticked: "${TICK}" [accepted_at=${acceptedAt}] [name=${tagSafe(name || lead.name)}] [address=${tagSafe(address)}]` } });
   return { acceptedAt, existing: false };
 }
 
@@ -234,11 +248,11 @@ async function sendCareNotice({ lead, name, ref, address, acceptedAt, agent = "S
 
 // What /api/accept-quote calls after saving the acceptance. Never throws, and never holds the customer up for more than
 // `limitMs` (they may be about to pay): the tick is recorded first; if the email is slow, staff can use Resend care notice.
-async function acceptAndSend({ lead, name, ref, address, agent, limitMs = 6000 }) {
+async function acceptAndSend({ lead, name, ref, address, agent, version = VERSION, limitMs = 6000 }) {
   let timer;
   const work = (async () => {
-    const { acceptedAt } = await recordAcceptance({ lead, ref, name: name || lead.name, address });
-    return { acceptedAt, ...(await sendCareNotice({ lead, name: name || lead.name, ref, address, acceptedAt, agent })) };
+    const { acceptedAt } = await recordAcceptance({ lead, ref, name: name || lead.name, address, version });
+    return { acceptedAt, ...(await sendCareNotice({ lead, name: name || lead.name, ref, address, acceptedAt, agent, version })) };
   })().catch((e) => { console.error("care notice failed:", e.message); return { status: "failed", error: e.message }; });
   const slow = new Promise((resolve) => { timer = setTimeout(() => resolve({ status: "pending", reason: "Still sending." }), limitMs); });
   try { return await Promise.race([work, slow]); } finally { clearTimeout(timer); }
@@ -284,9 +298,9 @@ async function findAcceptance(job) {
 // online, otherwise the plain Alarm Care Notice, so every customer gets it. Returns { filename, content, kind } or null (never throws).
 async function careNoticeForJob(job) {
   try {
-    if (!job || !job.job_no || job.work_type === "warranty") return null;
+    if (!job || !job.job_no || ["warranty", "inspection"].includes(job.work_type)) return null;
     const found = job.lead_id ? await findAcceptance(job) : null;
-    if (found) {
+    if (found && versionOf(found.body) !== INSPECTION_VERSION) {
       const lead = (await SB.sb(`leads?id=eq.${enc(job.lead_id)}&select=name,address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0] || {};
       return { kind: "acknowledgement", filename: `PowerSmart-Alarm-Care-Acknowledgement-J${job.job_no}.pdf`, content: await renderCareNoticePdf(archiveFields(job, found, lead)) };
     }
@@ -303,9 +317,9 @@ async function careNoticeForJob(job) {
 // notice with their certificate instead, which is filed with it) and for warranty visits. Saving again overwrites the same file.
 async function archiveForJob(job) {
   try {
-    if (!job || !job.lead_id || !job.job_no || job.work_type === "warranty") return { status: "skipped" };
+    if (!job || !job.lead_id || !job.job_no || ["warranty", "inspection"].includes(job.work_type)) return { status: "skipped" };
     const found = await findAcceptance(job);
-    if (!found) return { status: "skipped", reason: "The customer has not accepted the Alarm Care Notice." };
+    if (!found || versionOf(found.body) === INSPECTION_VERSION) return { status: "skipped", reason: "The installation care notice will accompany the completed installation certificate." };
     const lead = (await SB.sb(`leads?id=eq.${enc(job.lead_id)}&select=name,address_line1,address_suburb,address_state,address_postcode&limit=1`))?.[0] || {};
     const pdf = await renderCareNoticePdf(archiveFields(job, found, lead));
     const result = await require("./_job-documents").saveCustomerDocuments(job, [{ filename: `PowerSmart-Alarm-Care-Acknowledgement-J${job.job_no}.pdf`, content: pdf }]);
@@ -319,4 +333,4 @@ async function archiveForJob(job) {
   }
 }
 
-module.exports = { careNoticeForJob, archiveForJob, archiveFields, stepsFor, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };
+module.exports = { INSPECTION_VERSION, INSPECTION_WORDING, wordingFor, careNoticeForJob, archiveForJob, archiveFields, stepsFor, WORDING, VERSION, TICK, NOTE_MARK, PAIRING_URL, renderCareNoticePdf, careNoticeEmail, recordAcceptance, sendCareNotice, acceptAndSend, resendForLead, parseAccepted };
