@@ -59,7 +59,7 @@ function vmLoad(file, mocks) {
 }
 const QUOTE_TEXT = '- Photoelectric interconnected smoke alarms - supplied & installed (5 x $79.00): $395.00\n- Smoke alarm remote controller (test / hush / locate) (1 x $35.00): $35.00';
 
-const invoiceCalls = [], certCalls = [], afterPayCalls = [];
+const invoiceCalls = [], certCalls = [], afterPayCalls = [], reviewCalls = [];
 function setup(provider) {
   invoiceCalls.length = 0; certCalls.length = 0; afterPayCalls.length = 0;
   const db = fakeDb({
@@ -79,7 +79,7 @@ function setup(provider) {
   });
   const Stripe = fakeStripe(provider);
   const jobs = vmLoad('_jobs.js', { './_supabase': db });
-  const mocks = { './_dropbox': { photosForJob: async job => ({ photos: [...(job.inspection?.alarms || []).flatMap(a => [{path:a.photo},{path:a.plate}]), ...(job.alarm_units || []).map(a => ({path:a.photo}))] }) }, './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
+  const mocks = { './_dropbox': { photosForJob: async job => ({ photos: [...(job.inspection?.alarms || []).flatMap(a => [{path:a.photo},{path:a.plate}]), ...(job.alarm_units || []).map(a => ({path:a.photo}))] }) }, './_supabase': db, './_stripe': Stripe, './_jobs': jobs, './_quote': require('../api/_quote'), './_payments': { checkoutUrl: (u) => new URL(u).href }, './_after-payment': { releaseAfterPayment: async (id, o) => { afterPayCalls.push({ id, ...o }); return {}; } }, './_review-sms': { sendForCompletedJob: async (j) => { reviewCalls.push(j); return { status: 'sent' }; } }, './_certificate': { issueCertificate: async (id, o) => { certCalls.push({ id, ...o }); return { status: 'sent' }; } }, './_job-invoice': { sendJobInvoice: async (a) => { invoiceCalls.push(a); return { status: 'sent', to: a.job.email }; }, BANK: { name: 'PowerSmart Pty Ltd', bsb: '083-004', account: '270103472' } } };
   const tech = vmLoad('_tech.js', mocks);
   async function call(body, techCode = '1011') {
     let code = 200, data;
@@ -636,3 +636,13 @@ test('inspection credit cannot use another quote, an unpaid payment or an alread
   }
 });
 
+
+test('completing a job asks for the Google review once, with the completed job', async () => {
+  const t = setup(), before = reviewCalls.length;
+  await t.call({ action: 'save', id: 'j1', items: [{ code: 'alarm_battery', qty: 1 }], approve: true });
+  const r = await t.call({ action: 'complete', id: 'j1', paid_in_full: false, signoff_name: 'Jake Turner', signature: 'data:image/png;base64,iVBORw0KGgo=' });
+  assert.equal(r.code, 200);
+  assert.equal(r.data.review.status, 'sent');
+  assert.equal(reviewCalls.length, before + 1);
+  assert.equal(reviewCalls.at(-1).status, 'completed');
+});

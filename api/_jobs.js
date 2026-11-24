@@ -70,6 +70,8 @@ function pickJob(b) {
     f.work_type = b.work_type;
   }
   // Only sent for warranty jobs (needs supabase/warranty-jobs.sql): which channels may message the customer about this job.
+  // Google review SMS after completion (needs supabase/review-sms.sql). false = the office stopped it for this job.
+  if (b.review_sms !== undefined) f.review_sms = b.review_sms !== false;
   if (b.notify_email !== undefined || b.notify_sms !== undefined) {
     f.notify_email = b.notify_email === true; f.notify_sms = b.notify_sms === true;
     f.notify_customer = f.notify_email || f.notify_sms;

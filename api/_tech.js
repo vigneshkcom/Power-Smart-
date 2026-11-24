@@ -527,7 +527,8 @@ async function handler(req, res) {
       const certificate = record.compliant ? await require("./_certificate").issueCertificate(done.id, { agent: tech.name }) : { status: "skipped", reason: "Non-compliant property. Customer declined upgrade. No compliance certificate." };
       await J.leadNote(job.lead_id, tech.name, I.LABELS[outcome] + ". J" + job.job_no + ". $120 retained, $0 to collect. " + (record.reason || "") + " Findings: " + record.findings);
       if (job.lead_id) await sb(`leads?id=eq.${job.lead_id}`, { method: "PATCH", body: { stage: "won" }, prefer: "return=minimal" });
-      return res.status(200).json({ ok: true, job: done, invoice, certificate });
+      const review = await require("./_review-sms").sendForCompletedJob(done, "System");
+      return res.status(200).json({ ok: true, job: done, invoice, certificate, review });
     }
 
     if (b.action === "complete") {
@@ -606,7 +607,9 @@ async function handler(req, res) {
         await J.leadNote(current.lead_id, tech.name,
           `✅ Job J${current.job_no} completed and signed off by ${signoffName}. Invoice ${money(t.total)}${items.length ? ": " + itemsSummary(items) : ""}. ${payText} ${invoiceText}${notes}`);
       }
-      return res.status(200).json({ ok: true, job: done, invoice, certificate });
+      const review = await require("./_review-sms").sendForCompletedJob({ ...current, ...done }, "System");
+      if (current.lead_id && review.status === "failed") await J.leadNote(current.lead_id, "System", `Google review SMS not sent for J${current.job_no}: ${review.error}`).catch(() => {});
+      return res.status(200).json({ ok: true, job: done, invoice, certificate, review });
     }
 
     return res.status(400).json({ error: "Unknown action" });

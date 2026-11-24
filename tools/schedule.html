@@ -463,6 +463,10 @@
             <label><input type="checkbox" id="jm-wnotify-sms"> SMS <span id="jm-wnotify-sms-to" class="confirm-to"></span></label>
             <small id="jm-wnotify-hint" class="hint"></small>
           </div>
+          <div class="field full confirm-box" id="jm-review-wrap">
+            <label class="confirm-main"><input type="checkbox" id="jm-review" checked> Send Google review SMS to the customer when the electrician completes the job</label>
+            <small id="jm-review-hint" class="hint">Untick to stop it, e.g. if the job is being moved or redone. Not sent for warranty visits.</small>
+          </div>
           <div class="field full" id="jm-photos-wrap" style="display:none"><label>Job photos</label><div id="jm-photos"></div></div>
           <div class="field full"><label for="jm-notes" id="jm-notes-label">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
         </div>
@@ -1210,6 +1214,8 @@
     $("jm-duration").value = String(j.duration_min || state.slot || 60);
     if (!$("jm-duration").value) $("jm-duration").value = "60";
     $("jm-notes").value = j.notes || "";
+    $("jm-review").checked = j.review_sms !== false;
+    $("jm-review-wrap").style.display = j.review_sms_sent_at ? "none" : "";   // already sent: nothing left to stop
     if (j.scheduled_start){
       var d = bt(j.scheduled_start);
       $("jm-date").value = isoDate(d); setTime(pad(d.getHours()) + ":" + pad(d.getMinutes()));
@@ -1593,6 +1599,8 @@
     };
     var editing = state.editing;
     if (!editing) payload.lead_id = $("jm-lead").value || null;
+    // Only sent when it differs from the default (on), so saving works before supabase/review-sms.sql is run.
+    if ($("jm-review").checked !== (!editing || editing.review_sms !== false)) payload.review_sms = $("jm-review").checked;
     var confirmSend = $("jm-confirm-wrap").style.display !== "none" && $("jm-confirm").checked,
         wantEmail = confirmSend && $("jm-confirm-email").checked && !$("jm-confirm-email").disabled,
         wantSms = confirmSend && $("jm-confirm-sms").checked && !$("jm-confirm-sms").disabled;
