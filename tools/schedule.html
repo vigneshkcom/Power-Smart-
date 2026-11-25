@@ -393,7 +393,7 @@
     <label class="fl" for="f-from">From</label>
     <input type="date" id="f-from">
     <label class="fl">To</label>
-    <span class="to" id="f-to">—</span>
+    <span class="to" id="f-to">-</span>
     <select id="f-slot" aria-label="Timeslot size">
       <option value="30">Timeslot 30 mins</option>
       <option value="60" selected>Timeslot 60 mins (default)</option>
@@ -412,10 +412,10 @@
 
   <main class="wrap">
     <div class="daynav">
-      <button class="btn btn-ghost" id="prev">‹ Previous</button>
-      <button class="btn btn-ghost" id="next">Next ›</button>
+      <button class="btn btn-ghost" id="prev">< Previous</button>
+      <button class="btn btn-ghost" id="next">Next ></button>
       <button class="btn btn-ghost" id="today">Today</button>
-      <div class="title" id="nav-title">—</div>
+      <div class="title" id="nav-title">-</div>
       <div class="seg" role="group" aria-label="View">
         <button data-view="day" class="on">Day</button>
         <button data-view="three">3 Days</button>
@@ -428,7 +428,7 @@
         <h2 id="board-title">Fieldworker schedule</h2>
         <button class="btn btn-ghost" id="print">Print</button>
       </div>
-      <div class="loading" id="loading">Loading schedule…</div>
+      <div class="loading" id="loading">Loading schedule.</div>
       <div id="board"></div>
       <div class="legend" id="legend"></div>
     </section>
@@ -448,7 +448,7 @@
       <div class="modal-head">
         <h3 id="jm-title">New job</h3>
         <span class="status-pill" id="jm-pill" style="display:none"></span>
-        <button class="x" id="jm-close" aria-label="Close">✕</button>
+        <button class="x" id="jm-close" aria-label="Close">?</button>
       </div>
       <div class="modal-body">
         <div class="jm-links" id="jm-links"></div>
@@ -458,7 +458,7 @@
         <div class="fgrid" id="jm-cust-edit-target">
           <div class="section-label cust-hide">Customer</div>
           <div class="field full" id="jm-lead-wrap"><label for="jm-lead">From sales pipeline</label>
-            <select id="jm-lead"><option value="">— Not linked to a lead —</option></select>
+            <select id="jm-lead"><option value="">- Not linked to a lead -</option></select>
           </div>
           <div class="lead-chip cust-hide" id="jm-lead-chip" style="display:none"></div>
           <div class="field full cust-card cust-hide" id="jm-cust-card" hidden></div>
@@ -509,7 +509,7 @@
             <small id="jm-review-hint" class="hint">Untick to stop it, e.g. if the job is being moved or redone. Not sent for warranty visits.</small>
           </div>
           <div class="field full" id="jm-photos-wrap" style="display:none"><label>Job photos</label><div id="jm-photos"></div></div>
-          <div class="field full"><label for="jm-notes" id="jm-notes-label">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms…"></textarea></div>
+          <div class="field full"><label for="jm-notes" id="jm-notes-label">Notes for the electrician</label><textarea id="jm-notes" rows="3" placeholder="Access, parking, gate codes, existing hardwired alarms."></textarea></div>
         </div>
       </div>
       <div class="modal-foot">
@@ -534,7 +534,7 @@
     <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="st-title">
       <div class="modal-head">
         <h3 id="st-title">Stock tracker</h3>
-        <button class="x" id="st-close" aria-label="Close">✕</button>
+        <button class="x" id="st-close" aria-label="Close">?</button>
       </div>
       <div class="modal-body">
         <p class="sh-intro">Every stock delivery, job used and return in one place. See what each electrician should still have, including faulty alarms to hand back.</p>
@@ -542,7 +542,7 @@
         <div class="sh-cards" id="sh-cards"></div>
         <p class="sh-scope" id="sh-scope"></p>
         <p class="sh-warning" id="sh-warning" hidden></p>
-        <div class="sh-panel"><div class="section-label">Balance breakdown</div><div class="rp-scroll"><table class="rp-table" id="sh-reconcile"></table></div><p class="hint">Remaining = given − returned + corrections − installed − warranty used. Faulty stock is tracked separately.</p></div>
+        <div class="sh-panel"><div class="section-label">Balance breakdown</div><div class="rp-scroll"><table class="rp-table" id="sh-reconcile"></table></div><p class="hint">Remaining = given - returned + corrections - installed - warranty used. Faulty stock is tracked separately.</p></div>
         <div class="section-label" style="border-top:none;padding-top:0">Stock on hand by electrician</div>
         <div class="rp-scroll"><table class="rp-table" id="st-table"></table></div>
         <p class="hint" id="st-hint" style="margin:.4rem 0 1rem"></p>
@@ -572,7 +572,7 @@
         <div class="rp-scroll"><table class="rp-table" id="st-faulty"></table></div>
       </div>
       <div class="modal-foot"><span class="hint">Stock usage is calculated from current completed jobs since the first recorded stock day. Reopened or corrected jobs recalculate this history. Record Take back faulty when faulty alarms reach the office.</span><span class="spacer"></span>
-        <button class="btn btn-primary" id="st-download">⬇ Download Excel</button></div>
+        <button class="btn btn-primary" id="st-download">? Download Excel</button></div>
     </div>
   </div>
 
@@ -580,7 +580,7 @@
     <div class="modal xwide" role="dialog" aria-modal="true" aria-labelledby="rp-title">
       <div class="modal-head">
         <h3 id="rp-title">Completed jobs report</h3>
-        <button class="x" id="rp-close" aria-label="Close">✕</button>
+        <button class="x" id="rp-close" aria-label="Close">?</button>
       </div>
       <div class="modal-body">
         <div class="rp-bar">
@@ -595,21 +595,21 @@
           <label>Electrician <select id="rp-tech"></select></label>
         </div>
         <p class="hint" id="rp-label" style="margin:.2rem 0 .8rem"></p>
-        <div class="section-label" style="border-top:none;padding-top:0">By electrician — what to pay for</div>
+        <div class="section-label" style="border-top:none;padding-top:0">By electrician - what to pay for</div>
         <div class="rp-scroll"><table class="rp-table" id="rp-summary"></table></div>
         <div class="section-label" style="margin-top:1rem">Jobs</div>
         <div class="rp-scroll"><table class="rp-table" id="rp-jobs"></table></div>
       </div>
       <div class="modal-foot"><span class="hint">Counts come from what the electrician entered in the app.</span><span class="spacer"></span>
-        <button class="btn btn-ghost" id="rp-po">✉ Send purchase order</button>
-        <button class="btn btn-primary" id="rp-download">⬇ Download Excel</button></div>
+        <button class="btn btn-ghost" id="rp-po">? Send purchase order</button>
+        <button class="btn btn-primary" id="rp-download">? Download Excel</button></div>
     </div>
   </div>
 
   <!-- purchase order to an electrician -->
   <div class="overlay" id="po-overlay">
     <div class="modal" style="max-width:760px" role="dialog" aria-modal="true" aria-labelledby="po-title">
-      <div class="modal-head"><h3 id="po-title">Send purchase order</h3><button class="x" id="po-close" aria-label="Close">✕</button></div>
+      <div class="modal-head"><h3 id="po-title">Send purchase order</h3><button class="x" id="po-close" aria-label="Close">?</button></div>
       <div class="modal-body">
         <div class="po-grid">
           <label class="po-f">Electrician<select id="po-tech"></select></label>
@@ -637,7 +637,7 @@
       <div class="modal-head">
         <h3 id="route-title">Driving route</h3>
         <a class="btn btn-ghost" id="route-gmaps" target="_blank" rel="noopener" style="margin-left:auto">Open in Google Maps</a>
-        <button class="x" id="route-close" aria-label="Close">✕</button>
+        <button class="x" id="route-close" aria-label="Close">?</button>
       </div>
       <div class="route-body">
         <div class="route-map" id="route-map"></div>
@@ -651,12 +651,12 @@
     <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="tm-title">
       <div class="modal-head">
         <h3 id="tm-title">Electricians</h3>
-        <button class="x" id="tm-close" aria-label="Close">✕</button>
+        <button class="x" id="tm-close" aria-label="Close">?</button>
       </div>
       <div class="modal-body">
         <div class="tech-row tech-head"><span>Code</span><span>Name</span><span>Mobile</span><span>Email</span><span>Licence no.</span><span>Active</span><span></span></div>
         <div id="tech-list"></div>
-        <p class="hint" style="margin-top:.6rem">Electricians sign in to the phone app at <a href="/tech" target="_blank" rel="noopener">portal.powersmartco.com.au/tech</a> by typing their <b>code</b> — each code must be different.</p>
+        <p class="hint" style="margin-top:.6rem">Electricians sign in to the phone app at <a href="/tech" target="_blank" rel="noopener">portal.powersmartco.com.au/tech</a> by typing their <b>code</b> - each code must be different.</p>
         <div class="section-label" style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--line)">Add electrician</div>
         <div class="tech-row" style="border-bottom:none">
           <input type="text" id="nt-code" placeholder="1011">
@@ -762,7 +762,7 @@
   /* ---------- gate ---------- */
   function showGate(bad){
     $("gate").classList.add("show");
-    $("gate-err").textContent = bad ? "That key wasn't accepted — try again." : "";
+    $("gate-err").textContent = bad ? "That key wasn't accepted - try again." : "";
     $("gate-key").focus();
   }
   function tryUnlock(){
@@ -782,7 +782,7 @@
   function chooseAgent(name){
     state.agent = name;
     try { localStorage.setItem(AGENT_LS, name); } catch(e){}
-    $("dispatcher").textContent = "Dispatching as: " + name + " · Change";
+    $("dispatcher").textContent = "Dispatching as: " + name + " � Change";
     $("agent-overlay").classList.remove("show");
   }
   $("choose-sam").addEventListener("click", function(){ chooseAgent("Sam"); });
@@ -857,9 +857,9 @@
     var c = cfg(), end = addDays(rangeEnd(), -1);
     $("f-from").value = isoDate(state.start);
     $("f-to").textContent = isoDate(end).split("-").reverse().join("-");
-    var title = c.days === 1 ? titleDay(state.start) : shortDay(state.start) + " – " + shortDay(end) + " " + end.getFullYear();
+    var title = c.days === 1 ? titleDay(state.start) : shortDay(state.start) + " - " + shortDay(end) + " " + end.getFullYear();
     $("nav-title").textContent = title;
-    $("board-title").textContent = "Fieldworker schedule · " + title;
+    $("board-title").textContent = "Fieldworker schedule � " + title;
     document.querySelectorAll(".seg button").forEach(function(b){ b.classList.toggle("on", b.dataset.view === state.view); });
 
     // electrician filter options
@@ -873,7 +873,7 @@
     renderWaiting();
     $("legend").innerHTML = Object.keys(STATUS).map(function(k){
       return '<span><i style="background:' + STATUS[k].bg + '"></i>' + STATUS[k].label + '</span>';
-    }).join("") + '<span style="margin-left:auto">Click an empty slot to book · drag jobs to reschedule</span>';
+    }).join("") + '<span style="margin-left:auto">Click an empty slot to book � drag jobs to reschedule</span>';
   }
 
   function visibleTechs(){
@@ -922,8 +922,8 @@
         var dayJobs = mine.filter(function(j){ return dayIndex(bt(j.scheduled_start)) === d2; });
         html += '<div class="acell' + (t.active ? '' : ' inactive') + '" data-tech="' + esc(t.id) + '" data-day="' + d2 + '">' + dayJobs.map(function(j){
           var st = STATUS[statusKey(j)] || STATUS.scheduled;
-          return '<div class="achip' + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" style="background:' + st.bg + '" title="' + esc(st.label + " · " + (addressLine(j) || "No address")) + '">' +
-            '<div class="a1">' + esc(timeText(j.scheduled_start)) + ' · J' + esc(j.job_no) + '</div>' +
+          return '<div class="achip' + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" style="background:' + st.bg + '" title="' + esc(st.label + " � " + (addressLine(j) || "No address")) + '">' +
+            '<div class="a1">' + esc(timeText(j.scheduled_start)) + ' � J' + esc(j.job_no) + '</div>' +
             '<div class="a2">' + esc(j.customer_name) + '</div>' +
             '<div class="a3">' + esc(j.suburb || j.address || st.label) + '</div></div>';
         }).join("") + '</div>';
@@ -994,10 +994,10 @@
       '<div class="earn-kpis"><div><b>' + t.jobs + '</b><span>Jobs</span></div><div><b>' + t.alarms + '</b><span>Smoke alarms</span></div></div>' +
       '<div>' + row("Customers pay (inc GST)", eMoney(t.sales)) + row("GST", '<span class="minus">-' + eMoney(t.gst) + '</span>', "sub") + row("Sales ex GST", eMoney(t.rev), "tot") +
       row("Electrician pay", '<span class="minus">-' + eMoney(t.elec) + '</span>') +
-      row(t.jobs + " call-outs × " + eMoney(PAY.callout), eMoney(calls), "sub") +
-      row(t.hardwired + " hardwired × " + eMoney(PAY.hardwired), eMoney(t.hardwired * PAY.hardwired), "sub") +
-      row(t.battery + " battery × " + eMoney(PAY.battery), eMoney(t.battery * PAY.battery), "sub") +
-      row(t.controller + (t.controller === 1 ? " remote × " : " remotes × ") + eMoney(PAY.controller), eMoney(t.controller * PAY.controller), "sub") +
+      row(t.jobs + " call-outs x " + eMoney(PAY.callout), eMoney(calls), "sub") +
+      row(t.hardwired + " hardwired x " + eMoney(PAY.hardwired), eMoney(t.hardwired * PAY.hardwired), "sub") +
+      row(t.battery + " battery x " + eMoney(PAY.battery), eMoney(t.battery * PAY.battery), "sub") +
+      row(t.controller + (t.controller === 1 ? " remote x " : " remotes x ") + eMoney(PAY.controller), eMoney(t.controller * PAY.controller), "sub") +
       row("Stripe (" + t.jobs + " payments)", '<span class="minus">-' + eMoney(t.stripe) + '</span>') +
       row("Profit", eMoney(t.profit), "tot") + '</div>' +
       '<div class="earn-note">Call-out fees ($35 / $50 paid when booking) are already in the bank, so they are not counted. Excludes cancelled jobs. Warranty visits: the customer pays nothing and the electrician is paid as usual.' +
@@ -1038,11 +1038,11 @@
         var w = Math.max(c.colW < 34 ? 18 : 26, x2 - x1 - 3);
         var compact = w < 44;              // week view: number + name only
         var showType = w >= 100;           // longer jobs also show the work type
-        var tip = "J" + j.job_no + " · " + j.customer_name + "\n" + timeText(j.scheduled_start) + " – " + timeText(jobEnd(j)) + " · " + st.label + "\n" + (addressLine(j) || "No address");
+        var tip = "J" + j.job_no + " � " + j.customer_name + "\n" + timeText(j.scheduled_start) + " - " + timeText(jobEnd(j)) + " � " + st.label + "\n" + (addressLine(j) || "No address");
         return '<div class="jb' + (compact ? ' compact' : '') + (j.status === "cancelled" ? ' cancelled' : '') + '" draggable="true" data-job="' + esc(j.id) + '" title="' + esc(tip) + '" ' +
           'style="left:' + (x1 + 1) + 'px;top:' + (GAP + it.lane * (BLOCK_H + GAP)) + 'px;width:' + w + 'px;height:' + BLOCK_H + 'px;background:' + st.bg + '">' +
-          '<div class="j1">J' + esc(j.job_no) + (showType ? ' · ' + esc(TYPES[j.work_type] || "") : '') + '</div>' +
-          '<div class="j2">' + esc(st.label) + (showType ? ' · ' + esc(timeText(j.scheduled_start)) : '') + '</div>' +
+          '<div class="j1">J' + esc(j.job_no) + (showType ? ' � ' + esc(TYPES[j.work_type] || "") : '') + '</div>' +
+          '<div class="j2">' + esc(st.label) + (showType ? ' � ' + esc(timeText(j.scheduled_start)) : '') + '</div>' +
           '<div class="j3">' + esc(j.customer_name) + '</div>' +
           '<div class="j4">' + esc(j.address || j.suburb || "No address") + '</div></div>';
       }).join("");
@@ -1073,11 +1073,11 @@
   function renderWaiting(){
     $("waiting-card").style.display = state.showWaiting ? "" : "none";
     var list = state.waiting.filter(typeOk);
-    $("wl-title").textContent = "Waiting list · " + list.length + (list.length === 1 ? " job" : " jobs");
+    $("wl-title").textContent = "Waiting list � " + list.length + (list.length === 1 ? " job" : " jobs");
     $("wl-drop").innerHTML = list.length ? list.map(function(j){
       return '<div class="wcard" draggable="true" data-job="' + esc(j.id) + '">' +
         '<div class="w1">J' + esc(j.job_no) + '<span>' + esc(TYPES[j.work_type] || "") + '</span></div>' +
-        '<div class="w2">' + esc(j.customer_name) + (j.alarms ? ' · ' + esc(j.alarms) + ' alarms' : '') + '</div>' +
+        '<div class="w2">' + esc(j.customer_name) + (j.alarms ? ' � ' + esc(j.alarms) + ' alarms' : '') + '</div>' +
         '<div class="w3">' + esc(addressLine(j) || "No address yet") + '</div></div>';
     }).join("") : '<div class="wl-empty">No jobs waiting. New jobs without an electrician land here.</div>';
   }
@@ -1144,7 +1144,7 @@
     state.drag = null;
     if (job.electrician_id === techId && job.scheduled_start && new Date(job.scheduled_start).getTime() === fromB(start).getTime()) return;
     moveJob(job, { electrician_id: techId, scheduled_start: fromB(start).toISOString() },
-      "J" + job.job_no + " → " + (techById(techId) || {}).name + ", " + shortDay(start) + " " + timeText(fromB(start)));
+      "J" + job.job_no + "  " + (techById(techId) || {}).name + ", " + shortDay(start) + " " + timeText(fromB(start)));
   });
   wl.addEventListener("dragover", function(e){ if (!state.drag) return; e.preventDefault(); wl.classList.add("over"); });
   wl.addEventListener("dragleave", function(e){ if (!wl.contains(e.relatedTarget)) wl.classList.remove("over"); });
@@ -1194,7 +1194,7 @@
       var leg = legs && legs[i];
       if (leg){
         var minutes = Number.isFinite(leg.durationMillis) ? Math.round(leg.durationMillis / 60000) + " mins" : "Time unavailable";
-        var distance = Number.isFinite(leg.distanceMeters) ? ' · ' + (leg.distanceMeters / 1000).toFixed(1) + ' km' : '';
+        var distance = Number.isFinite(leg.distanceMeters) ? ' � ' + (leg.distanceMeters / 1000).toFixed(1) + ' km' : '';
         row += '<div class="route-msg">Driving time: ' + minutes + distance + '</div>';
       }
       return row;
@@ -1206,7 +1206,7 @@
       .sort(function(a,b){ return new Date(a.scheduled_start) - new Date(b.scheduled_start); }).slice(0, 25);
     if (!stops.length){ toast("No jobs with addresses for this electrician in this range."); return; }
     var tech = state.techs.filter(function(t){ return t.id === techId; })[0];
-    var payload = { title: "Driving route" + (tech ? " · " + tech.name : ""),
+    var payload = { title: "Driving route" + (tech ? " � " + tech.name : ""),
       stops: stops.map(function(j){ return { label: j.job_no ? "J" + j.job_no : "Job", q: mapsQuery(j) }; }) };
     var gUrl = "/tools/route?d=" + encodeURIComponent(JSON.stringify(payload));
     // Small popup window (not an in-page overlay); fall back to a normal tab if the browser blocks popups.
@@ -1220,10 +1220,10 @@
 
   /* ---------- job modal ---------- */
   function techOptions(selected){
-    var opts = '<option value="">— Waiting list (unassigned) —</option>';
+    var opts = '<option value="">- Waiting list (unassigned) -</option>';
     state.techs.forEach(function(t){
       if (!t.active && t.id !== selected) return;
-      opts += '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + (t.active ? "" : " (inactive)") + '</option>';
+      opts += '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " � " : "") + t.name) + (t.active ? "" : " (inactive)") + '</option>';
     });
     $("jm-tech").innerHTML = opts;
     $("jm-tech").value = selected || "";
@@ -1241,7 +1241,7 @@
     if (j.lead_id) links.push('<a class="btn btn-ghost" href="https://portal.powersmartco.com.au/tools/pipeline">Open sales pipeline</a>');
     $("jm-links").innerHTML = links.join("");
   }
-  // Start-time choices: every half hour, 6:00 am – 8:30 pm, shown as "08:00 am".
+  // Start-time choices: every half hour, 6:00 am - 8:30 pm, shown as "08:00 am".
   function timeLabel(h, m){ return pad(h % 12 || 12) + ":" + pad(m) + " " + (h < 12 ? "am" : "pm"); }
   function buildTimes(){
     var html = '<option value="">Select time</option>';
@@ -1301,7 +1301,7 @@
     $("jm-payment").classList.toggle("w-hide", w);   // the quote and its payments don't apply to a warranty visit
     $("jm-wnotify-wrap").style.display = w ? "" : "none";
     $("jm-notes-label").textContent = w ? "What the customer reported (shown to the electrician)" : "Notes for the electrician";
-    $("jm-notes").placeholder = w ? "e.g. Hallway alarm keeps chirping; bedroom alarm went off with no smoke" : "Access, parking, gate codes, existing hardwired alarms…";
+    $("jm-notes").placeholder = w ? "e.g. Hallway alarm keeps chirping; bedroom alarm went off with no smoke" : "Access, parking, gate codes, existing hardwired alarms.";
     var email = $("jm-email").value.trim(), phone = $("jm-phone").value.trim();
     $("jm-wnotify-email-to").textContent = email ? "(" + email + ")" : "(no email saved)";
     $("jm-wnotify-sms-to").textContent = phone ? "(" + phone + ")" : "(no mobile saved)";
@@ -1341,7 +1341,7 @@
     if (opts.warranty){ $("jm-type").value = "warranty"; $("jm-title").textContent = "New warranty job"; }
     updateWarrantyUi();
     $("jm-lead-wrap").style.display = ""; $("jm-lead-chip").style.display = "none";
-    $("jm-lead").innerHTML = '<option value="">Loading leads…</option>';
+    $("jm-lead").innerHTML = '<option value="">Loading leads.</option>';
     $("jm-delete").style.display = "none"; $("jm-unassign").style.display = "none"; $("jm-revert").style.display = "none"; $("jm-markpaid").style.display = "none"; $("jm-recordpay").style.display = "none"; $("jm-sendcert").style.display = "none"; $("jm-sendreview").style.display = "none"; $("jm-invoice").style.display = "none";
     $("jm-photos-wrap").style.display = "none";
     $("jm-links").innerHTML = "";
@@ -1350,9 +1350,9 @@
     loadLeads().then(function(leads){
       var order = { scheduled:0, won:1, quote_accepted:2, quote_sent:3 };
       var sorted = leads.slice().sort(function(a,b){ return (order[a.stage] ?? 9) - (order[b.stage] ?? 9); });
-      $("jm-lead").innerHTML = '<option value="">— Not linked to a lead —</option>' + sorted.map(function(l){
+      $("jm-lead").innerHTML = '<option value="">- Not linked to a lead -</option>' + sorted.map(function(l){
         var where = l.address_suburb || l.address_postcode || l.postcode || "";
-        return '<option value="' + esc(l.id) + '">' + esc(l.name + (where ? " · " + where : "") + " · " + (l.stage || "").replace(/_/g, " ")) + '</option>';
+        return '<option value="' + esc(l.id) + '">' + esc(l.name + (where ? " � " + where : "") + " � " + (l.stage || "").replace(/_/g, " ")) + '</option>';
       }).join("");
       if (opts.leadId){ $("jm-lead").value = opts.leadId; applyLead(opts.leadId); }
     });
@@ -1367,9 +1367,9 @@
     $("jm-cust-card").hidden = !show;
     $("jm-cust-edit-target").classList.toggle("cust-brief", show);
     if (show) $("jm-cust-card").innerHTML = '<div><b>' + esc(name) + '</b>' +
-      '<span' + (phone || email ? '' : ' class="muted"') + '>' + esc([phone, email].filter(Boolean).join(" · ") || "No phone or email") + '</span><br>' +
+      '<span' + (phone || email ? '' : ' class="muted"') + '>' + esc([phone, email].filter(Boolean).join(" � ") || "No phone or email") + '</span><br>' +
       (street ? '<span>' + esc(addr) + '</span>'
-        : '<span class="muted">' + (addr ? esc(addr) + ' · ' : '') + 'No street address</span> <button type="button" class="cust-add" id="jm-cust-addaddr">Add address</button>') +
+        : '<span class="muted">' + (addr ? esc(addr) + ' � ' : '') + 'No street address</span> <button type="button" class="cust-add" id="jm-cust-addaddr">Add address</button>') +
       '</div><button type="button" id="jm-cust-edit">Edit details</button>';
   }
   function setCustBrief(on){ custBrief = on; renderCustCard(); }
@@ -1441,7 +1441,7 @@
       (total > 0 ? '<div class="payrow' + (fee ? ' tot' : '') + '"><span>Invoice total</span><b>' + money(total + fee) + '</b></div>' : '') +
       '<div class="payrow muted" style="margin-top:.5rem"><span><b>Paid so far</b></span><span></span></div>' +
       (rows.length ? rows.map(function(p){
-        return '<div class="payrow"><span>' + esc(p.label || (when(p.at) + " · " + (METHOD[p.method] || "Payment") + (p.by ? " · " + p.by : ""))) + '</span><span>' + money(p.amount_cents) + '</span></div>';
+        return '<div class="payrow"><span>' + esc(p.label || (when(p.at) + " � " + (METHOD[p.method] || "Payment") + (p.by ? " � " + p.by : ""))) + '</span><span>' + money(p.amount_cents) + '</span></div>';
       }).join("") : '<div class="payrow muted"><span>No payments recorded yet</span><span></span></div>') +
       '<div class="payrow tot"><span>Received</span><b>' + money(got) + '</b></div>' +
       (total > 0 ? '<div class="payrow tot"><span>Owing</span><b class="' + (owing > 0 ? "owe" : "ok") + '">' + money(owing) + '</b></div>' : '');
@@ -1474,8 +1474,8 @@
       (done ? '<div class="bill"><div><b>Bill to</b><br>' + [j.customer_name, j.phone, j.email, addr].filter(Boolean).map(esc).join('<br>') + '</div><button type="button" class="btn btn-ghost" data-edit-cust>Edit details</button></div>' : '') +
       (installed(items, j) ? '<br>Installed: <b>' + installed(items, j) + '</b>' : '') +
       (items.length ? reportLines(items, j, calloutFee(j, qs)) + '<div>' +
-        (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " · due on site " + money(j.amount_due_cents) : "") +
-        (j.prior_paid_cents > 0 ? " · received so far " + money(j.prior_paid_cents) : "") +
+        (j.amount_due_cents != null && j.amount_due_cents !== j.invoice_total_cents ? " � due on site " + money(j.amount_due_cents) : "") +
+        (j.prior_paid_cents > 0 ? " � received so far " + money(j.prior_paid_cents) : "") +
         '<span class="pay ' + esc(j.pay_status || "") + '">' + esc(PAY[j.pay_status] || "Not paid") + (j.pay_status === "paid" ? " " + money(j.paid_cents) + " by " + ({ cash:"cash", bank_transfer:"bank transfer" }[j.pay_method] || "card") : "") + '</span>' +
         (j.status === "completed" && j.pay_status === "later" && j.amount_due_cents > 0 ? ' <button type="button" class="btn btn-ghost resend" data-resend-invoice title="Email the customer a payment-pending invoice with the card link and bank details">Resend invoice</button>' + (j.invoice_emailed_at ? '<span class="muted" style="font-size:.7rem;margin-left:.4rem">last sent ' + esc(when(j.invoice_emailed_at)) + '</span>' : '') : '') +
         '</div>' + (j.approved_at ? '<div>Invoice approved ' + esc(new Date(j.approved_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</div>' : '') : '') +
@@ -1494,27 +1494,27 @@
     var qs=Object.assign({},s,{quote_ref:q.ref,quote_url:url});
     if(state.editing){ renderPayments(state.editing, qs); renderReport(state.editing, qs); }   // fold the call-out fee into the job's totals
     if($("jm-payments").style.display!=="none"){ box.style.display="none"; return; }   // completed job: the Payments box already shows this
-    var extra = s.received_cents > s.total_cents ? ' · ' + cash(s.received_cents - s.total_cents) + ' in credit' : s.received_cents < s.total_cents ? ' · ' + cash(s.total_cents - s.received_cents) + ' to pay' : '';
+    var extra = s.received_cents > s.total_cents ? ' � ' + cash(s.received_cents - s.total_cents) + ' in credit' : s.received_cents < s.total_cents ? ' � ' + cash(s.total_cents - s.received_cents) + ' to pay' : '';
     box.innerHTML='<div class="pay-hd"><b>Quote '+esc(q.ref)+'</b><span class="pill '+esc(s.status)+'">'+esc(labels[s.status] || s.status)+'</span>'+(url?'<a href="'+url+'" target="_blank" rel="noopener">View quote</a>':'')+'</div>'+
       '<div>'+cash(s.received_cents)+' received of '+cash(s.total_cents)+extra+'</div>';
   }
   function loadJobPayments(j){
     var requestId=++paymentRequestId;
-    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments…";
+    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments.";
     jobsApi({action:"lead_quote",job_id:j.id}).then(function(d){if(requestId===paymentRequestId)renderPaymentSummary(d);})
       .catch(function(){if(requestId===paymentRequestId)renderPaymentSummary({payment_error:"Payment details could not be loaded. Close and reopen the job to retry."});});
   }
   function fillFromQuote(l){
     var requestId=++paymentRequestId;
-    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments…";
+    $("jm-payment").style.display="";$("jm-payment").textContent="Checking payments.";
     var hint = $("jm-quote-hint");
-    hint.classList.remove("warn"); hint.textContent = "Checking quote…";
+    hint.classList.remove("warn"); hint.textContent = "Checking quote.";
     jobsApi({ action:"lead_quote", lead_id: l.id, email: l.email || "" }).then(function(d){
       if (requestId!==paymentRequestId || $("jm-lead").value !== l.id) return;
       renderPaymentSummary(d);
       if (isWarrantyForm()){ hint.textContent = ""; return; }   // a warranty visit keeps its type, alarm count and notes
       var q = d.quote;
-      if (!q){ hint.classList.add("warn"); hint.textContent = "No sent quote found — enter the alarm count."; return; }
+      if (!q){ hint.classList.add("warn"); hint.textContent = "No sent quote found - enter the alarm count."; return; }
       if (q.service === "inspection"){
         $("jm-type").value = "inspection"; $("jm-alarms").value = "";
         hint.textContent = "Quote " + q.ref + ": compliance inspection";
@@ -1528,7 +1528,7 @@
         (q.controller_qty ? ", " + q.controller_qty + " remote controller" + (q.controller_qty === 1 ? "" : "s") : "")) + ".";
       var notes = $("jm-notes").value.replace(/^Quote [^\n]*\.\n?/, "");   // replace an earlier quote line, keep typed notes
       $("jm-notes").value = note + (notes ? "\n" + notes : "");
-    }).catch(function(){ if(requestId!==paymentRequestId)return; hint.classList.add("warn"); hint.textContent = "Couldn't load the quote — enter the alarm count."; renderPaymentSummary({payment_error:"Payment details could not be loaded. Select the customer again to retry."}); });
+    }).catch(function(){ if(requestId!==paymentRequestId)return; hint.classList.add("warn"); hint.textContent = "Couldn't load the quote - enter the alarm count."; renderPaymentSummary({payment_error:"Payment details could not be loaded. Select the customer again to retry."}); });
   }
   $("jm-lead").addEventListener("change", function(){
     if (this.value) applyLead(this.value);
@@ -1558,7 +1558,7 @@
   function loadSentDocs(j){
     var box = $("jm-docs"), id = ++docsRequestId;
     if (!j || !(j.lead_id || j.email)){ box.style.display = "none"; return; }
-    box.style.display = ""; box.innerHTML = '<b>Sent to customer</b><div class="muted">Loading…</div>';
+    box.style.display = ""; box.innerHTML = '<b>Sent to customer</b><div class="muted">Loading.</div>';
     call("/api/pipeline", "POST", { action:"emails", lead_id: j.lead_id || "", email: j.email || "" }).then(function(d){
       if (id !== docsRequestId) return;
       var list = (d.emails || []).filter(function(m){ return m.status !== "failed"; });
@@ -1570,7 +1570,7 @@
         (list.length ? '<div class="docs-list">' + list.map(function(m, n){
           var subj = m.subject || "(no subject)", k = m.kind === "quote" ? ["Quote", "quote"] : (KINDS.filter(function(x){ return x[0].test(subj); })[0] || [null, "Email", "mail"]).slice(1);
           return '<div class="doc-row"><span class="doc-kind ' + k[1] + '">' + k[0] + '</span><span class="doc-subj" title="' + esc(subj) + '">' + esc(subj) + '</span>' +
-            '<span class="doc-meta">' + esc(short(m.created_at)) + (m.agent ? ' · ' + esc(m.agent) : '') + '</span>' +
+            '<span class="doc-meta">' + esc(short(m.created_at)) + (m.agent ? ' � ' + esc(m.agent) : '') + '</span>' +
             '<button type="button" class="btn btn-ghost doc-view" data-view-doc="' + n + '">View</button></div>';
         }).join("") + '</div>' : '<div class="muted" style="margin-top:.35rem">Nothing has been emailed to this customer yet.</div>');
     }).catch(function(){ if (id === docsRequestId) box.innerHTML = '<b>Sent to customer</b><div class="muted">Could not load sent emails.</div>'; });
@@ -1586,7 +1586,7 @@
   function openJob(j){
     if (!j) return;
     state.editing = j;
-    $("jm-title").textContent = "Job J" + j.job_no + " · " + j.customer_name;
+    $("jm-title").textContent = "Job J" + j.job_no + " � " + j.customer_name;
     setPill(statusKey(j));
     fillForm(j);
     var oldInspection=$("jm-inspection-detail");if(oldInspection)oldInspection.remove();
@@ -1594,7 +1594,7 @@
       var labels={compliant:"Inspection completed: Compliant",declined:"Inspection completed: Non-compliant, upgrade declined",converted:"Inspection converted to installation",installed:"Installation completed and compliant"};
       var detail=document.createElement("div");detail.id="jm-inspection-detail";detail.className="card";
       var d=j.inspection || {};
-      detail.innerHTML='<h3>' + esc(labels[j.compliance_outcome] || "Inspection Only") + '</h3><p>' + esc(d.findings || "Inspection not yet recorded") + '</p><p>' + esc(d.reason || "") + '</p><p>Customer decision: ' + esc(d.decision || "Pending") + (d.customer_name?" · "+esc(d.customer_name):"") + '</p><p>' + esc(JSON.stringify(d.checks || {})) + '</p><p>Existing alarms: ' + (d.alarms || []).length + '</p>' + (d.alarms || []).map(function(a){return '<p>' + esc(a.location + " · " + a.type + " · " + a.expiry) + '</p>';}).join("");
+      detail.innerHTML='<h3>' + esc(labels[j.compliance_outcome] || "Inspection Only") + '</h3><p>' + esc(d.findings || "Inspection not yet recorded") + '</p><p>' + esc(d.reason || "") + '</p><p>Customer decision: ' + esc(d.decision || "Pending") + (d.customer_name?" � "+esc(d.customer_name):"") + '</p><p>' + esc(JSON.stringify(d.checks || {})) + '</p><p>Existing alarms: ' + (d.alarms || []).length + '</p>' + (d.alarms || []).map(function(a){return '<p>' + esc(a.location + " � " + a.type + " � " + a.expiry) + '</p>';}).join("");
       $("jm-title").parentNode.appendChild(detail);
     }
     if (j.lead_id || j.email) loadJobPayments(j);
@@ -1607,7 +1607,7 @@
     $("jm-lead-wrap").style.display = "none";
     var lead = j.lead_id ? (state.leads || []).find(function(l){ return l.id === j.lead_id; }) : null;
     $("jm-lead-chip").style.display = j.lead_id ? "" : "none";
-    $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " — status changes are logged on their card." : "";
+    $("jm-lead-chip").textContent = j.lead_id ? "Linked to sales pipeline lead" + (lead ? ": " + lead.name : "") + " - status changes are logged on their card." : "";
     $("jm-delete").style.display = "";
     $("jm-revert").style.display = j.status === "cancelled" ? "none" : "";
     $("jm-invoice").style.display = j.status === "completed" ? "" : "none";
@@ -1689,7 +1689,7 @@
       closeJob();
       var job = d.job || {};
       var tech = techById(job.electrician_id);
-      toast((editing ? "Saved" : "Created") + " J" + (job.job_no || "") + (tech && job.scheduled_start ? " · " + tech.name + " " + timeText(job.scheduled_start) : " · waiting list"));
+      toast((editing ? "Saved" : "Created") + " J" + (job.job_no || "") + (tech && job.scheduled_start ? " � " + tech.name + " " + timeText(job.scheduled_start) : " � waiting list"));
       if (start && (start < state.start || start >= rangeEnd()) && techId){ state.start = startOfDay(start); }
       var after = reload();
       if (!(wantEmail || wantSms) || !job.id) return after;
@@ -1751,7 +1751,7 @@
     var paid = j.pay_status === "paid" || j.pay_status === "none";
     var invoiceLabel = paid ? "paid tax invoice" : "invoice";
     if (!confirm("Email the " + invoiceLabel + " for J" + j.job_no + " to " + (j.email || "the customer") + "?")) return;
-    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    var btn = this; btn.disabled = true; btn.textContent = "Sending.";
     jobsApi({ action:"job_resend_invoice", id: j.id }).then(function(r){
       toast((r.paid ? "Paid invoice" : "Invoice") + " emailed to " + r.to);
       loadSentDocs(j);
@@ -1761,7 +1761,7 @@
   $("jm-sendcert").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
     if (!confirm((j.certificate_sent_at ? "Resend" : "Send") + " the compliance certificate PDF for J" + j.job_no + " to " + (j.email || "the customer") + "?")) return;
-    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    var btn = this; btn.disabled = true; btn.textContent = "Sending.";
     jobsApi({ action:"certificate_send", id: j.id, force: !!j.certificate_sent_at }).then(function(){ closeJob(); toast("Certificate emailed"); return reload(); })
       .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; btn.textContent = j.certificate_sent_at ? "Resend certificate" : "Send certificate"; });
   });
@@ -1769,7 +1769,7 @@
     var j = state.editing; if (!j) return;
     if (!j.phone){ toast("Add a mobile number to this job first"); return; }
     if (!confirm((j.review_sms_sent_at ? "A review request was already sent for J" + j.job_no + ". Send it again to " : "Text a Google review request for J" + j.job_no + " to ") + j.phone + "?")) return;
-    var btn = this; btn.disabled = true; btn.textContent = "Sending…";
+    var btn = this; btn.disabled = true; btn.textContent = "Sending.";
     jobsApi({ action:"review_sms_send", id: j.id, actor: state.agent || "Office" }).then(function(r){ closeJob(); toast("Review SMS sent to " + r.phone); return reload(); })
       .catch(function(err){ toast(err.message); }).then(function(){ btn.disabled = false; btn.textContent = j.review_sms_sent_at ? "Resend review SMS" : "Send review SMS"; });
   });
@@ -1781,7 +1781,7 @@
   });
   $("jm-delete").addEventListener("click", function(){
     var j = state.editing; if (!j) return;
-    if (!confirm("Delete job J" + j.job_no + " for " + j.customer_name + " from the schedule?\n\nThe customer stays in the Sales Pipeline — only this job is removed.")) return;
+    if (!confirm("Delete job J" + j.job_no + " for " + j.customer_name + " from the schedule?\n\nThe customer stays in the Sales Pipeline - only this job is removed.")) return;
     jobsApi({ action:"job_delete", id: j.id }).then(function(){ closeJob(); toast("Job J" + j.job_no + " deleted"); return reload(); })
       .catch(function(err){ toast(err.message); });
   });
@@ -1797,7 +1797,7 @@
         '<input type="text" data-f="licence_no" placeholder="Licence no." value="' + esc(t.licence_no || "") + '">' +
         '<label class="act"><input type="checkbox" data-f="active"' + (t.active ? " checked" : "") + '> Active</label>' +
         '<button class="btn btn-ghost" data-save-tech>Save</button></div>';
-    }).join("") : '<p style="font-size:.82rem;color:var(--muted);padding:.8rem 0">No electricians yet — add your first one below.</p>';
+    }).join("") : '<p style="font-size:.82rem;color:var(--muted);padding:.8rem 0">No electricians yet - add your first one below.</p>';
     var codes = state.techs.map(function(t){ return parseInt(t.code, 10); }).filter(function(n){ return !isNaN(n); });
     $("nt-code").value = String(codes.length ? Math.max.apply(null, codes) + 1 : 1011);
   }
@@ -1837,12 +1837,12 @@
     return [a, b];
   }
   function parseDate(v){ var p = v.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
-  function rpRange(){   // [start, end) — "To" is inclusive in the UI
+  function rpRange(){   // [start, end) - "To" is inclusive in the UI
     return [parseDate($("rp-from").value), addDays(parseDate($("rp-to").value), 1)];
   }
   function rpLabel(r){
     var f = function(d){ return d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short", year:"numeric" }); };
-    return f(r[0]) + " – " + f(addDays(r[1], -1));
+    return f(r[0]) + " - " + f(addDays(r[1], -1));
   }
   function setPreset(p){
     rp.preset = p;
@@ -1855,10 +1855,10 @@
   function loadReport(){
     if (!$("rp-from").value || !$("rp-to").value) return;
     var r = rpRange();
-    $("rp-label").textContent = "Completed " + rpLabel(r) + " · loading…";
+    $("rp-label").textContent = "Completed " + rpLabel(r) + " � loading.";
     jobsApi({ action:"report", from: fromB(r[0]).toISOString(), to: fromB(r[1]).toISOString(), electrician_id: $("rp-tech").value }).then(function(d){
       rp.data = d;
-      $("rp-label").textContent = "Completed " + rpLabel(r) + " · " + d.totals.jobs + " job" + (d.totals.jobs === 1 ? "" : "s");
+      $("rp-label").textContent = "Completed " + rpLabel(r) + " � " + d.totals.jobs + " job" + (d.totals.jobs === 1 ? "" : "s");
       var untyped = d.totals.untyped > 0;
       var head = '<thead><tr><th>Electrician</th><th class="n">Jobs</th><th class="n">Battery</th><th class="n">Hardwired</th>' + (untyped ? '<th class="n">Type not recorded</th>' : '') +
         '<th class="n">Total alarms</th><th class="n">Controllers</th><th class="n">Inspections</th><th class="n">Invoiced</th><th class="n">Paid by card</th><th class="n" title="Cash the electrician took on site (receipt photo saved). Deduct from their pay.">Cash collected</th><th class="n">Other paid</th><th class="n">To collect</th></tr></thead>';
@@ -1874,12 +1874,12 @@
         '<th class="n">Controllers</th><th>Other</th><th class="n">Invoice</th><th>Payment</th></tr></thead><tbody>' + d.rows.map(function(x){
           return '<tr><td>' + esc(new Date(x.completed_at).toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short", timeZone:"Australia/Brisbane" })) + '</td><td>J' + esc(x.job_no) + '</td><td>' + esc(x.electrician) + '</td><td>' + esc(x.customer) + '</td><td>' + esc(x.address) + '</td>' +
             '<td class="n">' + x.battery + '</td><td class="n">' + x.hardwired + '</td>' + (untyped ? '<td class="n">' + x.untyped + '</td>' : '') + '<td class="n">' + x.controllers + '</td><td>' + esc(x.other) + '</td>' +
-            '<td class="n">' + (x.invoice == null ? "—" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + (x.paid_cash ? (x.cash_receipt ? ' · receipt ✓' : ' · <b style="color:#B3261E">no receipt</b>') : '') + '</td></tr>';
+            '<td class="n">' + (x.invoice == null ? "-" : rpMoney(x.invoice)) + '</td><td>' + esc(x.payment) + (x.paid_cash ? (x.cash_receipt ? ' � receipt �' : ' � <b style="color:#B3261E">no receipt</b>') : '') + '</td></tr>';
         }).join("") + '</tbody>' : '';
     }).catch(function(err){ $("rp-label").textContent = err.message; });
   }
   function openReport(){
-    $("rp-tech").innerHTML = '<option value="">All electricians</option>' + state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
+    $("rp-tech").innerHTML = '<option value="">All electricians</option>' + state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " � " : "") + t.name) + '</option>'; }).join("");
     $("report-overlay").classList.add("show");
     setPreset(rp.preset);
   }
@@ -1896,11 +1896,11 @@
   function poPreview(opts){
     opts = opts || {};
     var n = ++po.seq;
-    $("po-send").disabled = true; $("po-hint").textContent = "Loading…";
+    $("po-send").disabled = true; $("po-hint").textContent = "Loading.";
     jobsApi(Object.assign({ action:"po_preview" }, poBody())).then(function(d){
       if (n !== po.seq) return;
       var p = d.po;
-      $("po-period").textContent = "· " + p.title + " · " + p.period.label;
+      $("po-period").textContent = "� " + p.title + " � " + p.period.label;
       if (opts.resetEmail || !po.emailEdited) $("po-email").value = p.electrician.email || "";
       if (opts.resetIntro || !po.introEdited) $("po-intro").value = d.intro;
       var auto = p.lines.filter(function(l){ return !l.extra; });
@@ -1918,7 +1918,7 @@
     $("po-extra").innerHTML = po.extra.map(function(x, i){
       return '<div class="po-x" data-i="' + i + '"><input data-f="label" placeholder="Description" value="' + esc(x.label) + '" aria-label="Description">' +
         '<input data-f="qty" type="number" step="1" value="' + esc(x.qty) + '" aria-label="Quantity"><input data-f="price" type="number" step="0.01" placeholder="Price ex GST" value="' + esc(x.price) + '" aria-label="Price">' +
-        '<button class="btn btn-ghost" data-del="' + i + '" aria-label="Remove line" style="padding:0">✕</button></div>';
+        '<button class="btn btn-ghost" data-del="' + i + '" aria-label="Remove line" style="padding:0">?</button></div>';
     }).join("");
   }
   function openPo(){
@@ -1978,14 +1978,17 @@
   var STOCK_LABEL = { hardwired:"Hardwired alarm", battery:"Battery alarm", controller:"Controller" };
   var stockHistory = window.PSStockHistory.create();
   function renderStock(d){
+    var selectedTech = $("st-tech").value || stockHistory.selected();
+    $("st-tech").innerHTML = d.electricians.map(function(t){ return '<option value="' + esc(t.electrician_id) + '">' + esc((t.code ? t.code + " � " : "") + t.name) + '</option>'; }).join("");
+    if (selectedTech) $("st-tech").value = selectedTech;
     renderFaulty(d.faulty);
     var P = ["hardwired","battery","controller"];
     $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Faulty to<br>hand back</th><th>Net given / used</th><th></th></tr></thead><tbody>' +
       (d.electricians.length ? d.electricians.map(function(t){
-        return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
-          P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
+        return '<tr><td>' + esc((t.code ? t.code + " � " : "") + t.name) + '</td>' +
+          P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "-") + '</b></td>'; }).join("") +
           '<td>' + faultyText(t) + '</td>' +
-          '<td class="wrap">' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
+          '<td class="wrap">' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" � ") +
             (t.unclassified ? '<br><span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td><button class="btn btn-ghost" data-stock-history="' + esc(t.electrician_id) + '">View history</button> ' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
       }).join("") : '<tr><td class="empty" colspan="7">No electricians yet</td></tr>') + '</tbody>';
     stockHistory.setData(d);
@@ -1993,7 +1996,7 @@
   function faultyText(t){
     var f = t.faulty_held || {}, parts = [];
     if (f.battery) parts.push(f.battery + " battery"); if (f.hardwired) parts.push(f.hardwired + " hardwired");
-    return parts.length ? '<b style="color:#A63A32">' + esc(parts.join(" · ")) + '</b>' : '<span class="hint">None</span>';
+    return parts.length ? '<b style="color:#A63A32">' + esc(parts.join(" � ")) + '</b>' : '<span class="hint">None</span>';
   }
   // One line per warranty job: what was replaced, e.g. "4 battery, 2 hardwired".
   function renderFaulty(list){
@@ -2007,13 +2010,13 @@
       (jobs.length ? jobs.map(function(j){
         var f = j.f, what = [j.battery ? j.battery + " battery" : "", j.hardwired ? j.hardwired + " hardwired" : ""].filter(Boolean).join(", ");
         return '<tr><td>' + esc(new Date(f.completed_at).toLocaleDateString("en-AU", { day:"numeric", month:"short", year:"numeric", timeZone:"Australia/Brisbane" })) + '</td><td>J' + esc(f.job_no) + '</td><td>' + esc(f.electrician) +
-          '</td><td>' + esc(f.customer + (f.suburb ? " · " + f.suburb : "")) + '</td><td><b>' + esc(what) + '</b></td></tr>';
+          '</td><td>' + esc(f.customer + (f.suburb ? " � " + f.suburb : "")) + '</td><td><b>' + esc(what) + '</b></td></tr>';
       }).join("") : '<tr><td class="empty" colspan="5">No faulty alarms yet</td></tr>') + '</tbody>';
   }
   function loadStock(){ return jobsApi({ action:"stock_summary" }).then(renderStock).catch(function(err){ toast(err.message); }); }
   $("sh-refresh").addEventListener("click", function(){var btn=this;btn.disabled=true;loadStock().finally(function(){btn.disabled=false;});});
   $("stock-btn").addEventListener("click", function(){
-    $("st-tech").innerHTML = state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
+    $("st-tech").innerHTML = state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " � " : "") + t.name) + '</option>'; }).join("");
     $("stock-overlay").classList.add("show"); loadStock();
   });
   $("st-table").addEventListener("click", function(e){
@@ -2060,7 +2063,7 @@
     fetch("/api/pipeline?resource=jobs", {
       method: "POST", headers: { "Content-Type":"application/json", "x-portal-key": portalKey() },
       body: JSON.stringify({ action:"report", format:"xlsx", from: fromB(r[0]).toISOString(), to: fromB(r[1]).toISOString(), electrician_id: $("rp-tech").value,
-        label: rpLabel(r) + ($("rp-tech").value ? " · " + $("rp-tech").selectedOptions[0].textContent : "") })
+        label: rpLabel(r) + ($("rp-tech").value ? " � " + $("rp-tech").selectedOptions[0].textContent : "") })
     }).then(function(res){
       if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the Excel file"); });
       return res.blob();
@@ -2136,4 +2139,6 @@
 <script src="/assets/address-autofill.js" defer></script>
 </body>
 </html>
+
+
 
