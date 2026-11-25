@@ -123,11 +123,10 @@ test('history UI renders, filters, pages and escapes customer content',()=>{
   assert.equal((elements['sh-ledger'].innerHTML.match(/<tr>/g)||[]).length,41);
   assert(elements['sh-ledger'].innerHTML.includes('&lt;img'));assert(!elements['sh-ledger'].innerHTML.includes('<img'));
   assert.equal(elements['sh-next'].disabled,false);
-  elements['sh-next'].handlers.click();assert.match(elements['sh-page'].textContent,/41-80/);
+  elements['sh-next'].handlers.click();assert.match(elements['sh-page'].textContent,/41–80/);
   elements['sh-search'].value='J1001';elements['sh-search'].handlers.input();
-  assert.match(elements['sh-page'].textContent,/1-1 of 1/);
+  assert.match(elements['sh-page'].textContent,/1–1 of 1/);
   assert.equal(elements['sh-next'].disabled,true);
   ui.select('t2');assert.equal(ui.selected(),'t2');assert.match(elements['sh-ledger'].innerHTML,/No stock activity/);
 });
-
 
