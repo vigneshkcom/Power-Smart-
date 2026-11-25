@@ -614,9 +614,9 @@ test('accepted inspection converts in place, charges 6 x $79 + $50 less $120 = $
   assert.equal(invoiceCalls[0].bookingFee,0);
   assert.equal(t.db.tables.jobs.length,count);
 });
-test('inspection completion rejects missing checks, photos, non-compliance reason, decision or signoff',async()=>{
+test('inspection completion rejects missing checks, non-compliance reason or decision',async()=>{
   for(const mutate of [
-    d=>delete d.checks.coverage,d=>d.alarms[0].plate='',d=>{d.compliant=false;d.reason='';d.decision='declined';},d=>{d.compliant=false;d.reason='Coverage';d.decision='';}
+    d=>delete d.checks.coverage,d=>{d.compliant=false;d.reason='';d.decision='declined';},d=>{d.compliant=false;d.reason='Coverage';d.decision='';}
   ]){
     const t=inspectionSetup(),d=inspectionRecord();mutate(d);
     await t.call({action:'inspection_save',id:'j1',inspection:d});
@@ -645,4 +645,44 @@ test('completing a job asks for the Google review once, with the completed job',
   assert.equal(r.data.review.status, 'sent');
   assert.equal(reviewCalls.length, before + 1);
   assert.equal(reviewCalls.at(-1).status, 'completed');
+});
+
+test('inspection completes and sends invoice with either or both optional photos missing',async()=>{
+  for (const missing of [['photo'],['plate'],['photo','plate']]) {
+    for (const compliant of [true,false]) {
+      const t=inspectionSetup(), d=inspectionRecord(compliant,compliant?'':'declined');
+      for (const key of missing) delete d.alarms[0][key];
+      assert.equal((await t.call({action:'inspection_save',id:'j1',inspection:d})).code,200);
+      const r=await t.call({action:'complete',id:'j1',signoff_name:'Jake',signature:inspectionSignature,inspection_confirmed:true});
+      assert.equal(r.code,200,JSON.stringify(r.data));
+      assert.equal(r.data.job.status,'completed');
+      assert.equal(invoiceCalls.length,1);
+      assert.equal(certCalls.length,compliant?1:0);
+    }
+  }
+});
+test('inspection conversion accepts records without optional photos',async()=>{
+  const t=inspectionSetup(),d=inspectionRecord(false,'accepted');
+  d.alarms[0].photo='';d.alarms[0].plate='';
+  const r=await t.call({action:'inspection_convert',id:'j1',inspection:d});
+  assert.equal(r.code,200,JSON.stringify(r.data));
+  assert.equal(r.data.job.work_type,'install');
+});
+test('inspection verifies supplied photos but skips absent photos',async()=>{
+  const I=vmLoad('_inspection.js',{'./_supabase':{},'./_dropbox':{photosForJob:async()=>({photos:[{path:'/PowerSmart Jobs/J1001/Before/alarm.jpg'}]})}});
+  await I.verifyPhotos({}, {alarms:[{photo:'',plate:''}]});
+  await I.verifyPhotos({}, {alarms:[{photo:'/PowerSmart Jobs/J1001/Before/alarm.jpg',plate:''}]});
+  await assert.rejects(()=>I.verifyPhotos({}, {alarms:[{photo:'',plate:'/PowerSmart Jobs/J1001/Before/missing.jpg'}]}),/Synchronise/);
+});
+test('inspection signoff is ready without photos after saving required findings',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../tech.html'),'utf8');
+  const readiness=source.slice(source.indexOf('  function inspectionReady(){'),source.indexOf('  function inspectionCard(){'));
+  const d=inspectionRecord();d.alarms[0].photo='';d.alarms[0].plate='';
+  const context={inspectionRecord:()=>d,inspectionBusy:false,inspectionChanged:false,inspectionLabels:d.checks};
+  vm.runInNewContext(readiness,context);
+  assert.equal(context.inspectionReady(),true);
+  context.inspectionChanged=true;
+  assert.equal(context.inspectionReady(),false);
+  context.inspectionChanged=false;d.alarms[0].expiry='';
+  assert.equal(context.inspectionReady(),false);
 });

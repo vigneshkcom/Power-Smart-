@@ -25,7 +25,7 @@ function clean(raw) {
 function validate(record) {
   const d = clean(record);
   if (CHECKS.some(k => !d.checks[k])) throw fail('Complete every inspection checklist check.');
-  if (d.alarms.some(a => !a.location || !a.expiry || !a.photo || !a.plate)) throw fail('Record each alarm location, age/expiry, alarm photo and compliance plate photo.');
+  if (d.alarms.some(a => !a.location || !a.expiry)) throw fail('Record each alarm location and age/expiry.');
   if (d.compliant === null) throw fail('Record whether the property is compliant.');
   if (d.compliant && (!d.alarms.length || CHECKS.some(k => d.checks[k] !== 'pass'))) throw fail('A compliant property must have alarms and pass every check.');
   if (!d.compliant && !d.reason) throw fail('Record why the property is non-compliant.');
@@ -34,10 +34,11 @@ function validate(record) {
   return d;
 }
 async function verifyPhotos(job, d) {
-  if (!d.alarms.length) return;
+  const provided = d.alarms.flatMap(a => [a.photo, a.plate]).filter(Boolean);
+  if (!provided.length) return;
   const photos = await require('./_dropbox').photosForJob(job, { all: true });
   const paths = new Set((photos.photos || []).map(p => p.path));
-  if (d.alarms.some(a => !paths.has(a.photo) || !paths.has(a.plate))) throw fail('Synchronise the existing alarm and plate photos to this job first.');
+  if (provided.some(p => !paths.has(p))) throw fail('Synchronise the existing alarm and plate photos to this job first.');
 }
 async function payment(job) {
   if (!job.lead_id || !job.quote_ref) throw fail('Link the inspection to its paid quote before proceeding.');

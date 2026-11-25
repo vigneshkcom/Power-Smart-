@@ -938,7 +938,7 @@
     var btn = $("complete"); if (!btn) return;
     if(cur.inspection_only) completeState = { alarms: inspectionReady(), approved: true, payReady: true };
     var name = ($("so-name") && $("so-name").value.trim()) || "";
-    var missing = syncing ? "Synchronising… one moment." : controllerPhotoBusy ? "Saving controller photo…" : !completeState.alarms ? (cur.inspection_only ? "Complete and save the inspection checklist, photos and outcome." : "Add the smoke alarms.") : !window.PSControllerPhotos.ready(cur.items) ? "Take a photo of each remote controller." : !completeState.approved ? "Get the customer to approve the invoice." :
+    var missing = syncing ? "Synchronising… one moment." : controllerPhotoBusy ? "Saving controller photo…" : !completeState.alarms ? (cur.inspection_only ? "Complete and save the inspection checklist and outcome." : "Add the smoke alarms.") : !window.PSControllerPhotos.ready(cur.items) ? "Take a photo of each remote controller." : !completeState.approved ? "Get the customer to approve the invoice." :
       !completeState.payReady ? (!pay.method ? "Choose credit card, cash or bank transfer." : pay.method === "card" ? "Take the card payment first." : pay.full === null ? "Answer: has the customer paid in full?" : pay.full === true ? "Take a photo of the cash receipt." : cashCents() >= cur.totals.due ? "Cash collected must be less than the amount due. Choose Yes if paid in full." : "Enter the cash collected (0 if none) and take a photo of the receipt.") : !sigData ? "Sign in the box above." : !name ? "Type your name." : !soOk ? "Tick the confirmation." : "";
     btn.disabled = Boolean(missing);
     if ($("so-hint")) $("so-hint").textContent = missing ? "Next: " + missing.charAt(0).toLowerCase() + missing.slice(1) : "";
@@ -1061,7 +1061,7 @@
   function inspectionReady(){
     var d = inspectionRecord();
     return !inspectionBusy && !inspectionChanged && Object.keys(inspectionLabels).every(function(k){ return !!d.checks[k]; }) &&
-      d.alarms.every(function(a){ return a.location && a.expiry && a.photo && a.plate; }) &&
+      d.alarms.every(function(a){ return a.location && a.expiry; }) &&
       (d.compliant === true ? d.alarms.length > 0 && Object.keys(inspectionLabels).every(function(k){return d.checks[k] === "pass";}) : d.compliant === false && d.reason && d.decision === "declined");
   }
   function inspectionCard(){
@@ -1073,7 +1073,7 @@
     d.alarms.forEach(function(a,i){
       h += '<div class="item" style="display:block"><b>Existing alarm ' + (i+1) + '</b><div class="field"><label>Power type</label><select data-ins-alarm="' + i + '" data-ins-field="type"><option value="battery"' + (a.type==="battery"?' selected':'') + '>Battery</option><option value="hardwired"' + (a.type==="hardwired"?' selected':'') + '>Hardwired</option></select></div><div class="field"><label>Location and coverage</label><input data-ins-alarm="' + i + '" data-ins-field="location" value="' + esc(a.location||"") + '"></div><div class="field"><label>Manufacture / expiry date or age (record unknown if unreadable)</label><input data-ins-alarm="' + i + '" data-ins-field="expiry" value="' + esc(a.expiry||"") + '"></div>';
       ["photo","plate"].forEach(function(key){
-        h += '<label class="btn btn-ghost" style="margin-top:8px">' + (a[key] ? '✓ Saved: ' : 'Take mandatory ') + (key==="plate"?"compliance plate photo":"existing alarm photo") + '<input type="file" accept="image/*" capture="environment" data-ins-photo="' + i + '" data-ins-kind="' + key + '" hidden></label>';
+        h += '<label class="btn btn-ghost" style="margin-top:8px">' + (a[key] ? '✓ Saved: ' : 'Add optional ') + (key==="plate"?"compliance plate photo":"existing alarm photo") + '<input type="file" accept="image/*" capture="environment" data-ins-photo="' + i + '" data-ins-kind="' + key + '" hidden></label>';
       });
       if(!locked) h += '<button class="link" data-ins-remove="' + i + '">Remove existing alarm</button>';
       h += '</div>';
