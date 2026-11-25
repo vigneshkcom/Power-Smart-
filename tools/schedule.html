@@ -299,6 +299,47 @@
     .topbar,.filterbar,.daynav .btn,.daynav .seg,.card-head .btn,.waiting,.toast,.legend{display:none!important}
     .wrap{padding:0}.card{border:none}.sc-right{overflow:visible}
   }
+
+/* Stock history workspace */
+#stock-overlay .modal{width:min(1440px,96vw);max-width:1440px}
+#stock-overlay .modal-body{background:#f7fafb}
+.sh-intro{margin:0 0 16px;color:#52696f;font-size:13px}
+.sh-topline,.sh-filters,.sh-pager{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.sh-topline{justify-content:space-between;margin-bottom:18px}
+.sh-topline label,.sh-filters label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:#52696f}
+.sh-topline select{min-width:260px}
+.sh-topline select,.sh-filters select,.sh-filters input{border:1px solid #d9e4e7;border-radius:10px;padding:10px;background:white;font:inherit;color:#17383f;min-height:40px}
+.sh-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:12px}
+.sh-card{background:white;border:1px solid #dce8eb;border-radius:16px;padding:20px;box-shadow:0 4px 14px #163d4406;display:flex;flex-direction:column;gap:4px}
+.sh-card strong{font-size:38px;line-height:1.2;color:#185864;letter-spacing:-1px}
+.sh-eyebrow{text-transform:uppercase;letter-spacing:1px;font-size:11px;font-weight:800;color:#617d83}
+.sh-card>span:not(.sh-eyebrow){font-size:12px;color:#61757a}
+.sh-card-meta{display:flex;gap:16px;border-top:1px solid #e9f0f1;margin-top:12px;padding-top:12px;font-size:12px;color:#61757a;flex-wrap:wrap}
+.sh-card-meta b{color:#17383f}
+.sh-scope{font-size:12px;color:#61757a;margin-bottom:14px}
+.sh-warning{background:#fff4dc;color:#74551c;border:1px solid #f0ddb4;border-radius:10px;padding:12px;margin:12px 0;font-size:13px}
+.sh-panel{background:white;border:1px solid #dce8eb;border-radius:14px;padding:16px;margin:16px 0}
+.sh-panel .section-label{border:0;margin:0;padding:0 0 12px}
+.sh-filters{align-items:end;margin:12px 0 16px}
+.sh-filters input[type=search]{min-width:220px}
+.sh-filters .sh-search{flex:1}
+#sh-ledger{font-size:12px}
+#sh-ledger td{vertical-align:top;padding-top:14px;padding-bottom:14px}
+#sh-ledger tbody tr:hover{background:#f5fafb}
+.sh-sub{display:block;font-size:11px;color:#73878c;margin-top:5px;font-weight:400;max-width:230px}
+.sh-job{display:block;margin-top:8px;font-size:13px;color:#215f6b}
+.sh-badge{display:inline-block;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:800;white-space:nowrap;background:#edf2f4;color:#536d74}
+.sh-issue{background:#def5e9;color:#236342}.sh-job,.sh-warranty{color:#275d7a}.sh-badge.sh-job{display:inline-block;margin:0;font-size:10px;background:#e5f0f9}
+.sh-badge.sh-warranty{background:#eeeafa;color:#665195}.sh-faulty_return{background:#fff1e7;color:#9a5d28}
+.sh-number{display:block;white-space:nowrap;line-height:1.7;font-weight:700;font-variant-numeric:tabular-nums}
+.sh-number small{font-weight:400;color:#74888d;font-size:10px}
+.sh-positive{color:#2c7b59}.sh-negative,#stock-overlay strong.sh-negative{color:#ad3f34}
+.sh-note{min-width:140px;max-width:260px;white-space:normal;overflow-wrap:anywhere}
+.sh-pager{justify-content:flex-end;margin-top:14px;font-size:12px;color:#61757a}
+.sh-pager span{margin-right:auto}
+#sh-count{font-size:12px;color:#61757a;margin:0}
+@media(max-width:700px){.sh-cards{grid-template-columns:1fr}.sh-card{padding:16px}.sh-card strong{font-size:30px}.sh-topline{align-items:stretch}.sh-topline label{width:100%}.sh-topline select{min-width:0;width:100%}.sh-filters label{flex:1;min-width:130px}.sh-filters input{min-width:0;width:100%}.sh-filters input[type=search]{min-width:0}#stock-overlay .modal-body{padding:16px}.sh-panel{padding:12px}}
+
 </style>
 </head>
 <body>
@@ -496,6 +537,12 @@
         <button class="x" id="st-close" aria-label="Close">✕</button>
       </div>
       <div class="modal-body">
+        <p class="sh-intro">Every stock delivery, job used and return in one place. See what each electrician should still have, including faulty alarms to hand back.</p>
+        <div class="sh-topline"><label>VIEW ELECTRICIAN<select id="sh-tech"><option value="">All electricians</option></select></label><button class="btn btn-ghost" id="sh-refresh">Refresh stock</button></div>
+        <div class="sh-cards" id="sh-cards"></div>
+        <p class="sh-scope" id="sh-scope"></p>
+        <p class="sh-warning" id="sh-warning" hidden></p>
+        <div class="sh-panel"><div class="section-label">Balance breakdown</div><div class="rp-scroll"><table class="rp-table" id="sh-reconcile"></table></div><p class="hint">Remaining = given − returned + corrections − installed − warranty used. Faulty stock is tracked separately.</p></div>
         <div class="section-label" style="border-top:none;padding-top:0">Stock on hand by electrician</div>
         <div class="rp-scroll"><table class="rp-table" id="st-table"></table></div>
         <p class="hint" id="st-hint" style="margin:.4rem 0 1rem"></p>
@@ -508,12 +555,23 @@
           <label>Note <input type="text" id="st-note" maxlength="300" placeholder="optional" style="width:12rem"></label>
           <button class="btn btn-primary" id="st-save">Save</button>
         </div>
-        <div class="section-label" style="margin-top:1rem">Recent stock entries</div>
-        <div class="rp-scroll"><table class="rp-table" id="st-log"></table></div>
+        <div class="sh-panel">
+          <div class="sh-topline"><div><div class="section-label">Full stock history</div><p id="sh-count" aria-live="polite"></p></div><button class="btn btn-ghost" id="sh-export">Download filtered CSV</button></div>
+          <div class="sh-filters">
+            <label class="sh-search">Search<input type="search" id="sh-search" placeholder="Job, customer, note or electrician"></label>
+            <label>Activity<select id="sh-kind"><option value="">All activity</option><option value="issue">Stock given</option><option value="job">Used on job</option><option value="warranty">Warranty replacement</option><option value="return">Stock returned</option><option value="faulty_return">Faulty returned</option><option value="adjust">Corrections</option></select></label>
+            <label>Product<select id="sh-product"><option value="">All products</option><option value="hardwired">Hardwired</option><option value="battery">Battery</option><option value="controller">Controllers</option></select></label>
+            <label>From<input type="date" id="sh-from"></label><label>To<input type="date" id="sh-to"></label>
+            <button class="btn btn-ghost" id="sh-reset">Clear filters</button>
+          </div>
+          <p class="hint">Each balance is for that electrician after the entry, across all recorded history. Filters only narrow the activity shown. Dates use Queensland time.</p>
+          <div class="rp-scroll"><table class="rp-table" id="sh-ledger"></table></div>
+          <div class="sh-pager"><span id="sh-page" aria-live="polite"></span><button class="btn btn-ghost" id="sh-prev">Previous</button><button class="btn btn-ghost" id="sh-next">Next</button></div>
+        </div>
         <div class="section-label" style="margin-top:1rem">Faulty alarms replaced under warranty</div>
         <div class="rp-scroll"><table class="rp-table" id="st-faulty"></table></div>
       </div>
-      <div class="modal-foot"><span class="hint">Used = alarms and controllers on the electrician's completed jobs since the day their first stock was recorded, including alarms replaced on warranty jobs. Each replaced alarm also puts one faulty alarm with the electrician until you record Take back faulty.</span><span class="spacer"></span>
+      <div class="modal-foot"><span class="hint">Stock usage is calculated from current completed jobs since the first recorded stock day. Reopened or corrected jobs recalculate this history. Record Take back faulty when faulty alarms reach the office.</span><span class="spacer"></span>
         <button class="btn btn-primary" id="st-download">⬇ Download Excel</button></div>
     </div>
   </div>
@@ -616,6 +674,7 @@
 
   <div class="toast" id="toast"></div>
 
+<script src="/assets/stock-history.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1917,21 +1976,19 @@
 
   /* ---------- stock tracker ---------- */
   var STOCK_LABEL = { hardwired:"Hardwired alarm", battery:"Battery alarm", controller:"Controller" };
+  var stockHistory = window.PSStockHistory.create();
   function renderStock(d){
     renderFaulty(d.faulty);
     var P = ["hardwired","battery","controller"];
-    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Faulty to<br>hand back</th><th>Given / used</th><th></th></tr></thead><tbody>' +
+    $("st-table").innerHTML = '<thead><tr><th>Electrician</th>' + P.map(function(p){ return '<th class="n">' + STOCK_LABEL[p] + '<br>on hand</th>'; }).join("") + '<th>Faulty to<br>hand back</th><th>Net given / used</th><th></th></tr></thead><tbody>' +
       (d.electricians.length ? d.electricians.map(function(t){
         return '<tr><td>' + esc((t.code ? t.code + " · " : "") + t.name) + '</td>' +
           P.map(function(p){ var v = t.on_hand[p]; return '<td class="n"><b' + (v < 0 ? ' style="color:#B3261E"' : '') + '>' + (t.since ? v : "—") + '</b></td>'; }).join("") +
           '<td>' + faultyText(t) + '</td>' +
           '<td class="wrap">' + (t.since ? P.map(function(p){ return STOCK_LABEL[p].split(" ")[0] + " " + t.given[p] + "/" + t.installed[p]; }).join(" · ") +
-            (t.unclassified ? '<br><span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td>' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
+            (t.unclassified ? '<br><span style="color:#B3261E">' + t.unclassified + ' alarm' + (t.unclassified === 1 ? "" : "s") + ' of unknown type not counted</span>' : '') : '<span class="hint">No stock recorded</span>') + '</td><td><button class="btn btn-ghost" data-stock-history="' + esc(t.electrician_id) + '">View history</button> ' + (t.since ? '<button class="btn btn-ghost" data-send-stock="' + esc(t.electrician_id) + '" data-name="' + esc(t.name) + '">Email count</button>' : '') + '</td></tr>';
       }).join("") : '<tr><td class="empty" colspan="7">No electricians yet</td></tr>') + '</tbody>';
-    $("st-log").innerHTML = '<thead><tr><th>When</th><th>Electrician</th><th>Product</th><th class="n">Qty</th><th>Note</th><th>By</th></tr></thead><tbody>' +
-      (d.movements.length ? d.movements.map(function(m){
-        return '<tr><td>' + esc(new Date(m.created_at).toLocaleString("en-AU", { day:"numeric", month:"short", hour:"numeric", minute:"2-digit", timeZone:"Australia/Brisbane" })) + '</td><td>' + esc(m.electrician) + '</td><td>' + esc((STOCK_LABEL[m.product] || m.product) + (m.condition === "faulty" ? " (faulty)" : "")) + '</td><td class="n">' + (m.qty > 0 ? "+" : "") + m.qty + '</td><td>' + esc(m.note) + '</td><td>' + esc(m.created_by) + '</td></tr>';
-      }).join("") : '<tr><td class="empty" colspan="6">Nothing recorded yet</td></tr>') + '</tbody>';
+    stockHistory.setData(d);
   }
   function faultyText(t){
     var f = t.faulty_held || {}, parts = [];
@@ -1954,11 +2011,14 @@
       }).join("") : '<tr><td class="empty" colspan="5">No faulty alarms yet</td></tr>') + '</tbody>';
   }
   function loadStock(){ return jobsApi({ action:"stock_summary" }).then(renderStock).catch(function(err){ toast(err.message); }); }
+  $("sh-refresh").addEventListener("click", function(){var btn=this;btn.disabled=true;loadStock().finally(function(){btn.disabled=false;});});
   $("stock-btn").addEventListener("click", function(){
     $("st-tech").innerHTML = state.techs.map(function(t){ return '<option value="' + esc(t.id) + '">' + esc((t.code ? t.code + " · " : "") + t.name) + '</option>'; }).join("");
     $("stock-overlay").classList.add("show"); loadStock();
   });
   $("st-table").addEventListener("click", function(e){
+    var history = e.target.closest("[data-stock-history]");
+    if (history) { stockHistory.select(history.dataset.stockHistory); $("st-tech").value=history.dataset.stockHistory; return; }
     var b = e.target.closest("[data-send-stock]"); if (!b) return;
     if (!confirm("Email " + b.dataset.name + " their stock count? A copy goes to the office.")) return;
     b.disabled = true;
@@ -1968,7 +2028,7 @@
   });
   $("st-download").addEventListener("click", function(){
     var btn = this; btn.disabled = true;
-    fetch("/api/pipeline?resource=jobs", { method:"POST", headers:{ "Content-Type":"application/json", "x-portal-key": portalKey() }, body: JSON.stringify({ action:"stock_report" }) })
+    fetch("/api/pipeline?resource=jobs", { method:"POST", headers:{ "Content-Type":"application/json", "x-portal-key": portalKey() }, body: JSON.stringify({ action:"stock_report", electrician_id:stockHistory.selected() }) })
       .then(function(res){
         if (!res.ok) return res.json().catch(function(){ return {}; }).then(function(d){ throw new Error(d.error || "Couldn't create the Excel file"); });
         return res.blob();

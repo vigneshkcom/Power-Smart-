@@ -23,11 +23,16 @@ function trackingStart(iso) {
 function buildSummary(techs, moves, jobs, installedCounts) {
   const blank = () => ({ hardwired: 0, battery: 0, controller: 0 });
   const rows = new Map(techs.map((t) => [t.id, { electrician_id: t.id, code: t.code || "", name: t.name, active: t.active !== false, since: null, given: blank(), installed: blank(), warranty_used: blank(), on_hand: blank(), unclassified: 0,
-    faulty_collected: blank(), faulty_taken_back: blank(), faulty_held: blank() }]));
+    issued: blank(), returned: blank(), adjusted: blank(), faulty_collected: blank(), faulty_taken_back: blank(), faulty_held: blank() }]));
   for (const m of moves) {
     const r = rows.get(m.electrician_id); if (!r || !PRODUCTS.includes(m.product)) continue;
     if (m.condition === "faulty") r.faulty_taken_back[m.product] -= m.qty;   // stored negative: taken off the electrician
-    else r.given[m.product] += m.qty;
+    else {
+      r.given[m.product] += m.qty;
+      if (m.kind === "adjust") r.adjusted[m.product] += m.qty;
+      else if (m.qty > 0) r.issued[m.product] += m.qty;
+      else r.returned[m.product] -= m.qty;
+    }
     if (!r.since || m.created_at < r.since) r.since = m.created_at;
   }
   for (const r of rows.values()) if (r.since) r.since = trackingStart(r.since);
@@ -47,39 +52,91 @@ function buildSummary(techs, moves, jobs, installedCounts) {
   return [...rows.values()].filter((r) => r.since || r.active);
 }
 
+
+// Read every page: PostgREST may cap a response below the requested limit.
+async function allRows(query) {
+  const rows = [];
+  for (;;) {
+    const page = await sb(query + "&limit=500&offset=" + rows.length) || [];
+    if (!page.length) return rows;
+    rows.push(...page);
+  }
+}
+
+// Chronological ledger. Balance snapshots are per electrician and calculated
+// before UI filtering, so searching or paging never resets the running balance.
+function buildLedger(techs, moves, jobs, installedCounts) {
+  const byId = new Map(techs.map(t => [t.electrician_id, t]));
+  const blank = () => ({ hardwired: 0, battery: 0, controller: 0 });
+  const entries = [];
+  for (const m of moves) {
+    if (!byId.has(m.electrician_id) || !PRODUCTS.includes(m.product)) continue;
+    const delta = blank(), faulty_delta = blank();
+    (m.condition === "faulty" ? faulty_delta : delta)[m.product] = m.qty;
+    entries.push({ id: "move:" + m.id, at: m.created_at, electrician_id: m.electrician_id,
+      kind: m.condition === "faulty" ? "faulty_return" : m.kind || (m.qty > 0 ? "issue" : "return"),
+      product: m.product, delta, faulty_delta, note: m.note || "", by: m.created_by || "", unclassified: 0 });
+  }
+  for (const j of jobs) {
+    const t = byId.get(j.electrician_id);
+    if (!t || !t.since || (j.completed_at || "") < t.since) continue;
+    const c = installedCounts(j), delta = blank(), faulty_delta = blank();
+    delta.hardwired = -(c.hardwired + (c.warranty_hardwired || 0));
+    delta.battery = -(c.battery + (c.warranty_battery || 0));
+    delta.controller = -c.controllers;
+    faulty_delta.hardwired = c.warranty_hardwired || 0;
+    faulty_delta.battery = c.warranty_battery || 0;
+    if (!PRODUCTS.some(p => delta[p] || faulty_delta[p]) && !c.untyped) continue;
+    entries.push({ id: "job:" + j.id, at: j.completed_at, electrician_id: j.electrician_id,
+      kind: j.work_type === "warranty" ? "warranty" : "job", job_id: j.id, job_no: j.job_no,
+      customer: j.customer_name || "", address: [j.address,j.suburb].filter(Boolean).join(", "),
+      delta, faulty_delta, unclassified: c.untyped || 0,
+      note: j.work_type === "warranty" ? "Replacement stock used; faulty alarms to hand back" : "Stock used on completed job", by: "" });
+  }
+  entries.sort((a,b) => Date.parse(a.at)-Date.parse(b.at) || (a.id.startsWith("move:") ? 0 : 1)-(b.id.startsWith("move:") ? 0 : 1) || a.id.localeCompare(b.id));
+  const balances = new Map();
+  for (const e of entries) {
+    const t = byId.get(e.electrician_id);
+    e.electrician = t.name; e.code = t.code;
+    let b = balances.get(e.electrician_id);
+    if (!b) { b = { good: blank(), faulty: blank() }; balances.set(e.electrician_id,b); }
+    for (const p of PRODUCTS) { b.good[p] += e.delta[p]; b.faulty[p] += e.faulty_delta[p]; }
+    e.balance = { ...b.good }; e.faulty_balance = { ...b.faulty };
+  }
+  return entries;
+}
+
 async function load(installedCounts) {
   const [techs, moves] = await Promise.all([
-    sb("electricians?select=id,code,name,active&order=sort_order.asc,name.asc"),
-    sb("stock_movements?select=*&order=created_at.desc&limit=5000"),
+    allRows("electricians?select=id,code,name,active&order=sort_order.asc,name.asc,id.asc"),
+    allRows("stock_movements?select=*&order=created_at.desc,id.desc"),
   ]);
   const list = moves || [];
   let jobs = [];
   if (list.length) {
     const first = list.reduce((a, m) => (m.created_at < a ? m.created_at : a), list[0].created_at);
-    jobs = await sb(`jobs?status=eq.completed&electrician_id=not.is.null&completed_at=gte.${encodeURIComponent(trackingStart(first))}&select=id,job_no,electrician_id,completed_at,invoice_items,alarm_type,alarms,work_type,alarm_units,customer_name,address,suburb&order=completed_at.asc&limit=5000`) || [];
+    jobs = await allRows(`jobs?status=eq.completed&electrician_id=not.is.null&completed_at=gte.${encodeURIComponent(trackingStart(first))}&select=id,job_no,electrician_id,completed_at,invoice_items,alarm_type,alarms,work_type,alarm_units,customer_name,address,suburb&order=completed_at.asc,id.asc`) || [];
   }
   const names = Object.fromEntries((techs || []).map((t) => [t.id, t.name]));
   // Every alarm replaced on a completed warranty job, newest first: the faulty alarm register.
-  let warrantyJobs = [];
-  try {
-    warrantyJobs = await sb("jobs?work_type=eq.warranty&status=eq.completed&select=id,job_no,electrician_id,completed_at,customer_name,suburb,alarm_units&order=completed_at.desc&limit=200") || [];
-  } catch (_) { /* warranty jobs not set up yet */ }
+  const warrantyJobs = jobs.filter(j => j.work_type === "warranty").slice().reverse();
   const faulty = [];
   for (const j of warrantyJobs) for (const u of Array.isArray(j.alarm_units) ? j.alarm_units : []) {
     if (!u || u.outcome !== "replaced") continue;
-    faulty.push({ completed_at: j.completed_at, job_no: j.job_no, electrician: names[j.electrician_id] || "", customer: j.customer_name || "", suburb: j.suburb || "",
+    faulty.push({ electrician_id: j.electrician_id, completed_at: j.completed_at, job_no: j.job_no, electrician: names[j.electrician_id] || "", customer: j.customer_name || "", suburb: j.suburb || "",
       location: u.location || "", type: u.type === "hardwired" ? "hardwired" : "battery", fault: u.fault || "" });
   }
+  const electricians = buildSummary(techs || [], list, jobs, installedCounts);
   return {
-    jobs, all: list, names, faulty,
-    electricians: buildSummary(techs || [], list, jobs, installedCounts),
+    jobs, all: list, names, faulty, ledger: buildLedger(electricians, list, jobs, installedCounts),
+    electricians,
     movements: list.slice(0, 60).map((m) => ({ id: m.id, created_at: m.created_at, electrician: names[m.electrician_id] || "", product: m.product, qty: m.qty, kind: m.kind, condition: m.condition || "good", note: m.note || "", created_by: m.created_by || "" })),
   };
 }
 
 async function summary(installedCounts) {
-  const { electricians, movements, faulty } = await load(installedCounts);
-  return { electricians, movements, faulty: faulty.slice(0, 100) };
+  const { electricians, movements, faulty, ledger } = await load(installedCounts);
+  return { electricians, movements, faulty, ledger };
 }
 
 const LABEL = { hardwired: "Hardwired smoke alarm", battery: "Battery smoke alarm", controller: "Controller" };
@@ -99,7 +156,7 @@ async function workbook(data, installedCounts, techId) {
     sheet.mergeCells(2, 1, 2, cols); sheet.getCell("A2").value = stamp; sheet.getCell("A2").font = { size: 10, italic: true, color: { argb: "FF41585D" } };
   };
   const sCols = [["Electrician", 24], ["Code", 9], ["Counting installs from", 22]];
-  PRODUCTS.forEach((p) => ["given", "installed", "should have"].forEach((k) => sCols.push([`${LABEL[p]} ${k}`, 20])));
+  PRODUCTS.forEach((p) => ["given", "returned", "corrections", "installed", "warranty used", "remaining"].forEach((k) => sCols.push([`${LABEL[p]} ${k}`, 20])));
   sCols.push(["Alarms of unknown type (not counted)", 30]);
   ALARMS.forEach((p) => sCols.push([`Faulty ${p} alarms with electrician`, 22]));
   const s1 = wb.addWorksheet("Stock summary", { views: [{ state: "frozen", ySplit: 4 }] });
@@ -107,8 +164,8 @@ async function workbook(data, installedCounts, techId) {
   s1.columns = sCols.map(([, width]) => ({ width }));
   s1.addTable({ name: "StockSummary", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: sCols.map(([name]) => ({ name, filterButton: false })),
-    rows: techs.length ? techs.map((t) => [xText(t.name), xText(t.code), bneDate(t.since), ...PRODUCTS.flatMap((p) => [t.given[p], t.installed[p], t.on_hand[p]]), t.unclassified, ...ALARMS.map((p) => t.faulty_held[p])])
-      : [["No stock recorded yet", "", "", ...PRODUCTS.flatMap(() => [0, 0, 0]), 0, 0, 0]] });
+    rows: techs.length ? techs.map((t) => [xText(t.name), xText(t.code), bneDate(t.since), ...PRODUCTS.flatMap((p) => [t.issued[p], t.returned[p], t.adjusted[p], t.installed[p] - t.warranty_used[p], t.warranty_used[p], t.on_hand[p]]), t.unclassified, ...ALARMS.map((p) => t.faulty_held[p])])
+      : [["No stock recorded yet", "", "", ...PRODUCTS.flatMap(() => [0, 0, 0, 0, 0, 0]), 0, 0, 0]] });
 
   const jCols = [["Completed", 18], ["Job", 9], ["Electrician", 22], ["Customer", 24], ["Address", 40], ["Hardwired alarms", 17], ["Battery alarms", 15], ["Controllers", 13], ["Type not recorded", 18]];
   const s2 = wb.addWorksheet("Installed", { views: [{ state: "frozen", ySplit: 4 }] });
@@ -116,7 +173,7 @@ async function workbook(data, installedCounts, techId) {
   s2.columns = jCols.map(([, width]) => ({ width }));
   const rows = data.jobs.filter((j) => ids.has(j.electrician_id) && (j.completed_at || "") >= data.electricians.find((t) => t.electrician_id === j.electrician_id).since).map((j) => {
     const c = installedCounts(j);
-    return [bneDate(j.completed_at), "J" + j.job_no, xText(data.names[j.electrician_id]), xText(j.customer_name), xText([j.address, j.suburb].filter(Boolean).join(", ")), c.hardwired, c.battery, c.controllers, c.untyped];
+    return [bneDate(j.completed_at), "J" + j.job_no, xText(data.names[j.electrician_id]), xText(j.customer_name), xText([j.address, j.suburb].filter(Boolean).join(", ")), c.hardwired + (c.warranty_hardwired || 0), c.battery + (c.warranty_battery || 0), c.controllers, c.untyped];
   });
   s2.addTable({ name: "InstalledJobs", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: jCols.map(([name]) => ({ name, filterButton: true })), rows: rows.length ? rows : [["", "", "No installs yet", "", "", 0, 0, 0, 0]] });
@@ -136,6 +193,21 @@ async function workbook(data, installedCounts, techId) {
     .map((f) => [bneDate(f.completed_at), "J" + f.job_no, xText(f.electrician), xText(f.customer), xText(f.suburb), xText(f.location), f.type, xText(f.fault)]);
   s4.addTable({ name: "FaultyAlarms", ref: "A4", headerRow: true, style: { theme: "TableStyleMedium2", showRowStripes: true },
     columns: fCols.map(([name]) => ({ name, filterButton: true })), rows: fr.length ? fr : [["", "", "No faulty alarms yet", "", "", "", "", ""]] });
+
+  const lCols = [["When",23],["Electrician",24],["Action",18],["Job",10],["Customer",26],["Address",40],
+    ["Hardwired change",18],["Battery change",18],["Controller change",18],["Hardwired remaining",22],["Battery remaining",22],["Controllers remaining",22],
+    ["Faulty hardwired change",24],["Faulty battery change",24],["Faulty hardwired held",24],["Faulty battery held",24],["Unclassified alarms",20],["Note",50],["By",20]];
+  const s5 = wb.addWorksheet("Full stock history", { views: [{ state: "frozen", ySplit: 4 }] });
+  banner(s5, "PowerSmart - complete stock movement history", lCols.length);
+  s5.columns = lCols.map(([,width]) => ({width}));
+  const actions = {issue:"Given",return:"Returned",adjust:"Correction",job:"Used on job",warranty:"Warranty replacement",faulty_return:"Faulty returned"};
+  const lr = (data.ledger || []).filter(e => !techId || e.electrician_id === techId).map(e => [
+    new Date(e.at).toLocaleString("en-AU",{timeZone:"Australia/Brisbane"}),xText(e.electrician),actions[e.kind] || e.kind,e.job_no ? "J"+e.job_no : "",
+    xText(e.customer),xText(e.address),...PRODUCTS.map(p=>e.delta[p]),...PRODUCTS.map(p=>e.balance[p]),
+    e.faulty_delta.hardwired,e.faulty_delta.battery,e.faulty_balance.hardwired,e.faulty_balance.battery,e.unclassified,xText(e.note),xText(e.by)]);
+  s5.addTable({name:"FullStockHistory",ref:"A4",headerRow:true,style:{theme:"TableStyleMedium2",showRowStripes:true},
+    columns:lCols.map(([name])=>({name,filterButton:true})),rows:lr.length ? lr : [["No stock history",...Array(lCols.length-1).fill("")]]});
+
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
@@ -194,4 +266,6 @@ async function move(b, actor, clean) {
   }
 }
 
-module.exports = { summary, load, workbook, sendCount, move, buildSummary, trackingStart, PRODUCTS };
+module.exports = { summary, load, workbook, sendCount, move, buildSummary, trackingStart, PRODUCTS, buildLedger, allRows };
+
+
