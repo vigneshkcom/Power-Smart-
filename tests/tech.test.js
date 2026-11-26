@@ -686,3 +686,49 @@ test('inspection signoff is ready without photos after saving required findings'
   context.inspectionChanged=false;d.alarms[0].expiry='';
   assert.equal(context.inspectionReady(),false);
 });
+
+
+test('day cards distinguish quoted controllers, zero and unknown; other jobs remain private', async () => {
+  const t = setup();
+  t.job('j1').quote_ref = 'Q7012';
+  const range = { action: 'jobs', from: '2026-10-23T14:00:00.000Z', to: '2026-10-24T14:00:00.000Z', include_controller_quote: true };
+  const read = async () => {
+    const r = await t.call(range);
+    assert.equal(r.code, 200);
+    assert.equal(r.data.jobs.length, 1);
+    assert.equal(r.data.jobs[0].job_no, 1001);
+    assert.equal(r.data.jobs[0].email, undefined);
+    return r.data.jobs[0].controller_qty;
+  };
+  assert.equal(await read(), 1);
+  t.db.tables.sent_emails[0].body_text = '- Smoke alarms (5 x $79.00): $395.00';
+  assert.equal(await read(), 0);
+  t.job('j1').quote_ref = 'missing';
+  assert.equal(await read(), null);
+  t.job('j1').quote_ref = null;
+  assert.equal(await read(), null);
+});
+
+test('controller popup is advisory and appears only for an exact zero-controller installation quote', () => {
+  const page = fs.readFileSync(path.join(__dirname, '../tech.html'), 'utf8');
+  const start = page.indexOf('  function controllerTag(j){');
+  const end = page.indexOf('\n  }', page.indexOf('  function warnController(d){')) + '\n  }'.length;
+  let opened = 0;
+  const warning = { open: false, showModal(){ opened++; } };
+  const context = { controllerWarningJob: null, $: id => id === 'v-job' ? { classList: { contains: () => true } } : warning };
+  vm.runInNewContext(page.slice(start, end), context);
+  const job = { id: 'j1', work_type: 'install', status: 'scheduled', quote_ref: 'Q7012' };
+  const quote = { ref: 'Q7012', service: 'install', controller_qty: 1 };
+  context.warnController({ job, quote });
+  assert.equal(opened, 0);
+  assert.match(context.controllerTag({ ...job, controller_qty: 2 }), /included × 2/);
+  assert.match(context.controllerTag({ ...job, controller_qty: null }), /check quote/);
+  quote.controller_qty = 0;
+  context.warnController({ job, quote });
+  context.warnController({ job, quote });
+  assert.equal(opened, 1);
+  context.warnController({ job: { ...job, id: 'j2', quote_ref: 'different' }, quote });
+  context.warnController({ job: { ...job, id: 'j3', status: 'completed' }, quote });
+  assert.equal(opened, 1);
+  assert.match(context.controllerTag({ ...job, controller_qty: 0 }), /No controller quoted/);
+});

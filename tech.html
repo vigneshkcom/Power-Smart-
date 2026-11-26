@@ -93,6 +93,14 @@
   .jcard .jtime{font-size:1.1rem;font-weight:800;color:var(--ink);letter-spacing:-.01em}
   .jcard .jsub{font-size:.74rem;font-weight:700;color:var(--muted);margin-top:2px}
   .jcard .name{font-size:1.05rem;font-weight:800;margin:12px 0 4px}
+  .controller-tag{display:inline-block;margin-top:7px;padding:4px 9px;border-radius:8px;font-size:.74rem;font-weight:700;line-height:1.4}
+  .controller-tag.yes{background:#E3F5EC;color:#1E6B49}
+  .controller-tag.no{background:#FFF4D6;color:#755000}
+  .controller-tag.unknown{background:#EDF3F4;color:var(--body)}
+  #controller-warning{position:fixed;inset:0;margin:auto;width:calc(100% - 36px);max-width:420px;border:0;border-radius:18px;padding:22px;color:var(--ink);background:#fff;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+  #controller-warning::backdrop{background:rgba(11,27,31,.6)}
+  #controller-warning h2{font-size:1.15rem;font-weight:800;color:#755000;margin-bottom:8px}
+  #controller-warning p{font-size:.9rem;line-height:1.5;color:var(--body);margin-bottom:12px}
   .jcard .addr{display:flex;gap:6px;align-items:flex-start;font-size:.88rem;color:var(--body);line-height:1.35}
   .jcard .addr svg{flex:none;margin-top:2px;color:var(--teal-deep)}
   .jcard .jact{display:flex;gap:8px;margin-top:14px}
@@ -305,6 +313,12 @@
     <div class="sig-actions"><button type="button" class="btn btn-ghost" id="sig-cancel">Cancel</button><button type="button" class="btn btn-ghost" id="sig-clear">Clear</button><button type="button" class="btn btn-green" id="sig-done" disabled>Done</button></div>
   </div>
 </div>
+<dialog id="controller-warning" aria-labelledby="controller-warning-title">
+  <h2 id="controller-warning-title">Do not upsell controller</h2>
+  <p>Not included in the accepted quote. Stock is reserved for existing orders.</p>
+  <p><b>If asked:</b> “A controller wasn't included in your quote and we don't have spare stock.”</p>
+  <form method="dialog"><button class="btn btn-primary" autofocus>Got it</button></form>
+</dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="/assets/js/tech-card-payment.js"></script>
@@ -330,7 +344,26 @@
   function addDays(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
   function timeLabel(d){ var h = d.getHours(); return (h % 12 || 12) + ":" + pad(d.getMinutes()) + " " + (h < 12 ? "am" : "pm"); }
   function toast(msg){ var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 3200); }
-  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job"){ rememberView({ job: null }); popJobEntry(); } }
+  var controllerWarningJob = null;
+  function show(v){ ["v-login","v-list","v-job","v-done"].forEach(function(id){ $(id).classList.toggle("show", id === v); }); scroller().scrollTop = 0; if (v !== "v-job"){ var warning = $("controller-warning"); if (warning.open) warning.close(); controllerWarningJob = null; rememberView({ job: null }); popJobEntry(); } }
+  function controllerTag(j){
+    if (j.work_type !== "install") return "";
+    var qty = j.controller_qty;
+    if (!Number.isInteger(qty) || qty < 0) return '<span class="controller-tag unknown">Controller: check quote</span>';
+    return qty > 0
+      ? '<span class="controller-tag yes">Controller included × ' + qty + '</span>'
+      : '<span class="controller-tag no">No controller quoted</span>';
+  }
+  function warnController(d){
+    var j = d.job, q = d.quote, ref = j.installation_quote_ref || j.quote_ref;
+    if (j.work_type !== "install" || j.status === "completed" || j.status === "cancelled" ||
+        !ref || !q || q.ref !== ref || q.service !== "install" || q.controller_qty !== 0 ||
+        controllerWarningJob === j.id || !$("v-job").classList.contains("show")) return;
+    controllerWarningJob = j.id;
+    var warning = $("controller-warning");
+    if (typeof warning.showModal === "function") { if (!warning.open) warning.showModal(); }
+    else alert("Do not upsell controller. Not included in the accepted quote. No spare stock available.");
+  }
   // The phone's own Back button / swipe-back: an extra history entry is added while a job is open, so Back lands on the
   // same "Discard / Fix / Submit" question as the arrow in the header instead of silently leaving.
   var jobEntry = false, skipPop = 0;
@@ -348,7 +381,7 @@
   });
   // The open job and the day being viewed are remembered on the phone, so an accidental reload (pull down, the browser
   // reclaiming memory) lands back where the electrician was instead of starting from scratch. Forgotten after 12 hours.
-  var APP_VERSION = "2026-11-22.3";   // shown under the job list so you can tell which copy of the app a phone is running
+  var APP_VERSION = "2026-11-27.1";   // shown under the job list so you can tell which copy of the app a phone is running
   $("appver").textContent = "PowerSmart tech app · v" + APP_VERSION;
   var VIEW_LS = "powersmart_tech_view";
   function scroller(){ return document.querySelector(".app"); }
@@ -519,7 +552,7 @@
     $("jobs").innerHTML = '<div class="loading">Loading…</div>';
     if (!$("cal").hidden) renderCal();
     var lk = "pslist_" + (+day);
-    call("jobs", { from: day.toISOString(), to: addDays(day, 1).toISOString() }).then(function(d){
+    call("jobs", { from: day.toISOString(), to: addDays(day, 1).toISOString(), include_controller_quote: true }).then(function(d){
       try { localStorage.setItem(lk, JSON.stringify(d)); } catch(e){}
       return d;
     }, function(err){
@@ -541,7 +574,7 @@
         return '<div class="jcard" role="button" tabindex="0" data-job="' + esc(j.id) + '">' +
           '<div class="jtop"><div class="jtime">' + timeLabel(s) + ' – ' + timeLabel(e) + '</div><span class="chip st-' + esc(sk) + '">' + esc(STATUS[sk] || sk) + '</span></div>' +
           '<div class="jsub">J' + esc(j.job_no) + (TYPES[j.work_type] ? " · " + esc(TYPES[j.work_type]) : "") + (j.alarms ? " · " + j.alarms + " alarms" : "") + (j.pay_status === "paid" ? " · Paid" : "") + '</div>' +
-          '<div class="name">' + esc(j.customer_name) + '</div>' +
+          controllerTag(j) + '<div class="name">' + esc(j.customer_name) + '</div>' +
           '<div class="addr">' + pin + '<span>' + esc(full || "No address") + '</span></div>' +
           ((full || tel) ? '<div class="jact">' +
             (full ? '<a class="jbtn nav" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(full + ", QLD, Australia") + '">' + navIcon + ' Navigate</a>' : '') +
@@ -658,6 +691,7 @@
       return loadLocalRecs(id).then(function(){
         var restored = restoreDraft();
         renderJob();
+        warnController(d);
         if (offline) toast("No signal: showing the last saved copy of this job");
         else if (restored) toast("Restored your unsynchronised changes");
         if (!offline) loadPhotos();

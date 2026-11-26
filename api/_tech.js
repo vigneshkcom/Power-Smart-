@@ -36,6 +36,7 @@ const CATALOGUE = {
 };
 
 const JOB_LIST_COLS = "id,job_no,scheduled_start,duration_min,status,work_type,customer_name,phone,address,suburb,postcode,alarms,pay_status,alarm_units,invoice_items";
+const QUOTED_JOB_LIST_COLS = JOB_LIST_COLS + ",quote_ref,installation_quote_ref,lead_id,email";
 const { clean } = J;
 function fail(status, msg) { const e = new Error(msg); e.status = status; return e; }
 const money = (cents) => "$" + (cents / 100).toFixed(2);
@@ -106,6 +107,14 @@ function withQuoteDiscount(items, discountCents) {
 async function invoiceQuote(job) {
   const ref = job.installation_quote_ref || job.quote_ref;
   return J.latestQuote(job.lead_id, job.email, ref, { required: !!ref && job.work_type === "install" });
+}
+
+// Only use the specific quote attached to this installation. Unknown is not zero.
+async function quotedControllerCount(job) {
+  const ref = job.installation_quote_ref || job.quote_ref;
+  if (job.work_type !== "install" || !ref) return null;
+  const quote = await J.latestQuote(job.lead_id, job.email, ref);
+  return quote && quote.ref === ref && quote.service === "install" ? quote.controller_qty : null;
 }
 
 function quoteDiscount(job, quote) {
@@ -330,8 +339,19 @@ async function handler(req, res) {
     if (b.action === "jobs") {
       const from = new Date(b.from), to = new Date(b.to);
       if (isNaN(from) || isNaN(to)) return res.status(400).json({ error: "from and to are required" });
-      const jobs = await sb(`jobs?electrician_id=eq.${encodeURIComponent(tech.id)}&status=neq.cancelled&scheduled_start=gte.${encodeURIComponent(from.toISOString())}&scheduled_start=lt.${encodeURIComponent(to.toISOString())}&select=${JOB_LIST_COLS}&order=scheduled_start.asc&limit=200`);
-      return res.status(200).json({ tech, jobs: jobs || [] });
+      const jobs = await sb(`jobs?electrician_id=eq.${encodeURIComponent(tech.id)}&status=neq.cancelled&scheduled_start=gte.${encodeURIComponent(from.toISOString())}&scheduled_start=lt.${encodeURIComponent(to.toISOString())}&select=${b.include_controller_quote === true ? QUOTED_JOB_LIST_COLS : JOB_LIST_COLS}&order=scheduled_start.asc&limit=200`);
+      if (b.include_controller_quote !== true) return res.status(200).json({ tech, jobs: jobs || [] });
+      const result = [];
+      // Only the visible day requests this enrichment. Limit concurrent quote reads.
+      for (let offset = 0; offset < (jobs || []).length; offset += 8) {
+        const batch = await Promise.all(jobs.slice(offset, offset + 8).map(async job => {
+          const controller_qty = await quotedControllerCount(job);
+          const { lead_id, email, quote_ref, installation_quote_ref, ...card } = job;
+          return { ...card, controller_qty };
+        }));
+        result.push(...batch);
+      }
+      return res.status(200).json({ tech, jobs: result });
     }
 
     if (b.action === "job") {
