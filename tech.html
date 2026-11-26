@@ -12,9 +12,6 @@
 <link rel="manifest" href="/assets/pwa/tech.webmanifest">
 <link rel="apple-touch-icon" href="/assets/pwa/apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2343A8B6'/%3E%3Cpath d='M36 8 16 36h12l-4 20 20-28H32l4-20z' fill='%23fff'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{--teal:#43A8B6;--teal-dark:#2E8494;--teal-deep:#1E5F6B;--teal-soft:#E7F4F6;--teal-bright:#7FD6E2;
     --ink:#0B1B1F;--body:#41585D;--muted:#6B8288;--line:rgba(11,27,31,.10);--paper:#F4F9FA;
@@ -222,6 +219,74 @@
   .qnote{display:flex;flex-direction:column;gap:6px;background:#FFF4D6;color:#5C4000;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:.84rem}
   .qnote b{font-size:.9rem}.qnote .btn{min-height:44px;margin-top:4px}
   .qnote.bad{background:#FBE4E4;color:#7A1F1F}
+
+  /* ===== Plain theme (look only; no behaviour changes) ===== */
+  :root{--teal:#1A6E7A;--teal-dark:#1A6E7A;--teal-deep:#1A6E7A;--teal-soft:#EEF4F5;--ink:#1A1A1A;--body:#444;--muted:#6B6B6B;--line:#DDDDDD;--paper:#F5F5F5;--red:#B3261E;--green:#1E6B34}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#F5F5F5;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+  h1,h2,b,strong{font-weight:600}
+  .bar{border-bottom:1px solid var(--line)}.bar h1{font-size:1.05rem;font-weight:600}
+  .link{font-weight:400;color:var(--muted);text-decoration:none;font-size:.9rem}
+  .btn{border-radius:6px;font-weight:500;min-height:48px;box-shadow:none}
+  .btn-primary,.btn-green{background:var(--teal);color:#fff}
+  .btn-dark{background:#1A1A1A;color:#fff}
+  .btn-ghost{border:1px solid #CCC;color:var(--ink)}
+  .card,.jcard{border-radius:0;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -16px 10px;padding:14px 16px;box-shadow:none}
+  .card h2{font-size:.8rem;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);gap:4px}
+  .card h2 .n,.card h2 .n.ok{display:inline;width:auto;height:auto;background:none;color:var(--muted);font-size:.8rem;border-radius:0}
+  .card h2 .n::after{content:"."}.card h2 .n.ok{color:var(--green)}.card h2 .n.ok::after{content:""}
+  .card h2 .side{font-weight:400;text-transform:none;letter-spacing:0}
+  .muted{font-size:.85rem}
+  .field label{font-size:.8rem;font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
+  .field input,.field select,.field textarea,.other input,.draft select,.draft input[type=text],.ph-row select{border:1px solid #CCC;border-radius:6px;background:#fff}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal)}
+  .login .card{margin:22px 0 0;border:1px solid var(--line);border-radius:8px}
+  .daynav{background:#fff;border-bottom:1px solid var(--line);margin:-14px -16px 10px;padding:10px 8px}
+  .daynav button{border-radius:6px;border:1px solid #CCC;font-weight:400;color:var(--ink)}
+  .daynav .lbl{font-weight:600}.daynav .lbl small{font-size:.85rem;font-weight:400}
+  .jcard:active{background:#FAFAFA}
+  .jcard .jtime{font-size:1rem;font-weight:600;letter-spacing:0}
+  .jcard .jsub{font-size:.82rem;font-weight:400;margin-top:6px}
+  .jcard .name{font-size:1rem;font-weight:400;margin:6px 0 2px}
+  .jcard .addr{font-size:.95rem;color:#555}.jcard .addr svg{display:none}
+  .jcard .jbtn{border-radius:6px;font-weight:500;border:1px solid #CCC;min-height:44px}
+  .jcard .jbtn.nav{background:var(--teal);border-color:var(--teal);color:#fff;flex:1}.jcard .jbtn.nav svg{display:none}
+  .chip{font-size:.78rem;font-weight:500;text-transform:none;letter-spacing:0;padding:2px 8px;border-radius:4px;background:#EEE;color:#333}
+  .chip.st-en_route{background:#E3F0FF;color:#0B4F9C}
+  .chip.st-on_site{background:#EFEAF8;color:#4A2F8A}
+  .chip.st-partial{background:#FFF4D6;color:#6D4C00}
+  .chip.st-completed{background:#E6F4EA;color:#1E6B34}
+  .next{border-radius:6px;margin-top:-20px}
+  .cal{border:1px solid var(--line)}
+  .cal-head button,.cal-grid button,.step button,.seg button{border-radius:6px}
+  .cal-grid button{font-weight:400}.cal-grid button.sel{background:var(--teal)}.cal-grid button i{color:#fff}
+  .seg button{border:1px solid #CCC;font-weight:500}.seg button.on{color:#fff}
+  .item .lab{font-weight:400;font-size:.95rem}
+  .ok-banner,.warn-banner,.qnote,.notes,.cust .notes{border-radius:6px;font-weight:400}
+  .toast{border-radius:6px;font-weight:400}
+  .jbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);margin-bottom:10px}
+  .jbar .back{color:var(--teal)}.jbar h1{font-weight:600}
+  .jbar .jbar-top .chip.chip{background:#EEE;color:#333;border:0;padding:2px 8px}
+  .jbar .jbar-top .chip.st-en_route{background:#E3F0FF;color:#0B4F9C}.jbar .jbar-top .chip.st-on_site{background:#EFEAF8;color:#4A2F8A}
+  .jbar .jbar-top .chip.st-partial{background:#FFF4D6;color:#6D4C00}.jbar .jbar-top .chip.st-completed{background:#E6F4EA;color:#1E6B34}
+  .jsync{font-weight:500;border-radius:4px}
+  .jsync.ok{background:none;color:var(--green);border:0;padding:0 4px}
+  .jsync.busy{background:#EEE;color:#333}
+  .jstep{font-weight:400;color:#999}.jstep i{height:4px;background:#E2E2E2}
+  .jstep.done{color:var(--green)}.jstep.done i{background:var(--green)}
+  .jstep.now{color:var(--ink);font-weight:600}.jstep.now i{background:var(--teal)}
+  .jstep:focus-visible,.jsync:focus-visible{outline-color:var(--teal)}
+  .cust .name{font-size:1.15rem;font-weight:600;letter-spacing:0}
+  .cust .when{font-weight:400;color:var(--muted)}
+  .cust .row .btn{min-height:46px;font-size:.95rem}
+  .cust .row .btn-ghost{border:1px solid #CCC}
+  .stickybar .btn{min-height:50px;font-size:1rem;font-weight:500}
+  .stickybar .nexthint{font-weight:400}
+  .signbox{border:1px dashed #999;border-radius:6px;background:#fff;color:var(--ink);font-weight:500}
+  .sig-card,.leave-card,#controller-warning{border-radius:10px}
+  .sig-pad{border:1px dashed #999;border-radius:6px}
+  .leave-actions button{border-radius:6px;font-weight:600}
+  .ph-grid button,.unit .uthumb,.shot img{border-radius:4px}
+  .draft{border:1px solid var(--teal);border-radius:6px}
 </style>
 </head>
 <body>
