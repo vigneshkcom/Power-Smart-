@@ -1,7 +1,7 @@
 // Service worker for the electrician app (/tech). Registered with scope /tech only.
 // Pages: network first, falling back to the last copy so the app opens with poor signal.
 // Never touches /api (job data, photos, payments always go to the network).
-const CACHE = "ps-tech-v4";   // refresh job cards and controller stock notice
+const CACHE = "ps-tech-v5";   // refresh job cards and controller stock notice
 const SHELL = ["/tech", "/assets/pwa/icon-192.png", "/assets/pwa/tech.webmanifest", "/assets/controller-photos.js", "/assets/js/tech-card-payment.js"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });

@@ -721,8 +721,10 @@ test('controller popup is advisory and appears only for an exact zero-controller
   const quote = { ref: 'Q7012', service: 'install', controller_qty: 1 };
   context.warnController({ job, quote });
   assert.equal(opened, 0);
-  assert.match(context.controllerTag({ ...job, controller_qty: 2 }), /included × 2/);
-  assert.match(context.controllerTag({ ...job, controller_qty: null }), /check quote/);
+  assert.equal(context.controllerTag({ ...job, alarms: 6, controller_qty: 1 }), ' + 1 controller');
+  assert.equal(context.controllerTag({ ...job, alarms: 6, controller_qty: 2 }), ' + 2 controllers');
+  assert.equal(context.controllerTag({ ...job, controller_qty: null }), '');
+  assert.equal(context.controllerTag({ ...job, work_type: 'warranty', controller_qty: 1 }), '');
   quote.controller_qty = 0;
   context.warnController({ job, quote });
   context.warnController({ job, quote });
@@ -730,5 +732,5 @@ test('controller popup is advisory and appears only for an exact zero-controller
   context.warnController({ job: { ...job, id: 'j2', quote_ref: 'different' }, quote });
   context.warnController({ job: { ...job, id: 'j3', status: 'completed' }, quote });
   assert.equal(opened, 1);
-  assert.match(context.controllerTag({ ...job, controller_qty: 0 }), /No controller quoted/);
+  assert.equal(context.controllerTag({ ...job, controller_qty: 0 }), '');
 });
