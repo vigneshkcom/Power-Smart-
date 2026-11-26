@@ -10,6 +10,11 @@ const SB = require("./_supabase");
 const QP = require('./_quote-payments');
 const CN = require('./_care-notice');
 
+// Installations are booked out for 2026: anything accepted before 1 January 2027 (Brisbane) is a 2027 install.
+function nextYearTag(now = new Date()) {
+  return now.getTime() < Date.parse("2027-01-01T00:00:00+10:00") ? "2027 INSTALL" : "";
+}
+
 async function logAcceptance({ ref, customerName, lead, payableToday, paymentMethod, address, billing }) {
   if (!SB.configured()) throw new Error("The customer record service is not configured");
   if (!lead) throw new Error("We could not find this quote. Please call 0475 184 984.");
@@ -38,9 +43,9 @@ async function logAcceptance({ ref, customerName, lead, payableToday, paymentMet
   try {
       await SB.sb("lead_comments", {
         method: "POST",
-        body: { lead_id: lead.id, author: "System", kind: "status", body: paymentMethod === "phone"
+        body: { lead_id: lead.id, author: "System", kind: "status", body: (nextYearTag() ? `${nextYearTag()}: ` : "") + (paymentMethod === "phone"
           ? `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and requested a call to arrange the ${Q.fmt(payableToday)} fee. Call the customer, arrange payment, then book them in.`
-          : `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and was sent to secure online checkout for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.` },
+          : `${customerName || "Customer"} accepted quote ${ref || ""} for ${address.full} and was sent to secure online checkout for the ${Q.fmt(payableToday)} fee. Confirm payment, then book them in.`) },
         prefer: "return=minimal",
       });
   } catch (e) { console.error("accept-quote pipeline comment failed:", e.message); }
@@ -108,6 +113,7 @@ module.exports = async (req, res) => {
   // Record the tick on the customer and email them (bcc support) the PDF copy. Never blocks or fails the acceptance.
   await CN.acceptAndSend({ lead: careLead, name: customerName, ref, address: address.full, agent: "System", version: serviceMode === "inspect" ? CN.INSPECTION_VERSION || CN.VERSION : CN.VERSION });
 
+  const tag = nextYearTag();
   const apiKey = 'transactional-email';
   if (apiKey) {
     const rows = q.lines.map((l) =>
@@ -119,6 +125,7 @@ module.exports = async (req, res) => {
         <div style="background:#0B1B1F;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0;">
           <strong style="font-size:16px;">Quote accepted - ${Q.escapeHtml(ref || "no ref")}</strong>
         </div>
+        ${tag ? `<div style="background:#FFF3CD;color:#664D03;padding:12px 20px;font-size:14px;font-weight:bold;">${tag}: accepted for installation next year. Do not book in 2026.</div>` : ""}
         <div style="border:1px solid #eee;border-top:none;padding:20px;border-radius:0 0 10px 10px;">
           <p style="margin:0 0 12px;font-size:14px;"><strong>${Q.escapeHtml(customerName || "A customer")}</strong> has accepted their ${serviceMode === "inspect" ? "inspection" : "installation"} quote${paymentMethod === "phone" ? ` and requested a call to arrange the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.` : ` and been sent to secure online checkout to pay the ${Q.fmt(q.payableToday)} ${serviceMode === "inspect" ? "inspection" : "electrician call-out"} fee.`}</p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">
@@ -139,7 +146,7 @@ module.exports = async (req, res) => {
     const paymentText = paymentMethod === "phone"
       ? `requested a call to arrange the ${Q.fmt(q.payableToday)} fee`
       : `was sent to secure online checkout for the ${Q.fmt(q.payableToday)} fee`;
-    const text = `Quote accepted - ${ref || "no ref"}\n\n${customerName || "A customer"} accepted their ${serviceMode} quote and ${paymentText}.\n\nCustomer: ${customerName || "Not provided"}\nEmail: ${customerEmail || "Not provided"}\nInstallation address: ${address.full}\nRef: ${ref || "Not provided"}\nPayment method: ${paymentMethod === "phone" ? "Call requested" : "Online payment"}\n${agentName ? "Prepared by: " + agentName + "\n" : ""}\n${q.lines.map((l) => `- ${l.label} (${l.qty}): ${Q.fmt(l.amount)}`).join("\n")}\nTotal (incl. GST): ${Q.fmt(q.total)}`;
+    const text = `${tag ? `${tag}: accepted for installation next year. Do not book in 2026.\n\n` : ""}Quote accepted - ${ref || "no ref"}\n\n${customerName || "A customer"} accepted their ${serviceMode} quote and ${paymentText}.\n\nCustomer: ${customerName || "Not provided"}\nEmail: ${customerEmail || "Not provided"}\nInstallation address: ${address.full}\nRef: ${ref || "Not provided"}\nPayment method: ${paymentMethod === "phone" ? "Call requested" : "Online payment"}\n${agentName ? "Prepared by: " + agentName + "\n" : ""}\n${q.lines.map((l) => `- ${l.label} (${l.qty}): ${Q.fmt(l.amount)}`).join("\n")}\nTotal (incl. GST): ${Q.fmt(q.total)}`;
 
     try {
       const { Resend } = require('./_transactional-mail');
@@ -148,7 +155,7 @@ module.exports = async (req, res) => {
         from: `PowerSmart <${Q.SUPPORT_EMAIL}>`,
         to: process.env.NOTIFY_EMAIL || Q.SUPPORT_EMAIL,
         replyTo: customerEmail || (process.env.RESEND_REPLY_TO || Q.SUPPORT_EMAIL),
-        subject: `${paymentMethod === "phone" ? "Quote accepted, call requested" : "Quote accepted"} - ${customerName || "customer"} (${ref || "no ref"})`,
+        subject: `${tag ? `[${tag}] ` : ""}${paymentMethod === "phone" ? "Quote accepted, call requested" : "Quote accepted"} - ${customerName || "customer"} (${ref || "no ref"})`,
         html,
         text,
       });

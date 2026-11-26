@@ -88,6 +88,9 @@
   .nsit{font-size:.9rem;font-weight:700;color:var(--ink);margin-bottom:12px;line-height:1.4}
   .nsafe{background:var(--amber-soft);border:1px solid #EBCF8A;border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--body);line-height:1.55;margin-bottom:12px}
   .nsafe strong{color:var(--ink)}
+  .nsafe.nred{background:#FDECEC;border:2px solid #C62828;color:#8E1B1B;font-weight:600}
+  .nsafe.nred strong{color:#C62828;font-size:.94rem}
+  .nsafe.nred[hidden]{display:none}
   .nhelp{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--body);line-height:1.55;margin-bottom:12px}
   .nhelp strong{color:var(--ink)}
   .nlaw{font-size:.74rem;color:var(--muted);line-height:1.5;margin-bottom:6px}
@@ -212,6 +215,8 @@
         <p>Problems are uncommon, but if one ever happens, here's exactly what to do.</p>
       </div>
       <div class="notice-body">
+        <!-- Booked out for 2026: shown until 1 January 2027 (Brisbane), matching nextYearTag() in api/accept-quote.js. -->
+        <div class="nsafe nred" id="nextYearNotice" hidden><strong>We're booked out for 2026.</strong> If you accept now, your <span id="nextYearWork">installation</span> will be in 2027. This is after Queensland's 1 January 2027 smoke alarm deadline. Please keep your current alarms working and tested.</div>
         <div class="nsit">If an alarm is faulty, or sounds or chirps for no obvious reason</div>
         <ol class="nsteps">
           <li><div class="n">1</div><div><b>Get in touch</b><span>Call <a href="tel:+61475184984">0475&nbsp;184&nbsp;984</a> or reply to your quote email. Tell us which alarm and what it's doing, and send a photo if you can.</span></div></li>
@@ -254,6 +259,10 @@
     document.querySelector(".notice-head p").textContent = care.LEAD;
     document.querySelector(".nsit").textContent = care.SITUATION;
     document.querySelector("#noticeTickRow span").textContent = care.TICK;
+  }
+  if (Date.now() < Date.parse("2027-01-01T00:00:00+10:00")) {
+    document.getElementById("nextYearNotice").hidden = false;
+    if (mode === "inspect") document.getElementById("nextYearWork").textContent = "inspection";
   }
   var alarms = Math.max(0, Math.min(50, parseInt(p.get("alarms"), 10) || 0));
   var ctrl = Math.max(0, Math.min(10, parseInt(p.get("ctrl"), 10) || 0));
