@@ -242,6 +242,9 @@ npx serve .      # then open http://localhost:3000
 
 ## Automatic quote reminders
 
+**Currently paused** by `AUTOMATIC_PAUSED` in `api/_quote-reminders.js`. Set it to `false` and deploy to resume;
+overdue follow-ups then send on the next scheduled runs, one customer per run.
+
 Apply `supabase/quote-reminders.sql` and then `supabase/quote-reminder-scheduler.sql`.
 The worker starts paused. After deploying and checking `/api/pipeline?resource=reminders`,
 activate it with `update public.quote_reminder_worker set active=true where id=true`.

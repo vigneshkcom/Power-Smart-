@@ -206,6 +206,8 @@ async function work({dryRun=false,now=new Date()}={}) {
   }
   return {dry_run:dryRun,due_count:due?.length || 0,inspected,processed:0};
 }
+// Automatic quote follow-ups are paused. Set to false and deploy to resume. Manual "Send reminder now" still works.
+const AUTOMATIC_PAUSED = true;
 async function handler(req,res) {
   res.setHeader('Cache-Control','no-store');
   try {
@@ -214,7 +216,7 @@ async function handler(req,res) {
       const config=first(await SB.sb('quote_reminder_worker?id=eq.true&select=secret,active&limit=1'));
       const supplied=Buffer.from(String(req.headers.authorization || '').replace(/^Bearer /,'')),expected=Buffer.from(config?.secret || '');
       if(!expected.length || supplied.length!==expected.length || !crypto.timingSafeEqual(supplied,expected))return res.status(401).json({error:'Invalid worker credentials'});
-      if(!config.active)return res.status(200).json({skipped:'Worker paused'});
+      if(AUTOMATIC_PAUSED || !config.active)return res.status(200).json({skipped:'Worker paused'});
       const result=await work();
       await SB.sb('quote_reminder_worker?id=eq.true',{method:'PATCH',body:{last_run_at:new Date().toISOString(),last_result:result},prefer:'return=minimal'});
       return res.status(200).json(result);
